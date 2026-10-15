@@ -12,6 +12,7 @@ import (
 	"charm.land/fantasy/providers/openaicompat"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/discover"
+	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -358,6 +359,39 @@ func TestRunSubAgent(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.NotEmpty(t, setupCalledWith, "SessionSetup should have been called")
+	})
+
+	t.Run("sub-agent inherits auto-approval from parent session", func(t *testing.T) {
+		for _, parentApproved := range []bool{true, false} {
+			env := testEnv(t)
+			coord := newTestCoordinator(t, env, providerID, providerCfg)
+			perms := permission.NewPermissionService(env.workingDir, false, nil)
+			coord.permissions = perms
+
+			parentSession, err := env.sessions.Create(t.Context(), "Parent")
+			require.NoError(t, err)
+			if parentApproved {
+				perms.AutoApproveSession(parentSession.ID)
+			}
+
+			var childSessionID string
+			agent := newMockAgent(providerID, 4096, func(_ context.Context, call SessionAgentCall) (*fantasy.AgentResult, error) {
+				childSessionID = call.SessionID
+				return agentResultWithText("ok"), nil
+			})
+
+			_, err = coord.runSubAgent(t.Context(), subAgentParams{
+				Agent:          agent,
+				SessionID:      parentSession.ID,
+				AgentMessageID: "msg-1",
+				ToolCallID:     "call-1",
+				Prompt:         "test",
+				SessionTitle:   "Test",
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, childSessionID)
+			assert.Equal(t, parentApproved, perms.SessionAutoApproved(childSessionID))
+		}
 	})
 
 	t.Run("cost propagation to parent session", func(t *testing.T) {

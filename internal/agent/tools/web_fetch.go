@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/charmbracelet/crush/internal/permission"
 )
 
 //go:embed web_fetch.md.tpl
@@ -21,8 +22,9 @@ var webFetchDescriptionTpl = template.Must(
 		Parse(string(webFetchDescriptionTmpl)),
 )
 
-// NewWebFetchTool creates a simple web fetch tool for sub-agents (no permissions needed).
-func NewWebFetchTool(workingDir string, client *http.Client) fantasy.AgentTool {
+// NewWebFetchTool creates a simple web fetch tool for sub-agents. Each fetch
+// asks for permission because it makes an outbound request.
+func NewWebFetchTool(permissions permission.Service, workingDir string, client *http.Client) fantasy.AgentTool {
 	if client == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.MaxIdleConns = 100
@@ -41,6 +43,30 @@ func NewWebFetchTool(workingDir string, client *http.Client) fantasy.AgentTool {
 		func(ctx context.Context, params WebFetchParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if params.URL == "" {
 				return fantasy.NewTextErrorResponse("url is required"), nil
+			}
+
+			sessionID := GetSessionFromContext(ctx)
+			if sessionID == "" {
+				return fantasy.ToolResponse{}, fmt.Errorf("session ID is required for fetching a URL")
+			}
+
+			p, err := permissions.Request(
+				ctx,
+				permission.CreatePermissionRequest{
+					SessionID:   sessionID,
+					Path:        workingDir,
+					ToolCallID:  call.ID,
+					ToolName:    WebFetchToolName,
+					Action:      "fetch",
+					Description: fmt.Sprintf("Fetch content from URL: %s", params.URL),
+					Params:      params,
+				},
+			)
+			if err != nil {
+				return fantasy.ToolResponse{}, err
+			}
+			if !p {
+				return NewPermissionDeniedResponse(), nil
 			}
 
 			content, err := FetchURLAndConvert(ctx, client, params.URL)

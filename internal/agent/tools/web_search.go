@@ -3,12 +3,14 @@ package tools
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/charmbracelet/crush/internal/permission"
 )
 
 //go:embed web_search.md.tpl
@@ -19,8 +21,9 @@ var webSearchDescriptionTpl = template.Must(
 		Parse(string(webSearchDescriptionTmpl)),
 )
 
-// NewWebSearchTool creates a web search tool for sub-agents (no permissions needed).
-func NewWebSearchTool(client *http.Client) fantasy.AgentTool {
+// NewWebSearchTool creates a web search tool for sub-agents. Each search asks
+// for permission because it sends the query to DuckDuckGo.
+func NewWebSearchTool(permissions permission.Service, workingDir string, client *http.Client) fantasy.AgentTool {
 	if client == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.MaxIdleConns = 100
@@ -39,6 +42,30 @@ func NewWebSearchTool(client *http.Client) fantasy.AgentTool {
 		func(ctx context.Context, params WebSearchParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if params.Query == "" {
 				return fantasy.NewTextErrorResponse("query is required"), nil
+			}
+
+			sessionID := GetSessionFromContext(ctx)
+			if sessionID == "" {
+				return fantasy.ToolResponse{}, fmt.Errorf("session ID is required for searching the web")
+			}
+
+			p, err := permissions.Request(
+				ctx,
+				permission.CreatePermissionRequest{
+					SessionID:   sessionID,
+					Path:        workingDir,
+					ToolCallID:  call.ID,
+					ToolName:    WebSearchToolName,
+					Action:      "search",
+					Description: fmt.Sprintf("Search the web with DuckDuckGo for: %s", params.Query),
+					Params:      params,
+				},
+			)
+			if err != nil {
+				return fantasy.ToolResponse{}, err
+			}
+			if !p {
+				return NewPermissionDeniedResponse(), nil
 			}
 
 			maxResults := params.MaxResults

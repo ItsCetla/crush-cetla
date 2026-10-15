@@ -68,20 +68,6 @@ func NewSourcegraphTool(permissions permission.Service, workingDir string, clien
 	if permissions == nil {
 		panic("sourcegraph tool requires a permission service")
 	}
-	return newSourcegraphTool(permissions, workingDir, client)
-}
-
-// NewPreapprovedSourcegraphTool returns the sourcegraph tool without its
-// per-call permission request. Only use it inside a tool whose own
-// permission request already covered sending queries to the web, such as
-// the agentic_fetch sub-agent.
-func NewPreapprovedSourcegraphTool(client *http.Client) fantasy.AgentTool {
-	return newSourcegraphTool(nil, "", client)
-}
-
-// newSourcegraphTool builds the sourcegraph tool. A nil permissions service
-// means the caller has already obtained permission for every call.
-func newSourcegraphTool(permissions permission.Service, workingDir string, client *http.Client) fantasy.AgentTool {
 	if client == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.MaxIdleConns = 100
@@ -111,30 +97,28 @@ func newSourcegraphTool(permissions permission.Service, workingDir string, clien
 				params.ContextWindow = 10 // Default context window
 			}
 
-			if permissions != nil {
-				sessionID := GetSessionFromContext(ctx)
-				if sessionID == "" {
-					return fantasy.ToolResponse{}, fmt.Errorf("session ID is required for searching Sourcegraph")
-				}
+			sessionID := GetSessionFromContext(ctx)
+			if sessionID == "" {
+				return fantasy.ToolResponse{}, fmt.Errorf("session ID is required for searching Sourcegraph")
+			}
 
-				p, err := permissions.Request(
-					ctx,
-					permission.CreatePermissionRequest{
-						SessionID:   sessionID,
-						Path:        workingDir,
-						ToolCallID:  call.ID,
-						ToolName:    SourcegraphToolName,
-						Action:      "search",
-						Description: fmt.Sprintf("Send search query to sourcegraph.com: %s", params.Query),
-						Params:      SourcegraphPermissionsParams(params),
-					},
-				)
-				if err != nil {
-					return fantasy.ToolResponse{}, err
-				}
-				if !p {
-					return NewPermissionDeniedResponse(), nil
-				}
+			p, err := permissions.Request(
+				ctx,
+				permission.CreatePermissionRequest{
+					SessionID:   sessionID,
+					Path:        workingDir,
+					ToolCallID:  call.ID,
+					ToolName:    SourcegraphToolName,
+					Action:      "search",
+					Description: fmt.Sprintf("Send search query to sourcegraph.com: %s", params.Query),
+					Params:      SourcegraphPermissionsParams(params),
+				},
+			)
+			if err != nil {
+				return fantasy.ToolResponse{}, err
+			}
+			if !p {
+				return NewPermissionDeniedResponse(), nil
 			}
 
 			// Handle timeout with context

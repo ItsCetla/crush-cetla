@@ -77,7 +77,7 @@ func (c *coordinator) agenticFetchTool(_ context.Context, client *http.Client) (
 			if params.URL != "" {
 				description = fmt.Sprintf("Fetch and analyze content from URL: %s", params.URL)
 			} else {
-				description = "Search the web and analyze results"
+				description = "Search the web with DuckDuckGo and analyze results"
 			}
 
 			p, err := c.permissions.Request(
@@ -162,17 +162,16 @@ func (c *coordinator) agenticFetchTool(_ context.Context, client *http.Client) (
 				return fantasy.ToolResponse{}, errors.New("small model provider not configured")
 			}
 
-			// The sub-agent's network tools (web_fetch, web_search and
-			// sourcegraph) do not ask for permission again: the
-			// agentic_fetch permission request above covers them.
-			webFetchTool := tools.NewWebFetchTool(tmpDir, client)
-			webSearchTool := tools.NewWebSearchTool(client)
+			// The sub-agent's session is not auto-approved, so every outbound
+			// request it makes asks for permission on its own.
+			webFetchTool := tools.NewWebFetchTool(c.permissions, tmpDir, client)
+			webSearchTool := tools.NewWebSearchTool(c.permissions, tmpDir, client)
 			fetchTools := []fantasy.AgentTool{
 				webFetchTool,
 				webSearchTool,
 				tools.NewGlobTool(tmpDir, c.cfg.Config().Tools.Glob),
 				tools.NewGrepTool(tmpDir, c.cfg.Config().Tools.Grep),
-				tools.NewPreapprovedSourcegraphTool(client),
+				tools.NewSourcegraphTool(c.permissions, tmpDir, client),
 				tools.NewViewTool(c.lspManager, c.permissions, c.filetracker, nil, tmpDir),
 			}
 
@@ -200,9 +199,6 @@ func (c *coordinator) agenticFetchTool(_ context.Context, client *http.Client) (
 				ToolCallID:     call.ID,
 				Prompt:         fullPrompt,
 				SessionTitle:   "Fetch Analysis",
-				SessionSetup: func(sessionID string) {
-					c.permissions.AutoApproveSession(sessionID)
-				},
 			})
 		},
 	), nil

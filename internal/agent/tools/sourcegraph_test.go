@@ -205,16 +205,4 @@ func TestSourcegraphToolAsksPermission(t *testing.T) {
 		require.Len(t, permissions.requests, 1)
 		require.Equal(t, []string{sourcegraphAPIURL}, transport.urls)
 	})
-
-	t.Run("preapproved tool skips the prompt", func(t *testing.T) {
-		t.Parallel()
-
-		transport := &countingTransport{}
-		tool := NewPreapprovedSourcegraphTool(&http.Client{Transport: transport})
-
-		resp := runSourcegraphTool(t, tool, "func main lang:go")
-
-		require.False(t, resp.IsError, resp.Content)
-		require.Equal(t, []string{sourcegraphAPIURL}, transport.urls)
-	})
 }
