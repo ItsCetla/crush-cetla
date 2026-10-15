@@ -225,7 +225,7 @@ func (s *ConfigStore) lockConfig(scope Scope) (func(), error) {
 		s.mu.Unlock()
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		s.mu.Unlock()
 		return nil, fmt.Errorf("create config directory: %w", err)
 	}
@@ -1042,7 +1042,7 @@ func (s *ConfigStore) withRefreshLock(providerID string, fn func() error) error 
 // path).
 func (s *ConfigStore) refreshLockPath(providerID string) string {
 	dir := filepath.Join(filepath.Dir(s.globalDataPath), "locks")
-	_ = os.MkdirAll(dir, 0o755)
+	_ = os.MkdirAll(dir, 0o700)
 	return filepath.Join(dir, fmt.Sprintf("%s.refresh.lock", providerID))
 }
 
