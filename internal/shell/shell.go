@@ -185,7 +185,8 @@ func (s *Shell) SetBlockFuncs(blockFuncs []BlockFunc) {
 	s.blockFuncs = blockFuncs
 }
 
-// CommandsBlocker creates a BlockFunc that blocks exact command matches
+// CommandsBlocker creates a BlockFunc that blocks the given commands,
+// whether invoked by name or by path (/usr/bin/curl).
 func CommandsBlocker(cmds []string) BlockFunc {
 	bannedSet := make(map[string]struct{})
 	for _, cmd := range cmds {
@@ -196,7 +197,7 @@ func CommandsBlocker(cmds []string) BlockFunc {
 		if len(args) == 0 {
 			return false
 		}
-		_, ok := bannedSet[args[0]]
+		_, ok := bannedSet[CommandName(args[0])]
 		return ok
 	}
 }
@@ -204,7 +205,7 @@ func CommandsBlocker(cmds []string) BlockFunc {
 // ArgumentsBlocker creates a BlockFunc that blocks specific subcommand
 func ArgumentsBlocker(cmd string, args []string, flags []string) BlockFunc {
 	return func(parts []string) bool {
-		if len(parts) == 0 || parts[0] != cmd {
+		if len(parts) == 0 || CommandName(parts[0]) != cmd {
 			return false
 		}
 

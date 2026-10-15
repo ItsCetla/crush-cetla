@@ -331,16 +331,20 @@ func builtinHandler() execMiddleware {
 
 // blockHandler returns middleware that rejects commands matched by any of
 // the provided [BlockFunc]s before they reach the underlying exec path.
-// A nil or empty blockFuncs slice is a no-op.
+// Every command the argv runs on its behalf (see [CommandVariants]) is
+// checked too, so `env curl`, `timeout 5 curl` or `sh -c 'curl ...'` are
+// blocked like `curl`. A nil or empty blockFuncs slice is a no-op.
 func blockHandler(blockFuncs []BlockFunc) execMiddleware {
 	return func(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 		return func(ctx context.Context, args []string) error {
-			if len(args) == 0 {
+			if len(args) == 0 || len(blockFuncs) == 0 {
 				return next(ctx, args)
 			}
-			for _, blockFunc := range blockFuncs {
-				if blockFunc(args) {
-					return fmt.Errorf("command is not allowed for security reasons: %q", args[0])
+			for _, variant := range CommandVariants(args) {
+				for _, blockFunc := range blockFuncs {
+					if blockFunc(variant) {
+						return fmt.Errorf("command is not allowed for security reasons: %q", variant[0])
+					}
 				}
 			}
 			return next(ctx, args)
