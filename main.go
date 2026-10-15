@@ -18,9 +18,9 @@ func main() {
 	cmd.Execute()
 }
 
-// servePprof serves the pprof handlers on localhost. They are registered on
-// a dedicated mux rather than http.DefaultServeMux, so nothing else in the
-// process can expose them by accident.
+// servePprof serves the pprof handlers on localhost from a dedicated mux.
+// Importing net/http/pprof still registers them on http.DefaultServeMux in
+// its init, so nothing in crush may ever serve DefaultServeMux.
 func servePprof() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
