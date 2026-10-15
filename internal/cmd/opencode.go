@@ -94,6 +94,11 @@ func printOpenCodeStatus(w io.Writer, st config.OpenCodeStatus) {
 			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", m.Name, m.Type, truncate(m.Target, 60), m.State)
 		}
 		tw.Flush()
+		for _, m := range st.MCP {
+			if m.Fetch != "" {
+				fmt.Fprintf(w, "  network: %s: %s\n", m.Name, m.Fetch)
+			}
+		}
 	}
 
 	fmt.Fprintln(w)

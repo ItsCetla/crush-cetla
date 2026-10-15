@@ -19,6 +19,9 @@ type OpenCodeMCPStatus struct {
 	Type   string // "local" or "remote"
 	Target string // command line or URL
 	State  string
+	// Fetch explains how the server's command reaches a package registry
+	// each time it starts, when it does.
+	Fetch string
 }
 
 // OpenCodeCatalogStatus describes OpenCode's cached models.dev catalog.
@@ -147,9 +150,34 @@ func mcpStatus(name string, srv opencode.MCPServer, current MCPs, enabled bool) 
 			st.State = "imported (disabled)"
 		default:
 			st.State = "imported"
+			st.Fetch = packageFetch(srv.Command)
 		}
 	}
 	return st
+}
+
+// packageFetch reports whether an MCP command line runs a package runner
+// that contacts a package registry each time the server starts.
+func packageFetch(command []string) string {
+	args := strings.Fields(strings.Join(command, " "))
+	offline := slices.ContainsFunc(args, func(a string) bool {
+		return a == "--offline" || a == "--prefer-offline"
+	})
+	for i, a := range args {
+		switch base := a[strings.LastIndex(a, "/")+1:]; {
+		case base == "npx" && !offline:
+			return "npx contacts the npm registry every time it starts, even for a pinned version; add --prefer-offline to use the cached copy, or install the package and run its binary"
+		case base == "bunx",
+			(base == "pnpm" || base == "yarn") && i+1 < len(args) && args[i+1] == "dlx":
+			return base + " can download packages from the registry when it starts; install the package and run its binary instead"
+		}
+	}
+	for _, a := range args {
+		if !offline && strings.HasSuffix(a, "@latest") {
+			return a + " asks the package registry for the newest version every time it starts; pin a version"
+		}
+	}
+	return ""
 }
 
 func (s *ConfigStore) openCodeCatalogStatus(ctx context.Context) (*OpenCodeCatalogStatus, error) {
