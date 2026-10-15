@@ -157,28 +157,6 @@ tasks:
     generates:
       - ./internal/agent/hyper/provider.json
 
-  release:
-    desc: Create and push a new tag following semver
-    vars:
-      NEXT:
-        sh: svu next --always || go run github.com/caarlos0/svu/v3@latest next --always
-    prompt: "This will release {{.NEXT}}. Continue?"
-    preconditions:
-      - sh: '[ $(git symbolic-ref --short HEAD) = "main" ]'
-        msg: Not on main branch
-      - sh: "[ $(git status --porcelain=2 | wc -l) = 0 ]"
-        msg: "Git is dirty"
-      - sh: 'gh run list --workflow build.yml --commit $(git rev-parse HEAD) --status success --json conclusion -q ".[0].conclusion" | grep -q success'
-        msg: "Test build for this commit failed or not present"
-      - sh: 'gh run list --workflow snapshot.yml --commit $(git rev-parse HEAD) --status success --json conclusion -q ".[0].conclusion" | grep -q success'
-        msg: "Snapshot build for this commit failed or not present"
-    cmds:
-      - task: fetch-tags
-      - git commit --allow-empty -m "{{.NEXT}}"
-      - git tag --annotate --sign -m "{{.NEXT}}" {{.NEXT}} {{.CLI_ARGS}}
-      - echo "Pushing {{.NEXT}}..."
-      - git push origin main --follow-tags
-
   fetch-tags:
     cmds:
       - git tag -d nightly || true
@@ -186,11 +164,6 @@ tasks:
 
   deps:
     desc: Update Fantasy and Catwalk
-    env:
-      # The Go proxy takes a bit of time to see the latest release. Setting
-      # these bypass it to ensure we can update to a release from a minute ago.
-      GOPROXY: direct
-      GONOSUMDB: charm.land/*
     cmds:
       - go get charm.land/fantasy@latest
       - go get charm.land/catwalk@latest
