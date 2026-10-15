@@ -20,8 +20,10 @@ that talks to nobody but the model providers and MCP servers you configure:
   Hyper catalog fetches at startup, the Hyper vendor service and the forced
   Termux DNS resolvers are gone. The provider catalog is local; refresh it
   only by running `crush update-providers`.
-- **Agent tools that reach third parties ask first.** Sourcegraph searches
-  now need approval like `fetch` does.
+- **Web tools are off.** `fetch`, `agentic_fetch`, `download` and
+  `sourcegraph` are hidden from the agent until you turn them on with
+  `option web-tools true` (or `options.enable_web_tools`, or
+  `CRUSH_ENABLE_WEB_TOOLS=1`). Even then, every request asks first.
 - **Untrusted projects stay inert.** A cloned repo's `crush.json`, `crushrc`,
   `.crush/crush.json` and OpenCode config are ignored until you run
   `crush trust` (see [Project trust](#configuration)). `.env` files are no
@@ -29,8 +31,10 @@ that talks to nobody but the model providers and MCP servers you configure:
 - **Stricter bash auto-approval.** Only a single, parsed, read-only command
   runs without a prompt; wrappers like `env`/`timeout`, redirections and
   multi-line commands always ask.
-- **OpenCode import.** MCP servers, provider settings and the models.dev
-  catalog are picked up from a local OpenCode install. See
+- **OpenCode import.** MCP servers, providers, model choices, the cached
+  models.dev catalog, rules, skills, custom commands, tool toggles and
+  file-edit permissions are picked up from a local OpenCode install, read
+  from disk only. OpenCode plugins are never run. See
   [Importing from OpenCode](#importing-from-opencode).
 
 ## Features
@@ -459,12 +463,22 @@ By default, Crush will ask you for permission before running tool calls. If
 you'd like, you can allow tools to be executed without prompting you for
 permissions. Use this with care.
 
-Tools that reach the network ask before every call unless allowed here:
-`fetch`, `download`, `agentic_fetch`, and `sourcegraph`, which sends its search
-query to sourcegraph.com.
+The tools that reach the network (`fetch`, `download`, `agentic_fetch`, and
+`sourcegraph`, which sends its search query to sourcegraph.com) are off until
+you enable them with `option web-tools true`. Once enabled, they ask before
+every call unless allowed here.
 
 ```bash
 permissions allow view ls grep edit mcp_context7_get-library-doc
+```
+
+To skip the prompt for file edits only when the file is inside the project,
+use `allow-in-project` instead (`permissions.project_allowed_tools` in
+`crush.json`). Edits outside the project, including through symlinks, still
+ask:
+
+```bash
+permissions allow-in-project edit multiedit write
 ```
 
 ### Disabling Built-In Tools
@@ -862,14 +876,21 @@ crush update-providers --help
 ## Importing from OpenCode
 
 If you use [OpenCode](https://opencode.ai), Crush picks up its setup
-automatically, reading only OpenCode's files on disk. Nothing is fetched.
+automatically, reading only OpenCode's files on disk. Nothing is fetched,
+and OpenCode plugins are never run.
 
 | What | Where it comes from | Default |
 | --- | --- | --- |
 | MCP servers | `mcp` in OpenCode config (V1 and V2 shapes) | on |
-| Provider settings | `provider` / `providers`: base URLs, API keys, headers, custom models | on |
-| Default model | `model` / `small_model`, used only when Crush has no selection | on |
+| Provider settings | `provider` / `providers`: base URLs, API keys, headers, custom models; `enabled_providers` / `disabled_providers` | on |
+| Model choice | The default agent's `model`, else `model`, and `small_model`; used only when Crush has no selection | on |
 | Models catalog | OpenCode's cached models.dev catalog (`opencode.db`, `~/.cache/opencode/models.json` or `$OPENCODE_MODELS_PATH`) | on |
+| Instructions | `instructions` files, plus the global `AGENTS.md` (or `~/.claude/CLAUDE.md`) | on |
+| Skills | `skill(s)/` in OpenCode config directories and `skills.paths` | on |
+| Commands | `command` entries and `command(s)/*.md`, as `opencode:<name>` commands | on |
+| Tool toggles | `tools` toggles for built-in tools and MCP servers | on |
+| Permissions | `"edit": "allow"` and whole-tool `"deny"` rules | on |
+| Compaction | `compaction.auto: false` turns off auto-summarize | on |
 | API keys | `opencode auth login` keys (OAuth logins are never imported) | **off** |
 
 OpenCode config is read from `~/.config/opencode/` (or `$XDG_CONFIG_HOME`,
@@ -877,14 +898,32 @@ OpenCode config is read from `~/.config/opencode/` (or `$XDG_CONFIG_HOME`,
 with `{env:VAR}` and `{file:path}` substituted the way OpenCode does.
 Project-level `opencode.json(c)` and `.opencode/` files are only read in
 projects you have trusted with `crush trust`, and editing them requires
-trusting the project again.
+trusting the project again. Imported settings live in memory only; Crush
+never writes them to its own config.
 
-Crush's own config always wins: an MCP server or provider field set in
-`crush.json` overrides the imported one. The models catalog adds models
-Catwalk lacks to the providers Crush already knows, and lists OpenCode-only
-providers once their API key variable is set or they are configured.
+Crush's own config always wins: an MCP server, provider field or model
+selection set in Crush overrides the imported one. The models catalog adds
+the models Catwalk lacks to the providers Crush already knows, and lists
+OpenCode-only providers once their API key variable is set or they are
+configured. Only chat models that can call tools, from providers Crush can
+talk to, are added.
 
-See what was imported with:
+Some settings can't be carried over exactly, and the import never loosens
+anything else:
+
+- `"edit": "allow"` lets `edit`, `multiedit`, `write` and
+  `lsp_replace_symbol` run without a prompt, but only for files inside the
+  project (see `project_allowed_tools` under [Allowing Tools](#allowing-tools)).
+  Other `allow` rules are not imported, so Crush keeps prompting for
+  commands, web access and MCP tools.
+- A whole-tool `"deny"` rule or a `false` tools toggle hides the matching
+  tools. A toggle that an OpenCode agent turns back on is skipped.
+- Commands run in the current session; their `agent`, `model` and `subtask`
+  settings are ignored. `$1`, `$2`, … and `$ARGUMENTS` become Crush command
+  arguments.
+- Remote instructions (URLs) are never fetched.
+
+See what was imported, and what was skipped and why, with:
 
 ```bash
 crush opencode
@@ -899,17 +938,25 @@ Tune or turn it off in `crush.json`:
       "mcp": true,
       "providers": true,
       "models": true,
-      "credentials": false
+      "credentials": false,
+      "instructions": true,
+      "skills": true,
+      "commands": true,
+      "tools": true,
+      "permissions": true,
+      "compaction": true
     }
   }
 }
 ```
 
 Set `"disabled": true` there, or `CRUSH_DISABLE_OPENCODE=1`, to turn the import
-off entirely. Imported remote MCP servers connect to their URLs like any
-other configured server; an OpenCode remote server only uses OAuth in Crush
-when its config has an explicit `oauth` block (add `"oauth": true` for it in
-`crush.json` otherwise).
+off entirely. `"providers": false` also turns off the model choice and
+OpenCode's `enabled_providers` / `disabled_providers` filter. Imported remote
+MCP servers connect to their URLs like any other configured server; an
+OpenCode remote server only uses OAuth in Crush when its config has an
+explicit `oauth` block (add `"oauth": true` for it in `crush.json`
+otherwise).
 
 ## Privacy
 

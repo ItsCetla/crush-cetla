@@ -427,8 +427,9 @@ Usage:
   permissions [command]
 
 Available Commands:
-  allow     Allow tools without prompting
-  deny      Hide tools from the agent
+  allow             Allow tools without prompting
+  allow-in-project  Allow file tools without prompting inside the project
+  deny              Hide tools from the agent
 ```
 
 #### `permissions allow`
@@ -438,6 +439,17 @@ Allow one or more tools to run without prompting.
 ```text
 Usage:
   permissions allow <tool> [<tool> ...]
+```
+
+#### `permissions allow-in-project`
+
+Let file-writing tools (`edit`, `multiedit`, `write`, `lsp_replace_symbol`)
+run without prompting when the file is inside the project. Writes outside the
+project still ask. Changes take effect the next time Crush starts.
+
+```text
+Usage:
+  permissions allow-in-project <tool> [<tool> ...]
 ```
 
 #### `permissions deny`
@@ -450,7 +462,8 @@ Usage:
 ```
 
 ```bash
-permissions allow view ls grep edit
+permissions allow view ls grep
+permissions allow-in-project edit multiedit write
 permissions deny bash
 ```
 
@@ -473,6 +486,8 @@ Boolean Keys:
   debug-lsp                      enable LSP debug logging
   auto-lsp                       automatically configure language servers
   progress                       show progress indicators
+  web-tools                      let the agent use fetch, agentic_fetch,
+                                 download and sourcegraph (off by default)
   auto-summarize                 automatically summarize long conversations
   provider-auto-update           deprecated; has no effect
   default-providers              include built-in providers

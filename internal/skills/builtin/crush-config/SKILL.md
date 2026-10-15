@@ -164,11 +164,17 @@ hook add PreToolUse --matcher "^bash$" --command ".crush/hooks/no-haskell.sh" --
 
 ```bash
 permissions allow <tool> [<tool> ...]   # tools that skip permission prompts
+permissions allow-in-project <tool> ... # file tools, inside the project only
 permissions deny <tool> [<tool> ...]    # hide tools from the agent entirely
 ```
 
 `deny` is the inverse of `allow`: it writes `options.disabled_tools`. A denied
 tool is hidden from the agent, not merely prompted for.
+
+`allow-in-project` (`permissions.project_allowed_tools` in crush.json) is
+narrower than `allow`: the listed file tools (`edit`, `multiedit`, `write`, `lsp_replace_symbol`)
+skip the prompt only for files inside the project, and still ask for paths
+outside it. It takes effect on the next start.
 
 ### options
 
@@ -178,7 +184,10 @@ option reset <list-key>    # clear a list option back to empty
 ```
 
 - **Boolean keys** (value optional, defaults `true`): `debug`, `debug-lsp`,
-  `auto-lsp`, `progress`.
+  `auto-lsp`, `progress`, `web-tools`. `web-tools` turns on the tools that
+  reach the internet (`fetch`, `agentic_fetch`, `download`, `sourcegraph`);
+  they are hidden until it is set, and still ask before every request.
+  `CRUSH_ENABLE_WEB_TOOLS` overrides it.
 - **Boolean keys phrased positively** (stored as the negated field):
   `auto-summarize`, `default-providers`. Example: `option auto-summarize false`
   disables automatic summarization. `provider-auto-update` and `metrics` are
@@ -392,14 +401,27 @@ their behalf.
 
 ### OpenCode import
 
-Crush also imports MCP servers, provider settings (base URLs, API keys,
-custom models), the default model and OpenCode's cached models.dev catalog
-from a local OpenCode install (`~/.config/opencode/opencode.json(c)` and
-OpenCode's cache/database). `crush.json` always wins over imported values.
+Crush also imports from a local OpenCode install
+(`~/.config/opencode/opencode.json(c)`, `.opencode/` folders and OpenCode's
+cache/database), reading files only; OpenCode plugins are never run:
+
+- MCP servers, and provider settings (base URLs, API keys, custom models,
+  `enabled_providers` / `disabled_providers`).
+- The model choice: the default agent's model, else `model`, and
+  `small_model`, when Crush has no model selected.
+- OpenCode's cached models.dev catalog (tool-calling chat models only).
+- `instructions` and global `AGENTS.md` as context files, skill folders,
+  custom commands (run as `opencode:<name>`), tool toggles and `deny`
+  permissions (hide tools), `edit: allow` (as
+  `permissions.project_allowed_tools`), and `compaction.auto: false`.
+
+Imported values live in memory only and `crush.json` always wins.
 Project-level `opencode.json(c)` and `.opencode/` files are covered by the
-same trust check. `crush opencode` shows what was imported. Configure it
-with `options.opencode` (`mcp`, `providers`, `models`: default true;
-`credentials`: default false, uses `opencode auth login` API keys;
-`disabled`: turn it all off) or `CRUSH_DISABLE_OPENCODE=1`. When a user wants
-an OpenCode MCP server or provider changed only for Crush, define it in
-crush.json instead of editing their OpenCode config.
+same trust check. `crush opencode` shows what was imported and what was
+skipped and why. Configure it with `options.opencode`: `mcp`, `providers`
+(also the model choice), `models`, `instructions`, `skills`, `commands`,
+`tools`, `permissions` and `compaction` default to true; `credentials`
+defaults to false and uses `opencode auth login` API keys; `disabled` turns
+it all off, as does `CRUSH_DISABLE_OPENCODE=1`. When a user wants an
+OpenCode setting changed only for Crush, set it in crush.json instead of
+editing their OpenCode config.
