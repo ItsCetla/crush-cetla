@@ -3,6 +3,7 @@ package log
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -69,5 +70,60 @@ func TestFormatHeaders(t *testing.T) {
 	}
 	if formatted["User-Agent"][0] != "test-agent" {
 		t.Error("User-Agent header should be preserved")
+	}
+}
+
+func TestFormatHeadersRedactsCredentials(t *testing.T) {
+	headers := http.Header{}
+	for _, name := range []string{
+		"Authorization",
+		"Proxy-Authorization",
+		"X-Api-Key",
+		"Api-Key",
+		"X-Goog-Api-Key",
+		"Cookie",
+		"Set-Cookie",
+		"X-Session-Token",
+		"X-Client-Secret",
+	} {
+		headers.Set(name, "sensitive")
+	}
+	headers.Set("Content-Type", "application/json")
+
+	formatted := formatHeaders(headers)
+	for name, values := range formatted {
+		if name == "Content-Type" {
+			if values[0] != "application/json" {
+				t.Errorf("%s header should be preserved", name)
+			}
+			continue
+		}
+		if values[0] != "[REDACTED]" {
+			t.Errorf("%s header should be redacted, got %q", name, values[0])
+		}
+	}
+}
+
+func TestRedactURL(t *testing.T) {
+	tests := map[string]string{
+		"https://example.com/v1/models?key=abc123&alt=sse": "https://example.com/v1/models?key=[REDACTED]&alt=sse",
+		"https://example.com/v1/models?alt=sse&KEY=abc123": "https://example.com/v1/models?alt=sse&KEY=[REDACTED]",
+		"https://user:pass@example.com/path":               "https://user:xxxxx@example.com/path",
+		"https://example.com/path?monkey=1":                "https://example.com/path?monkey=1",
+	}
+	for raw, want := range tests {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := redactURL(u); got != want {
+			t.Errorf("redactURL(%q) = %q, want %q", raw, got, want)
+		}
+	}
+
+	errMsg := `Post "https://example.com/v1?key=abc123": dial tcp: connection refused`
+	want := `Post "https://example.com/v1?key=[REDACTED]": dial tcp: connection refused`
+	if got := redactKeyParam(errMsg); got != want {
+		t.Errorf("redactKeyParam() = %q, want %q", got, want)
 	}
 }

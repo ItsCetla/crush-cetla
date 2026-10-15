@@ -6,9 +6,27 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// sensitiveHeaders are logged as [REDACTED]. Any header whose name contains
+// "token" or "secret" is redacted as well.
+var sensitiveHeaders = map[string]bool{
+	"authorization":       true,
+	"proxy-authorization": true,
+	"x-api-key":           true,
+	"api-key":             true,
+	"x-goog-api-key":      true,
+	"cookie":              true,
+	"set-cookie":          true,
+}
+
+// keyParamPattern matches the value of a key query parameter, which some
+// providers use to carry the API key.
+var keyParamPattern = regexp.MustCompile(`(?i)([?&]key=)[^&#\s"]*`)
 
 // NewHTTPClient creates an HTTP client with debug logging enabled when debug mode is on.
 func NewHTTPClient() *http.Client {
@@ -33,8 +51,8 @@ func (h *HTTPRoundTripLogger) RoundTrip(req *http.Request) (*http.Response, erro
 		slog.Error(
 			"HTTP request failed",
 			"method", req.Method,
-			"url", req.URL,
-			"error", err,
+			"url", redactURL(req.URL),
+			"error", redactKeyParam(err.Error()),
 		)
 		return nil, err
 	}
@@ -43,7 +61,7 @@ func (h *HTTPRoundTripLogger) RoundTrip(req *http.Request) (*http.Response, erro
 		slog.Debug(
 			"HTTP Request",
 			"method", req.Method,
-			"url", req.URL,
+			"url", redactURL(req.URL),
 			"body", bodyToString(save),
 		)
 	}
@@ -55,9 +73,9 @@ func (h *HTTPRoundTripLogger) RoundTrip(req *http.Request) (*http.Response, erro
 		slog.Error(
 			"HTTP request failed",
 			"method", req.Method,
-			"url", req.URL,
+			"url", redactURL(req.URL),
 			"duration_ms", duration.Milliseconds(),
-			"error", err,
+			"error", redactKeyParam(err.Error()),
 		)
 		return resp, err
 	}
@@ -98,13 +116,28 @@ func bodyToString(body io.ReadCloser) string {
 	return b.String()
 }
 
+// redactURL returns the URL for logging with any password and key query
+// parameter value redacted.
+func redactURL(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	return redactKeyParam(u.Redacted())
+}
+
+// redactKeyParam redacts key query parameter values found in s.
+func redactKeyParam(s string) string {
+	return keyParamPattern.ReplaceAllString(s, "${1}[REDACTED]")
+}
+
 // formatHeaders formats HTTP headers for logging, filtering out sensitive information.
 func formatHeaders(headers http.Header) map[string][]string {
 	filtered := make(map[string][]string)
 	for key, values := range headers {
 		lowerKey := strings.ToLower(key)
 		// Filter out sensitive headers
-		if strings.Contains(lowerKey, "authorization") ||
+		if sensitiveHeaders[lowerKey] ||
+			strings.Contains(lowerKey, "authorization") ||
 			strings.Contains(lowerKey, "api-key") ||
 			strings.Contains(lowerKey, "token") ||
 			strings.Contains(lowerKey, "secret") {
