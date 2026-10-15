@@ -218,6 +218,7 @@ type MCPConfig struct {
 	Command       string            `json:"command,omitempty" jsonschema:"description=Command to execute for stdio MCP servers,example=npx"`
 	Env           map[string]string `json:"env,omitempty" jsonschema:"description=Environment variables to set for the MCP server"`
 	Args          []string          `json:"args,omitempty" jsonschema:"description=Arguments to pass to the MCP server command"`
+	Cwd           string            `json:"cwd,omitempty" jsonschema:"description=Working directory for stdio MCP servers. Relative paths resolve against the project directory,example=./tools"`
 	Type          MCPType           `json:"type" jsonschema:"required,description=Type of MCP connection,enum=stdio,enum=sse,enum=http,default=stdio"`
 	URL           string            `json:"url,omitempty" jsonschema:"description=URL for HTTP or SSE MCP servers,format=uri,example=http://localhost:3000/mcp"`
 	Disabled      bool              `json:"disabled,omitempty" jsonschema:"description=Whether this MCP server is disabled,default=false"`
@@ -490,6 +491,7 @@ type Options struct {
 	Notifications             string       `json:"notifications,omitempty" jsonschema:"description=Notification style to use. Options: auto (default)\\, native\\, osc\\, bell\\, disabled. Auto selects based on environment: native for local sessions\\, osc for SSH (with automatic OSC 99/777 detection).,enum=auto,enum=native,enum=osc,enum=bell,enum=disabled,default=auto"`
 	DisabledSkills            []string     `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
 	RequestTimeout            *int         `json:"request_timeout,omitempty" jsonschema:"description=Timeout in seconds for each LLM API request. Streaming responses are aborted only after this much inactivity\\, so slow but active streams are never killed. 0 disables it\\, negative values are invalid.,default=60,example=120,example=300,example=0"`
+	OpenCode                  *OpenCodeOptions `json:"opencode,omitempty" jsonschema:"description=Import MCP servers\\, providers and the models catalog from a local OpenCode install. Read from disk only; never fetched"`
 }
 
 // DefaultRequestTimeout bounds each LLM API request when the user has not

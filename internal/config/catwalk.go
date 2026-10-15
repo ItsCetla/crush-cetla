@@ -4,9 +4,11 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"slices"
 
 	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/catwalk/pkg/embedded"
+	"github.com/charmbracelet/crush/internal/opencode"
 )
 
 // loadCatwalkCatalog returns the Catwalk provider catalog saved at path by
@@ -21,7 +23,7 @@ func loadCatwalkCatalog(path string) []catwalk.Provider {
 	switch {
 	case err == nil && len(saved) > 0:
 		slog.Debug("Using saved Catwalk providers", "path", path)
-		return saved
+		return safeCatalog(saved, path)
 	case err == nil:
 		slog.Warn("Saved Catwalk provider catalog is empty, using the embedded one", "path", path)
 	case !errors.Is(err, fs.ErrNotExist):
@@ -29,4 +31,22 @@ func loadCatwalkCatalog(path string) []catwalk.Provider {
 	}
 	slog.Debug("Using embedded Catwalk providers")
 	return embedded.GetAll()
+}
+
+// safeCatalog drops providers whose templated values could do more than
+// read environment variables. The saved catalog came from wherever `crush
+// update-providers` was pointed, and its API key, endpoint and header
+// values are later run through shell-style expansion, so "$(...)" in one
+// would execute.
+func safeCatalog(providers []catwalk.Provider, source string) []catwalk.Provider {
+	return slices.DeleteFunc(slices.Clone(providers), func(p catwalk.Provider) bool {
+		safe := opencode.SafeTemplate(p.APIKey) && opencode.SafeTemplate(p.APIEndpoint)
+		for _, v := range p.DefaultHeaders {
+			safe = safe && opencode.SafeTemplate(v)
+		}
+		if !safe {
+			slog.Warn("Ignoring catalog provider with unsafe templated values", "provider", p.ID, "source", source)
+		}
+		return !safe
+	})
 }

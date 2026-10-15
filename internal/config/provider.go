@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -81,6 +82,13 @@ func UpdateProviders(pathOrURL string) error {
 type catalogSource struct {
 	name string
 	load func() ([]catwalk.Provider, error)
+	// augment adds this source's models to a provider an earlier source
+	// already defined (same ID and type) instead of dropping the
+	// duplicate. The earlier definition still wins for everything else.
+	augment bool
+	// include, when set, filters the providers this source adds that no
+	// earlier source defined.
+	include func(catwalk.Provider) bool
 }
 
 // catalogSources are the sources [Providers] merges, in precedence order:
@@ -112,18 +120,31 @@ func Providers(cfg *Config) ([]catwalk.Provider, error) {
 		if cfg != nil && cfg.Options != nil && cfg.Options.DisableDefaultProviders {
 			return
 		}
-		providerList, providerErr = mergeCatalogs(catalogSources)
+		sources := catalogSources
+		if openCodeSettingsFor(cfgOptions(cfg)).models {
+			sources = append(slices.Clone(sources), openCodeCatalogSource(cfg))
+		}
+		providerList, providerErr = mergeCatalogs(sources)
 	})
 	return providerList, providerErr
 }
 
+func cfgOptions(cfg *Config) *Options {
+	if cfg == nil {
+		return nil
+	}
+	return cfg.Options
+}
+
 // mergeCatalogs loads every source in order and concatenates their
-// providers, keeping only the first definition of each provider ID.
+// providers, keeping only the first definition of each provider ID. An
+// augmenting source contributes the models the first definition lacks.
 func mergeCatalogs(sources []catalogSource) ([]catwalk.Provider, error) {
 	var (
 		merged []catwalk.Provider
 		errs   []error
-		seen   = make(map[catwalk.InferenceProvider]string)
+		index  = make(map[catwalk.InferenceProvider]int)
+		owner  = make(map[catwalk.InferenceProvider]string)
 	)
 	for _, src := range sources {
 		providers, err := src.load()
@@ -131,15 +152,45 @@ func mergeCatalogs(sources []catalogSource) ([]catwalk.Provider, error) {
 			errs = append(errs, fmt.Errorf("%s provider catalog: %w", src.name, err))
 		}
 		for _, p := range providers {
-			if owner, ok := seen[p.ID]; ok {
-				slog.Debug("Ignoring duplicate catalog provider", "provider", p.ID, "source", src.name, "kept_from", owner)
+			if i, ok := index[p.ID]; ok {
+				if src.augment {
+					addMissingModels(&merged[i], p)
+				} else {
+					slog.Debug("Ignoring duplicate catalog provider", "provider", p.ID, "source", src.name, "kept_from", owner[p.ID])
+				}
 				continue
 			}
-			seen[p.ID] = src.name
+			if src.include != nil && !src.include(p) {
+				continue
+			}
+			index[p.ID] = len(merged)
+			owner[p.ID] = src.name
 			merged = append(merged, p)
 		}
 	}
 	return merged, errors.Join(errs...)
+}
+
+// addMissingModels appends the models of src that dst lacks. Providers of
+// different types disagree on model IDs, and so do Bedrock catalogs
+// (Catwalk uses inference-profile IDs), so those are left alone.
+func addMissingModels(dst *catwalk.Provider, src catwalk.Provider) {
+	if dst.Type != src.Type || dst.Type == catwalk.TypeBedrock {
+		return
+	}
+	have := make(map[string]bool, len(dst.Models))
+	for _, m := range dst.Models {
+		have[m.ID] = true
+	}
+	// Clip so appending never writes into an array another catalog copy
+	// shares.
+	models := slices.Clip(dst.Models)
+	for _, m := range src.Models {
+		if !have[m.ID] {
+			models = append(models, m)
+		}
+	}
+	dst.Models = models
 }
 
 type cache[T any] struct {

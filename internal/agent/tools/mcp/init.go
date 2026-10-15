@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"os/exec"
 	"slices"
 	"strings"
@@ -1210,6 +1211,17 @@ func createTransport(ctx context.Context, cfg *config.ConfigStore, name string, 
 		}
 		cmd := exec.CommandContext(ctx, home.Long(command), args...)
 		cmd.Env = append(os.Environ(), envs...)
+		if m.Cwd != "" {
+			dir, err := resolver.ResolveValue(m.Cwd)
+			if err != nil {
+				return nil, nil, fmt.Errorf("invalid mcp cwd: %w", err)
+			}
+			dir = home.Long(dir)
+			if !filepath.IsAbs(dir) {
+				dir = filepath.Join(cfg.WorkingDir(), dir)
+			}
+			cmd.Dir = dir
+		}
 		// Run the child in its own process group and kill the whole group when
 		// the session context is cancelled. A stdio server often spawns its own
 		// children (signal-mcp launches signal-cli); os/exec's default

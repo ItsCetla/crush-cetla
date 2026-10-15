@@ -98,6 +98,13 @@ func resolveWire(npm, api string, env []string) (catwalk.Type, string, bool) {
 	return w.typ, endpoint, true
 }
 
+// WireFor returns the catwalk provider type and endpoint Crush uses for an
+// AI SDK package served at baseURL (which may be empty). ok is false when
+// Crush cannot speak the package's protocol or no endpoint is known.
+func WireFor(npm, baseURL string) (typ catwalk.Type, endpoint string, ok bool) {
+	return resolveWire(npm, baseURL, nil)
+}
+
 // ToCatwalk converts a models.dev catalog into catwalk providers Crush can
 // use directly. Provider IDs go through [CatwalkID]; providers and models
 // are sorted by ID.

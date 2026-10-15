@@ -173,6 +173,7 @@ func mcpConfigEqual(a, b config.MCPConfig) bool {
 	return a.Command == b.Command &&
 		maps.Equal(a.Env, b.Env) &&
 		slices.Equal(a.Args, b.Args) &&
+		a.Cwd == b.Cwd &&
 		a.Type == b.Type &&
 		a.URL == b.URL &&
 		a.Disabled == b.Disabled &&
