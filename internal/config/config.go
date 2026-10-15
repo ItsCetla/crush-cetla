@@ -9,7 +9,9 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -492,10 +494,28 @@ type Options struct {
 	DisabledSkills            []string         `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
 	RequestTimeout            *int             `json:"request_timeout,omitempty" jsonschema:"description=Timeout in seconds for each LLM API request. Streaming responses are aborted only after this much inactivity\\, so slow but active streams are never killed. 0 disables it\\, negative values are invalid.,default=60,example=120,example=300,example=0"`
 	OpenCode                  *OpenCodeOptions `json:"opencode,omitempty" jsonschema:"description=Import MCP servers\\, providers and the models catalog from a local OpenCode install. Read from disk only; never fetched"`
+	EnableWebTools            bool             `json:"enable_web_tools,omitempty" jsonschema:"description=Enable the built-in tools that make outbound network requests for the agent (fetch\\, agentic_fetch\\, download\\, sourcegraph). The CRUSH_ENABLE_WEB_TOOLS environment variable overrides this when set,default=false"`
 	// TrustedPaths lists directories whose projects are trusted without
 	// `crush trust`. It is only read from system and global config: the
 	// trust decision is made before any project config is loaded.
 	TrustedPaths []string `json:"trusted_paths,omitempty" jsonschema:"description=Directories whose projects (and every project below them) are trusted without running crush trust. Project-level config (crush.json\\, crushrc\\, .crush/crush.json) can run commands\\, so only list directories you control. Read only from the global config; ~ is expanded.,example=~/code/mine"`
+}
+
+// webTools are the built-in tools that make outbound network requests on
+// the agent's behalf. They are hidden from every agent unless web tools are
+// enabled.
+var webTools = []string{"agentic_fetch", "download", "fetch", "sourcegraph"}
+
+// WebToolsEnabled reports whether the web tools are available to agents.
+// CRUSH_ENABLE_WEB_TOOLS takes precedence over options.enable_web_tools
+// when it holds a valid boolean.
+func (o *Options) WebToolsEnabled() bool {
+	if str, ok := os.LookupEnv("CRUSH_ENABLE_WEB_TOOLS"); ok {
+		if v, err := strconv.ParseBool(str); err == nil {
+			return v
+		}
+	}
+	return o != nil && o.EnableWebTools
 }
 
 // DefaultRequestTimeout bounds each LLM API request when the user has not
@@ -1118,7 +1138,11 @@ func filterSlice(data []string, mask []string, include bool) []string {
 }
 
 func (c *Config) SetupAgents() {
-	allowedTools := resolveAllowedTools(allToolNames(), c.Options.DisabledTools)
+	disabledTools := c.Options.DisabledTools
+	if !c.Options.WebToolsEnabled() {
+		disabledTools = append(slices.Clone(disabledTools), webTools...)
+	}
+	allowedTools := resolveAllowedTools(allToolNames(), disabledTools)
 
 	agents := map[string]Agent{
 		AgentCoder: {

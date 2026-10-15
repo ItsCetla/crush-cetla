@@ -690,6 +690,11 @@
           "$ref": "#/$defs/OpenCodeOptions",
           "description": "Import MCP servers, providers and the models catalog from a local OpenCode install. Read from disk only; never fetched"
         },
+        "enable_web_tools": {
+          "type": "boolean",
+          "description": "Enable the built-in tools that make outbound network requests for the agent (fetch, agentic_fetch, download, sourcegraph). The CRUSH_ENABLE_WEB_TOOLS environment variable overrides this when set",
+          "default": false
+        },
         "trusted_paths": {
           "items": {
             "type": "string",

@@ -821,7 +821,8 @@ func TestConfig_IsConfigured(t *testing.T) {
 func TestConfig_setupAgentsWithNoDisabledTools(t *testing.T) {
 	cfg := &Config{
 		Options: &Options{
-			DisabledTools: []string{},
+			EnableWebTools: true,
+			DisabledTools:  []string{},
 		},
 	}
 
@@ -842,6 +843,7 @@ func TestConfig_setupAgentsWithNoDisabledTools(t *testing.T) {
 func TestConfig_setupAgentsWithDisabledTools(t *testing.T) {
 	cfg := &Config{
 		Options: &Options{
+			EnableWebTools: true,
 			DisabledTools: []string{
 				"edit",
 				"download",
@@ -868,6 +870,7 @@ func TestConfig_setupAgentsWithDisabledTools(t *testing.T) {
 func TestConfig_setupAgentsWithEveryReadOnlyToolDisabled(t *testing.T) {
 	cfg := &Config{
 		Options: &Options{
+			EnableWebTools: true,
 			DisabledTools: []string{
 				"agent",
 				"glob",
@@ -894,6 +897,60 @@ func TestConfig_setupAgentsWithEveryReadOnlyToolDisabled(t *testing.T) {
 	planAgent, ok := cfg.Agents[AgentPlan]
 	require.True(t, ok)
 	assert.Equal(t, []string{"question"}, planAgent.AllowedTools)
+}
+
+func TestConfig_setupAgentsWebToolsOptIn(t *testing.T) {
+	webTools := []string{"fetch", "agentic_fetch", "download", "sourcegraph"}
+	assertNoWebTools := func(t *testing.T, cfg *Config) {
+		t.Helper()
+		for _, a := range cfg.Agents {
+			for _, tool := range webTools {
+				assert.NotContains(t, a.AllowedTools, tool, "agent %s", a.ID)
+			}
+		}
+	}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		t.Setenv("CRUSH_ENABLE_WEB_TOOLS", "")
+		cfg := &Config{Options: &Options{}}
+		cfg.SetupAgents()
+		assertNoWebTools(t, cfg)
+		assert.Contains(t, cfg.Agents[AgentCoder].AllowedTools, "bash")
+	})
+
+	t.Run("enabled by option", func(t *testing.T) {
+		t.Setenv("CRUSH_ENABLE_WEB_TOOLS", "")
+		cfg := &Config{Options: &Options{EnableWebTools: true}}
+		cfg.SetupAgents()
+		assert.Subset(t, cfg.Agents[AgentCoder].AllowedTools, webTools)
+		assert.Contains(t, cfg.Agents[AgentTask].AllowedTools, "sourcegraph")
+	})
+
+	t.Run("env enables", func(t *testing.T) {
+		t.Setenv("CRUSH_ENABLE_WEB_TOOLS", "1")
+		cfg := &Config{Options: &Options{}}
+		cfg.SetupAgents()
+		assert.Subset(t, cfg.Agents[AgentCoder].AllowedTools, webTools)
+	})
+
+	t.Run("env disables", func(t *testing.T) {
+		t.Setenv("CRUSH_ENABLE_WEB_TOOLS", "0")
+		cfg := &Config{Options: &Options{EnableWebTools: true}}
+		cfg.SetupAgents()
+		assertNoWebTools(t, cfg)
+	})
+
+	t.Run("disabled tools still apply", func(t *testing.T) {
+		t.Setenv("CRUSH_ENABLE_WEB_TOOLS", "")
+		cfg := &Config{Options: &Options{
+			EnableWebTools: true,
+			DisabledTools:  []string{"download"},
+		}}
+		cfg.SetupAgents()
+		assert.NotContains(t, cfg.Agents[AgentCoder].AllowedTools, "download")
+		assert.Contains(t, cfg.Agents[AgentCoder].AllowedTools, "fetch")
+		assert.Equal(t, []string{"download"}, cfg.Options.DisabledTools)
+	})
 }
 
 func TestConfig_configureProvidersWithDisabledProvider(t *testing.T) {
