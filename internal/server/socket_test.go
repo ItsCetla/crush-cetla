@@ -27,6 +27,18 @@ func (fakeTimeoutErr) Error() string   { return "fake timeout" }
 func (fakeTimeoutErr) Timeout() bool   { return true }
 func (fakeTimeoutErr) Temporary() bool { return true }
 
+// shortTempDir returns a temporary directory whose path leaves room for a
+// socket below it. t.TempDir() embeds the test name, and on macOS (where
+// $TMPDIR is already long) that pushes socket paths past the 104-byte
+// sun_path limit, so bind fails with EINVAL.
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "crush")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
 func TestIsStaleSocketErr(t *testing.T) {
 	t.Parallel()
 
@@ -104,7 +116,7 @@ func TestDefaultHost_FallbackTemp(t *testing.T) {
 }
 
 func TestListen_SocketIsOwnerOnly(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "s.sock")
+	path := filepath.Join(shortTempDir(t), "s.sock")
 	ln, _, err := listen("unix", path)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -115,7 +127,7 @@ func TestListen_SocketIsOwnerOnly(t *testing.T) {
 }
 
 func TestListen_CreatesPrivateSocketDir(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), privateSocketDirName(currentUID()))
+	dir := filepath.Join(shortTempDir(t), privateSocketDirName(currentUID()))
 	ln, _, err := listen("unix", filepath.Join(dir, "s.sock"))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -160,7 +172,7 @@ func TestListen_RefusesUnsafeSocketDir(t *testing.T) {
 }
 
 func TestVerifySocketOwner(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "s.sock")
+	path := filepath.Join(shortTempDir(t), "s.sock")
 	require.NoError(t, VerifySocketOwner(path), "a missing socket is left to the dial")
 
 	ln, _, err := listen("unix", path)
