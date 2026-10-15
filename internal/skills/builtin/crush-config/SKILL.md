@@ -389,3 +389,17 @@ until the user reviews it and runs `crush trust` once more. Directories in
 `CRUSH_TRUST_PROJECT=1`, skip the check. If a user's project config seems to
 be ignored, suggest reviewing it and running `crush trust`; never run it on
 their behalf.
+
+### OpenCode import
+
+Crush also imports MCP servers, provider settings (base URLs, API keys,
+custom models), the default model and OpenCode's cached models.dev catalog
+from a local OpenCode install (`~/.config/opencode/opencode.json(c)` and
+OpenCode's cache/database). `crush.json` always wins over imported values.
+Project-level `opencode.json(c)` and `.opencode/` files are covered by the
+same trust check. `crush opencode` shows what was imported. Configure it
+with `options.opencode` (`mcp`, `providers`, `models`: default true;
+`credentials`: default false, uses `opencode auth login` API keys;
+`disabled`: turn it all off) or `CRUSH_DISABLE_OPENCODE=1`. When a user wants
+an OpenCode MCP server or provider changed only for Crush, define it in
+crush.json instead of editing their OpenCode config.

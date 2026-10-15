@@ -11,6 +11,28 @@
 
 <p align="center"><img width="800" alt="Crush Demo" src="https://github.com/user-attachments/assets/58280caf-851b-470a-b6f7-d5c4ea8a1968" /></p>
 
+## About this fork
+
+This is a private fork of [Charm's Crush](https://github.com/charmbracelet/crush)
+that talks to nobody but the model providers and MCP servers you configure:
+
+- **No phone-home.** Telemetry (PostHog), the update check, the Catwalk and
+  Hyper catalog fetches at startup, the Hyper vendor service and the forced
+  Termux DNS resolvers are gone. The provider catalog is local; refresh it
+  only by running `crush update-providers`.
+- **Agent tools that reach third parties ask first.** Sourcegraph searches
+  now need approval like `fetch` does.
+- **Untrusted projects stay inert.** A cloned repo's `crush.json`, `crushrc`,
+  `.crush/crush.json` and OpenCode config are ignored until you run
+  `crush trust` (see [Project trust](#configuration)). `.env` files are no
+  longer auto-loaded.
+- **Stricter bash auto-approval.** Only a single, parsed, read-only command
+  runs without a prompt; wrappers like `env`/`timeout`, redirections and
+  multi-line commands always ask.
+- **OpenCode import.** MCP servers, provider settings and the models.dev
+  catalog are picked up from a local OpenCode install. See
+  [Importing from OpenCode](#importing-from-opencode).
+
 ## Features
 
 - **Multi-Model:** choose from a wide range of LLMs or add your own via OpenAI- or Anthropic-compatible APIs
@@ -23,162 +45,20 @@
 
 ## Installation
 
-Use a package manager:
+Package managers (Homebrew, npm, AUR, Nix, …) install upstream Crush, not
+this fork. Build it from source with Go 1.27+:
 
 ```bash
-# Homebrew
-brew install charmbracelet/tap/crush
+git clone https://github.com/ItsCetla/crush-cetla.git
+cd crush-cetla
+go build -o crush .
+./crush --version
 
-# NPM
-npm install -g @charmland/crush
-
-# Arch Linux (btw)
-yay -S crush-bin
-
-# Nix
-nix run github:numtide/nix-ai-tools#crush
-
-# FreeBSD
-pkg install crush
+# Or install into $(go env GOPATH)/bin
+go install .
 ```
 
-Windows users:
-
-```bash
-# Winget
-winget install charmbracelet.crush
-
-# Scoop
-scoop bucket add charm https://github.com/charmbracelet/scoop-bucket.git
-scoop install crush
-```
-
-<details>
-<summary><strong>Nix (NUR)</strong></summary>
-
-Crush is available via the official Charm [NUR](https://github.com/nix-community/NUR) in `nur.repos.charmbracelet.crush`, which is the most up-to-date way to get Crush in Nix.
-
-You can also try out Crush via the NUR with `nix-shell`:
-
-```bash
-# Add the NUR channel.
-nix-channel --add https://github.com/nix-community/NUR/archive/main.tar.gz nur
-nix-channel --update
-
-# Get Crush in a Nix shell.
-nix-shell -p '(import <nur> { pkgs = import <nixpkgs> {}; }).repos.charmbracelet.crush'
-```
-
-### NixOS & Home Manager Module Usage via NUR
-
-Crush provides NixOS and Home Manager modules via NUR.
-You can use these modules directly in your flake by importing them from NUR. Since it auto detects whether it's a home manager or nixos context you can use the import the exact same way :)
-
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nur.url = "github:nix-community/NUR";
-  };
-
-  outputs = { self, nixpkgs, nur, ... }: {
-    nixosConfigurations.your-hostname = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        nur.modules.nixos.default
-        nur.repos.charmbracelet.modules.crush
-        {
-          programs.crush = {
-            enable = true;
-            settings = {
-              providers = {
-                openai = {
-                  id = "openai";
-                  name = "OpenAI";
-                  base_url = "https://api.openai.com/v1";
-                  type = "openai";
-                  api_key = "sk-fake123456789abcdef...";
-                  models = [
-                    {
-                      id = "gpt-4";
-                      name = "GPT-4";
-                    }
-                  ];
-                };
-              };
-              lsp = {
-                go = { command = "gopls"; enabled = true; };
-                nix = { command = "nil"; enabled = true; };
-              };
-              options = {
-                context_paths = [ "/etc/nixos/configuration.nix" ];
-                tui = { compact_mode = true; };
-                debug = false;
-              };
-            };
-          };
-        }
-      ];
-    };
-  };
-}
-```
-
-</details>
-
-<details>
-<summary><strong>Debian/Ubuntu</strong></summary>
-
-```bash
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
-echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
-sudo apt update && sudo apt install crush
-```
-
-</details>
-
-<details>
-<summary><strong>Fedora/RHEL</strong></summary>
-
-```bash
-echo '[charm]
-name=Charm
-baseurl=https://repo.charm.sh/yum/
-enabled=1
-gpgcheck=1
-gpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
-sudo yum install crush
-```
-
-</details>
-
-Or, download it:
-
-- [Packages][releases] are available in Debian and RPM formats
-- [Binaries][releases] are available for Linux, macOS, Windows, FreeBSD, OpenBSD, and NetBSD
-
-[releases]: https://github.com/charmbracelet/crush/releases
-
-Or just install it with Go:
-
-```
-go install github.com/charmbracelet/crush@latest
-```
-
-On illumos (OpenIndiana, OmniOS), the command above works as-is. Only native
-OS notifications are unavailable there; terminal-based notifications (OSC) and
-the terminal bell still work. On Oracle Solaris, add `-tags sqlite3_dotlk` so
-the local database uses dot-file locking:
-
-```
-go install -tags sqlite3_dotlk github.com/charmbracelet/crush@latest
-```
-
-> [!WARNING]
-> Productivity may increase when using Crush and you may find yourself nerd
-> sniped when first using the application. If the symptoms persist, join the
-> [Slack][slack] or [Discord][discord] and nerd snipe the rest of us.
+On macOS (including Apple Silicon) no extra dependencies are needed.
 
 ## Getting Started
 
@@ -979,6 +859,58 @@ crush update-providers embedded
 crush update-providers --help
 ```
 
+## Importing from OpenCode
+
+If you use [OpenCode](https://opencode.ai), Crush picks up its setup
+automatically, reading only OpenCode's files on disk. Nothing is fetched.
+
+| What | Where it comes from | Default |
+| --- | --- | --- |
+| MCP servers | `mcp` in OpenCode config (V1 and V2 shapes) | on |
+| Provider settings | `provider` / `providers`: base URLs, API keys, headers, custom models | on |
+| Default model | `model` / `small_model`, used only when Crush has no selection | on |
+| Models catalog | OpenCode's cached models.dev catalog (`opencode.db`, `~/.cache/opencode/models.json` or `$OPENCODE_MODELS_PATH`) | on |
+| API keys | `opencode auth login` keys (OAuth logins are never imported) | **off** |
+
+OpenCode config is read from `~/.config/opencode/` (or `$XDG_CONFIG_HOME`,
+`$OPENCODE_CONFIG_DIR`), `$OPENCODE_CONFIG` and `$OPENCODE_CONFIG_CONTENT`,
+with `{env:VAR}` and `{file:path}` substituted the way OpenCode does.
+Project-level `opencode.json(c)` and `.opencode/` files are only read in
+projects you have trusted with `crush trust`, and editing them requires
+trusting the project again.
+
+Crush's own config always wins: an MCP server or provider field set in
+`crush.json` overrides the imported one. The models catalog adds models
+Catwalk lacks to the providers Crush already knows, and lists OpenCode-only
+providers once their API key variable is set or they are configured.
+
+See what was imported with:
+
+```bash
+crush opencode
+```
+
+Tune or turn it off in `crush.json`:
+
+```json
+{
+  "options": {
+    "opencode": {
+      "mcp": true,
+      "providers": true,
+      "models": true,
+      "credentials": false
+    }
+  }
+}
+```
+
+Set `"disabled": true` there, or `CRUSH_DISABLE_OPENCODE=1`, to turn the import
+off entirely. Imported remote MCP servers connect to their URLs like any
+other configured server; an OpenCode remote server only uses OAuth in Crush
+when its config has an explicit `oauth` block (add `"oauth": true` for it in
+`crush.json` otherwise).
+
 ## Privacy
 
 This fork collects no telemetry and does not check for updates.
@@ -996,26 +928,14 @@ Installing an extra tool might be needed on Unix-like environments.
 | Linux/BSD + Wayland | `wl-copy` and `wl-paste` |
 | Linux/BSD + X11     | `xclip` or `xsel`        |
 
-## Contributing
+## Upstream
 
-See the [contributing guide](https://github.com/charmbracelet/crush?tab=contributing-ov-file#contributing).
-
-## Whatcha think?
-
-We’d love to hear your thoughts on this project. Need help? We gotchu. You can find us on:
-
-- [Twitter](https://twitter.com/charmcli)
-- [Slack][slack]
-- [Discord][discord]
-- [The Fediverse](https://mastodon.social/@charmcli)
-- [Bluesky](https://bsky.app/profile/charm.land)
-
-[slack]: https://charm.land/slack
-[discord]: https://charm.land/discord
+Crush is made by [Charm](https://charm.land). Bug reports for code that isn't
+specific to this fork belong [upstream](https://github.com/charmbracelet/crush).
 
 ## License
 
-[FSL-1.1-MIT](https://github.com/charmbracelet/crush/raw/main/LICENSE.md)
+[FSL-1.1-MIT](LICENSE.md)
 
 ---
 
