@@ -962,7 +962,7 @@ crush update-providers embedded
 crush update-providers --help
 ```
 
-## Metrics
+## Privacy
 
 This fork collects no telemetry and does not check for updates.
 
