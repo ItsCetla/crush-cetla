@@ -116,7 +116,7 @@ provider add anthropic --api-key "$ANTHROPIC_API_KEY"
 model large openai/gpt-4o --think
 permissions allow bash view
 option data-directory .crush
-option metrics false`)
+option auto-summarize false`)
 
 	if err := os.WriteFile(rcPath, rcContent, 0o644); err != nil {
 		b.Fatal(err)

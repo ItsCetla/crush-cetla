@@ -473,7 +473,6 @@ Boolean Keys:
   debug-lsp                      enable LSP debug logging
   auto-lsp                       automatically configure language servers
   progress                       show progress indicators
-  metrics                        send anonymous usage metrics
   auto-summarize                 automatically summarize long conversations
   provider-auto-update           update the provider catalog automatically
   default-providers              include built-in providers

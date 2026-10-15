@@ -33,7 +33,7 @@ func TestOption_BoolCaseInsensitive(t *testing.T) {
 	dir := t.TempDir()
 	script := `option debug TRUE
 option progress False
-option metrics YES`
+option auto-summarize YES`
 	path := filepath.Join(dir, "crushrc")
 
 	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(script))
@@ -45,7 +45,7 @@ option metrics YES`
 	opts := result["options"].(map[string]any)
 	require.Equal(t, true, opts["debug"])
 	require.Equal(t, false, opts["progress"])
-	require.Equal(t, false, opts["disable_metrics"])
+	require.Equal(t, false, opts["disable_auto_summarize"])
 }
 
 func TestOption_String(t *testing.T) {
@@ -185,7 +185,7 @@ func TestOption_BoolShorthand(t *testing.T) {
 
 	dir := t.TempDir()
 	script := `option debug
-option metrics`
+option auto-summarize`
 	path := filepath.Join(dir, "crushrc")
 
 	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(script))
@@ -196,14 +196,14 @@ option metrics`
 
 	opts := result["options"].(map[string]any)
 	require.Equal(t, true, opts["debug"])
-	require.Equal(t, false, opts["disable_metrics"])
+	require.Equal(t, false, opts["disable_auto_summarize"])
 }
 
 func TestOption_InvertedBool(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	script := `option metrics false`
+	script := `option auto-summarize false`
 	path := filepath.Join(dir, "crushrc")
 
 	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(script))
@@ -213,7 +213,28 @@ func TestOption_InvertedBool(t *testing.T) {
 	require.NoError(t, json.Unmarshal(jsonBytes, &result))
 
 	opts := result["options"].(map[string]any)
-	require.Equal(t, true, opts["disable_metrics"])
+	require.Equal(t, true, opts["disable_auto_summarize"])
+}
+
+// TestOption_ObsoleteMetrics verifies that the removed "metrics" option is
+// accepted and ignored, so configs that turned telemetry off keep loading.
+func TestOption_ObsoleteMetrics(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	script := `option debug
+option metrics false`
+	path := filepath.Join(dir, "crushrc")
+
+	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(script))
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &result))
+
+	opts := result["options"].(map[string]any)
+	require.Equal(t, true, opts["debug"])
+	require.NotContains(t, opts, "disable_metrics")
 }
 
 func TestOption_UnknownKey(t *testing.T) {

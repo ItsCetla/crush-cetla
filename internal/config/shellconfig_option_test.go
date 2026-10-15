@@ -19,17 +19,25 @@ option auto-lsp false`)
 	require.False(t, *opts.AutoLSP, "auto-lsp should be off")
 }
 
-// Config phrases this field negatively (disable_metrics) but the command
-// exposes it positively. "metrics false" must land as disable_metrics = true.
-func TestShellConfigOptionPositiveMetricsFalse(t *testing.T) {
-	store := loadCrushSh(t, `option metrics false`)
-	require.True(t, store.Config().Options.DisableMetrics, "metrics off => disable_metrics true")
+// Config phrases this field negatively (disable_auto_summarize) but the
+// command exposes it positively. "auto-summarize false" must land as
+// disable_auto_summarize = true.
+func TestShellConfigOptionPositiveAutoSummarizeFalse(t *testing.T) {
+	store := loadCrushSh(t, `option auto-summarize false`)
+	require.True(t, store.Config().Options.DisableAutoSummarize, "auto-summarize off => disable_auto_summarize true")
 }
 
 // The bare positive form defaults to true, which inverts to disable = false.
-func TestShellConfigOptionPositiveMetricsBare(t *testing.T) {
-	store := loadCrushSh(t, `option metrics`)
-	require.False(t, store.Config().Options.DisableMetrics, "metrics on => disable_metrics false")
+func TestShellConfigOptionPositiveAutoSummarizeBare(t *testing.T) {
+	store := loadCrushSh(t, `option auto-summarize`)
+	require.False(t, store.Config().Options.DisableAutoSummarize, "auto-summarize on => disable_auto_summarize false")
+}
+
+// The removed telemetry toggle must still load, as a no-op.
+func TestShellConfigOptionObsoleteMetrics(t *testing.T) {
+	store := loadCrushSh(t, `option debug
+option metrics false`)
+	require.True(t, store.Config().Options.Debug)
 }
 
 func TestShellConfigOptionUI(t *testing.T) {

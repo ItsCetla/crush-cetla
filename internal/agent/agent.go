@@ -826,9 +826,6 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 
 	history, files := a.preparePrompt(msgs, largeModel.CatwalkCfg.SupportsImages, call.Attachments...)
 
-	startTime := time.Now()
-	a.eventPromptSent(call.SessionID)
-
 	var stepMessages []fantasy.Message
 	var shouldSummarize bool
 	sanitizedToolCalls := make(map[string]bool)
@@ -1120,9 +1117,6 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			},
 		},
 	})
-
-	a.eventPromptResponded(call.SessionID, time.Since(startTime).Truncate(time.Second))
-
 	if err != nil {
 		isHyper := largeModel.ModelCfg.Provider == hyper.Name
 		isCancelErr := errors.Is(err, context.Canceled)
@@ -2044,10 +2038,6 @@ func (a *sessionAgent) updateSessionUsage(model Model, session *session.Session,
 		modelConfig.CostPer1MOutCached/1e6*float64(usage.CacheReadTokens) +
 		modelConfig.CostPer1MIn/1e6*float64(usage.InputTokens) +
 		modelConfig.CostPer1MOut/1e6*float64(usage.OutputTokens)
-
-	if !estimated {
-		a.eventTokensUsed(session.ID, model, usage, cost)
-	}
 
 	if estimated {
 		cost = 0

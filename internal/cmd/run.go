@@ -13,7 +13,6 @@ import (
 	"charm.land/log/v2"
 	"github.com/charmbracelet/crush/internal/client"
 	"github.com/charmbracelet/crush/internal/config"
-	"github.com/charmbracelet/crush/internal/event"
 	"github.com/charmbracelet/crush/internal/format"
 	"github.com/charmbracelet/crush/internal/herdr"
 	"github.com/charmbracelet/crush/internal/proto"
@@ -92,23 +91,12 @@ crush run --continue "Follow up on your last response"
 			return fmt.Errorf("no prompt provided")
 		}
 
-		event.SetNonInteractive(true)
-
-		switch {
-		case sessionID != "":
-			event.SetContinueBySessionID(true)
-		case useLast:
-			event.SetContinueLastSession(true)
-		}
-
 		if useClientServer() {
 			c, ws, cleanup, err := connectToServer(cmd)
 			if err != nil {
 				return err
 			}
 			defer cleanup()
-
-			event.AppInitialized()
 
 			if !ws.Config.IsConfigured() {
 				return fmt.Errorf("no providers configured - please run 'crush' to set up a provider interactively")
@@ -139,8 +127,6 @@ crush run --continue "Follow up on your last response"
 			return err
 		}
 		defer cleanup()
-
-		event.AppInitialized()
 
 		if !ws.Config().IsConfigured() {
 			return fmt.Errorf("no providers configured - please run 'crush' to set up a provider interactively")

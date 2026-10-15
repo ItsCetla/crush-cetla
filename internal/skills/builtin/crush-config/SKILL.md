@@ -179,9 +179,9 @@ option reset <list-key>    # clear a list option back to empty
 
 - **Boolean keys** (value optional, defaults `true`): `debug`, `debug-lsp`,
   `auto-lsp`, `progress`.
-- **Boolean keys phrased positively** (stored as the negated field): `metrics`,
-  `auto-summarize`, `provider-auto-update`,
-  `default-providers`. Example: `option metrics false` disables metrics.
+- **Boolean keys phrased positively** (stored as the negated field):
+  `auto-summarize`, `provider-auto-update`, `default-providers`. Example:
+  `option auto-summarize false` disables automatic summarization.
 - **String keys**: `data-directory`, `initialize-as`, `notifications`.
 - **Attribution keys**: `attribution-trailer-style` (`none`, `co-authored-by`,
   `assisted-by`) and `attribution-generated-with` (boolean).
@@ -349,7 +349,7 @@ The `$schema` property enables IDE autocomplete but is optional.
 | `permissions allow view ls`          | `permissions.allowed_tools = ["view","ls"]`            |
 | `permissions deny bash`              | `options.disabled_tools = ["bash"]`                    |
 | `option skill-path ./skills`         | `options.skills_paths = ["./skills"]`                  |
-| `option metrics false`               | `options.disable_metrics = true`                       |
+| `option auto-summarize false`        | `options.disable_auto_summarize = true`                |
 | `option request-timeout 300`          | `options.request_timeout = 300`                        |
 | `option attribution-trailer-style none` | `options.attribution.trailer_style = "none"`        |
 | `option attribution-generated-with false` | `options.attribution.generated_with = false`       |

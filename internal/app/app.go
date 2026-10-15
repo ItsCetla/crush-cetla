@@ -23,7 +23,6 @@ import (
 	"github.com/charmbracelet/crush/internal/clipboard"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/db"
-	"github.com/charmbracelet/crush/internal/event"
 	"github.com/charmbracelet/crush/internal/filetracker"
 	"github.com/charmbracelet/crush/internal/format"
 	"github.com/charmbracelet/crush/internal/herdr"
@@ -920,11 +919,6 @@ func (app *App) Shutdown() {
 
 	// Now run remaining cleanup tasks in parallel.
 	var wg sync.WaitGroup
-
-	// Send exit event
-	wg.Go(func() {
-		event.AppExited()
-	})
 
 	// Kill all background shells.
 	wg.Go(func() {

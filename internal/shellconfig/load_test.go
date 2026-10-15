@@ -240,7 +240,7 @@ func TestLoadShellConfig_Option(t *testing.T) {
 
 	dir := t.TempDir()
 	script := `option data-directory .crush
-option metrics false
+option auto-summarize false
 option debug`
 	path := filepath.Join(dir, "crushrc")
 
@@ -252,7 +252,7 @@ option debug`
 
 	opts := result["options"].(map[string]any)
 	require.Equal(t, ".crush", opts["data_directory"])
-	require.Equal(t, true, opts["disable_metrics"])
+	require.Equal(t, true, opts["disable_auto_summarize"])
 	require.Equal(t, true, opts["debug"])
 }
 
@@ -461,7 +461,7 @@ hook add PreToolUse --command "echo running" --matcher "bash" --timeout 10
 
 # Options
 option data-directory .crush
-option metrics false`
+option auto-summarize false`
 	path := filepath.Join(dir, "crushrc")
 
 	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(script))
@@ -507,7 +507,7 @@ option metrics false`
 	// Verify options
 	opts := result["options"].(map[string]any)
 	require.Equal(t, ".crush", opts["data_directory"])
-	require.Equal(t, true, opts["disable_metrics"])
+	require.Equal(t, true, opts["disable_auto_summarize"])
 }
 
 // TestConfigBuilder_NoBuilderInContext verifies that builtins are no-ops
