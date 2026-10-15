@@ -23,10 +23,7 @@ import (
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/discover"
 	"github.com/charmbracelet/crush/internal/env"
-	"github.com/charmbracelet/crush/internal/filepathext"
-	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/home"
-	"github.com/charmbracelet/crush/internal/shellconfig"
 	powernapConfig "github.com/charmbracelet/x/powernap/pkg/config"
 	"github.com/qjebbs/go-jsons"
 	"github.com/tidwall/gjson"
@@ -39,41 +36,33 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 	// Migrate deprecated disable_notifications before loading config.
 	migrateDisableNotifications()
 
-	configPaths := lookupConfigs(workingDir)
-
-	cfg, loadedPaths, err := loadFromConfigPaths(context.Background(), configPaths)
+	// Discover, trust-gate and merge config files. Project-level config
+	// (and the workspace config) only loads when the project is trusted;
+	// see trust.go.
+	merged, err := loadMergedConfig(context.Background(), loadParams{
+		workingDir:   workingDir,
+		dataDir:      dataDir,
+		trustDataDir: dataDir,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config from paths %v: %w", configPaths, err)
+		return nil, fmt.Errorf("failed to load config from paths %v: %w", lookupConfigs(workingDir), err)
 	}
-
-	cfg.setDefaults(workingDir, dataDir)
+	cfg := merged.cfg
+	configPaths := merged.configPaths
+	loadedPaths := merged.loadedPaths
 
 	store := &ConfigStore{
 		config:         cfg,
 		workingDir:     workingDir,
+		trustDataDir:   dataDir,
 		globalDataPath: GlobalConfigData(),
-		workspacePath:  filepath.Join(cfg.Options.DataDirectory, fmt.Sprintf("%s.json", appName)),
+		workspacePath:  merged.workspacePath,
 		loadedPaths:    loadedPaths,
+		trust:          merged.trust,
 	}
 
 	if debug {
 		cfg.Options.Debug = true
-	}
-
-	// Load workspace config last so it has highest priority.
-	if wsData, err := readFile(store.workspacePath); err == nil && len(wsData) > 0 {
-		if !json.Valid(wsData) {
-			return nil, fmt.Errorf("invalid JSON in config file %s", store.workspacePath)
-		}
-		merged, mergeErr := loadFromBytes(append([][]byte{mustMarshalConfig(cfg)}, wsData))
-		if mergeErr == nil {
-			// Preserve defaults that setDefaults already applied.
-			dataDir := cfg.Options.DataDirectory
-			*cfg = *merged
-			cfg.setDefaults(workingDir, dataDir)
-			store.config = cfg
-			store.loadedPaths = append(store.loadedPaths, store.workspacePath)
-		}
 	}
 
 	// Validate hooks after all config merging is complete so workspace
@@ -546,16 +535,7 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 	slices.Sort(c.Options.GlobalContextPaths)
 	c.Options.GlobalContextPaths = slices.Compact(c.Options.GlobalContextPaths)
 
-	if dataDir != "" {
-		c.Options.DataDirectory = dataDir
-	} else if c.Options.DataDirectory == "" {
-		if path, ok := fsext.LookupClosestBounded(workingDir, projectBoundary(workingDir), defaultDataDirectory); ok {
-			c.Options.DataDirectory = path
-		} else {
-			c.Options.DataDirectory = filepath.Join(workingDir, defaultDataDirectory)
-		}
-	}
-	c.Options.DataDirectory = filepath.Clean(filepathext.SmartJoin(workingDir, c.Options.DataDirectory))
+	c.Options.DataDirectory = resolveDataDirectory(workingDir, dataDir, c.Options.DataDirectory)
 	if c.Providers == nil {
 		c.Providers = csync.NewMap[string, ProviderConfig]()
 	}
@@ -901,130 +881,11 @@ func resolveSelectedModels(cfg *Config, knownProviders []catwalk.Provider) (reso
 // so an unrelated crush.json placed above the project is never picked
 // up. Global user-level config locations are always included
 // regardless of the boundary.
+//
+// The project files it returns are project-level config: Load and reload
+// only apply them when the project is trusted (see trust.go).
 func lookupConfigs(cwd string) []string {
-	// Prepend global user config and machine-owned data JSON. Only the user
-	// config directory contributes a crushrc; the data directory is writable
-	// machine state and must never be executed as Bash. Missing files are
-	// skipped when loaded.
-	configPaths := []string{
-		systemConfigPath,
-		GlobalConfig(),
-		shellConfigSibling(GlobalConfig()),
-		GlobalConfigData(),
-	}
-
-	// Ordered high-to-low priority within a directory. LookupBounded returns
-	// matches in this order, and the later reverse + merge make the earliest
-	// listed name win on conflict. So: .crushrc beats crushrc, both beat the
-	// JSON configs, and .crush.json beats crush.json.
-	configNames := []string{
-		"." + appName + "rc",
-		appName + "rc",
-		"." + appName + ".json",
-		appName + ".json",
-	}
-
-	foundConfigs, err := fsext.LookupBounded(cwd, projectBoundary(cwd), configNames...)
-	if err != nil {
-		// returns at least default configs
-		return configPaths
-	}
-
-	// reverse order so last config has more priority
-	slices.Reverse(foundConfigs)
-
-	return append(configPaths, foundConfigs...)
-}
-
-func loadFromConfigPaths(ctx context.Context, configPaths []string) (*Config, []string, error) {
-	var configs [][]byte
-	var loaded []string
-
-	// Track directories that have both crush.json and crushrc to warn
-	// about potential confusion, along with the top-level keys each
-	// defines so we can report conflicts.
-	jsonDirKeys := make(map[string]map[string]bool)
-	shDirKeys := make(map[string]map[string]bool)
-
-	for _, path := range configPaths {
-		if path == "" {
-			continue
-		}
-		data, err := readFile(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, nil, fmt.Errorf("failed to open config file %s: %w", path, err)
-		}
-		if len(data) == 0 {
-			continue
-		}
-
-		dir := filepath.Dir(path)
-		if isShellConfig(path) {
-			jsonBytes, err := shellconfig.LoadShellConfig(ctx, path, data)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to load shell config %s: %w", path, err)
-			}
-			if len(jsonBytes) > 0 {
-				if !json.Valid(jsonBytes) {
-					return nil, nil, fmt.Errorf("shell config %s produced invalid JSON", path)
-				}
-				addTopLevelKeys(shDirKeys, dir, jsonBytes)
-				configs = append(configs, jsonBytes)
-				loaded = append(loaded, path)
-			}
-		} else {
-			if !json.Valid(data) {
-				return nil, nil, fmt.Errorf("invalid JSON in config file %s", path)
-			}
-			addTopLevelKeys(jsonDirKeys, dir, data)
-			configs = append(configs, data)
-			loaded = append(loaded, path)
-		}
-	}
-
-	// Warn if both a JSON config and a crushrc exist in the same directory
-	// and define overlapping top-level keys. Disjoint coexistence is
-	// intentional and not worth warning about.
-	for dir, jKeys := range jsonDirKeys {
-		sKeys, ok := shDirKeys[dir]
-		if !ok {
-			continue
-		}
-		var conflicts []string
-		for k := range jKeys {
-			if sKeys[k] {
-				conflicts = append(conflicts, k)
-			}
-		}
-		if len(conflicts) > 0 {
-			slices.Sort(conflicts)
-			slog.Warn("Found both a JSON config and a crushrc in the same directory; merging with crushrc taking precedence",
-				"dir", dir, "conflicting_keys", strings.Join(conflicts, ", "))
-		}
-	}
-
-	cfg, err := loadFromBytes(configs)
-	if err != nil {
-		return nil, nil, err
-	}
-	return cfg, loaded, nil
-}
-
-// addTopLevelKeys records the top-level JSON keys present in data into the
-// set for dir.
-func addTopLevelKeys(m map[string]map[string]bool, dir string, data []byte) {
-	keys := m[dir]
-	if keys == nil {
-		keys = make(map[string]bool)
-		m[dir] = keys
-	}
-	gjson.ParseBytes(data).ForEach(func(key, _ gjson.Result) bool {
-		keys[key.String()] = true
-		return true
-	})
+	return append(globalConfigPaths(), projectWalkConfigs(cwd)...)
 }
 
 func loadFromBytes(configs [][]byte) (*Config, error) {

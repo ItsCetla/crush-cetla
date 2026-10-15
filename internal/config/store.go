@@ -100,6 +100,15 @@ type ConfigStore struct {
 	trackedConfigPaths []string                // unique, normalized config file paths
 	snapshots          map[string]fileSnapshot // path -> snapshot at last capture
 
+	// trustDataDir is the --data-dir override given at load time. Reloads
+	// reuse it so the trust decision locates the workspace config the same
+	// way the first load did.
+	trustDataDir string
+	// trust is the project trust decision of the last load, guarded by
+	// trustMu because workspace writes consult it outside writeMu.
+	trust   ProjectTrust
+	trustMu sync.RWMutex
+
 	// configMu guards the config pointer field against concurrent
 	// readers (Config) and the writeMu-serialised swap (setConfig). It
 	// protects the pointer word only; the pointed-to Config is treated
@@ -263,6 +272,13 @@ func (s *ConfigStore) atomicWrite(scope Scope, fn func(current []byte) ([]byte, 
 		return err
 	}
 
+	if scope == ScopeWorkspace {
+		// Keep the project's trust record in step with Crush's own
+		// workspace writes; see writeWorkspaceConfig.
+		return s.writeWorkspaceConfig(path, func() error {
+			return atomicWriteFile(path, newData, 0o600)
+		})
+	}
 	return atomicWriteFile(path, newData, 0o600)
 }
 
@@ -1309,33 +1325,24 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	// Migrate deprecated disable_notifications before reloading config.
 	migrateDisableNotifications()
 
-	configPaths := lookupConfigs(s.workingDir)
-	cfg, loadedPaths, err := loadFromConfigPaths(ctx, configPaths)
-	if err != nil {
-		return fmt.Errorf("failed to reload config: %w", err)
-	}
-
-	// Apply defaults (using existing data directory if set)
+	// Apply defaults using the existing data directory if set, and gate
+	// project config exactly like Load does.
 	var dataDir string
 	if cur := s.Config(); cur != nil && cur.Options != nil {
 		dataDir = cur.Options.DataDirectory
 	}
-	cfg.setDefaults(s.workingDir, dataDir)
-
-	// Merge workspace config if present
-	workspacePath := filepath.Join(cfg.Options.DataDirectory, fmt.Sprintf("%s.json", appName))
-	if wsData, err := readFile(workspacePath); err == nil && len(wsData) > 0 {
-		if !json.Valid(wsData) {
-			return fmt.Errorf("invalid JSON in config file %s", workspacePath)
-		}
-		merged, mergeErr := loadFromBytes(append([][]byte{mustMarshalConfig(cfg)}, wsData))
-		if mergeErr == nil {
-			dataDir := cfg.Options.DataDirectory
-			*cfg = *merged
-			cfg.setDefaults(s.workingDir, dataDir)
-			loadedPaths = append(loadedPaths, workspacePath)
-		}
+	merged, err := loadMergedConfig(ctx, loadParams{
+		workingDir:   s.workingDir,
+		dataDir:      dataDir,
+		trustDataDir: s.trustDataDir,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to reload config: %w", err)
 	}
+	cfg := merged.cfg
+	configPaths := merged.configPaths
+	loadedPaths := merged.loadedPaths
+	workspacePath := merged.workspacePath
 
 	// Validate hooks after all config merging is complete so matcher
 	// regexes are recompiled on the reloaded config (mirrors Load).
@@ -1353,6 +1360,7 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	oldKnownProviders := s.knownProviders
 	oldOverrides := s.overrides
 	oldWorkspacePath := s.workspacePath
+	oldTrust := s.ProjectTrust()
 
 	// Preserve runtime overrides
 	overrides := s.overrides
@@ -1391,6 +1399,7 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	s.knownProviders = providers
 	s.overrides = overrides
 	s.workspacePath = workspacePath
+	s.setProjectTrust(merged.trust)
 
 	// Mirror startup flow: setup models and agents against NEW config.
 	var setupErr error
@@ -1415,6 +1424,7 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 		s.knownProviders = oldKnownProviders
 		s.overrides = oldOverrides
 		s.workspacePath = oldWorkspacePath
+		s.setProjectTrust(oldTrust)
 		return setupErr
 	}
 

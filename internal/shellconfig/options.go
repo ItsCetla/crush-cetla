@@ -225,6 +225,8 @@ var optionSpecs = map[string]optionSpec{
 	"global-context-path": {jsonKey: "global_context_paths", kind: optList},
 	"skill-path":          {jsonKey: "skills_paths", kind: optList},
 	"disable-skill":       {jsonKey: "disabled_skills", kind: optList},
+	// Only honored in the global crushrc; see config.Options.TrustedPaths.
+	"trusted-path": {jsonKey: "trusted_paths", kind: optList},
 }
 
 // optionUI implements "option ui <key> <value>" for TUI-specific settings

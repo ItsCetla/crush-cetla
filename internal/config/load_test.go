@@ -37,6 +37,10 @@ func runIsolated(m *testing.M) int {
 	defer os.RemoveAll(home)
 	os.Setenv("CRUSH_GLOBAL_CONFIG", filepath.Join(home, "config"))
 	os.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(home, "data"))
+	// Most tests here load config from a throwaway project directory, so
+	// trust project config by default. The trust gate's own tests clear
+	// this to exercise untrusted loading (see trust_test.go).
+	os.Setenv(TrustProjectEnv, "1")
 	return m.Run()
 }
 

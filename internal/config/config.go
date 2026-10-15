@@ -492,6 +492,10 @@ type Options struct {
 	DisabledSkills            []string         `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
 	RequestTimeout            *int             `json:"request_timeout,omitempty" jsonschema:"description=Timeout in seconds for each LLM API request. Streaming responses are aborted only after this much inactivity\\, so slow but active streams are never killed. 0 disables it\\, negative values are invalid.,default=60,example=120,example=300,example=0"`
 	OpenCode                  *OpenCodeOptions `json:"opencode,omitempty" jsonschema:"description=Import MCP servers\\, providers and the models catalog from a local OpenCode install. Read from disk only; never fetched"`
+	// TrustedPaths lists directories whose projects are trusted without
+	// `crush trust`. It is only read from system and global config: the
+	// trust decision is made before any project config is loaded.
+	TrustedPaths []string `json:"trusted_paths,omitempty" jsonschema:"description=Directories whose projects (and every project below them) are trusted without running crush trust. Project-level config (crush.json\\, crushrc\\, .crush/crush.json) can run commands\\, so only list directories you control. Read only from the global config; ~ is expanded.,example=~/code/mine"`
 }
 
 // DefaultRequestTimeout bounds each LLM API request when the user has not

@@ -647,6 +647,16 @@
             300,
             0
           ]
+        },
+        "trusted_paths": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "~/code/mine"
+            ]
+          },
+          "type": "array",
+          "description": "Directories whose projects (and every project below them) are trusted without running crush trust. Project-level config (crush.json, crushrc, .crush/crush.json) can run commands, so only list directories you control. Read only from the global config; ~ is expanded."
         }
       },
       "additionalProperties": false,

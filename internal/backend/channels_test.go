@@ -216,6 +216,9 @@ func insertChannelWorkspaceCfg(t *testing.T, b *Backend, srvName string, enabled
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(wd, "crush.json"), cfgJSON, 0o644))
 
+	// The MCP server comes from project config, which only loads once the
+	// project is trusted.
+	t.Setenv(config.TrustProjectEnv, "1")
 	cfg, err := config.Init(wd, "", false)
 	require.NoError(t, err)
 	if enabled {
