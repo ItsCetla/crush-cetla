@@ -95,6 +95,7 @@ type ConfigStore struct {
 	workspacePath      string   // .crush/crush.json
 	loadedPaths        []string // config files that were successfully loaded
 	knownProviders     []catwalk.Provider
+	openCode           *openCodeImport // what the last load imported from OpenCode
 	overrides          RuntimeOverrides
 	trackedConfigPaths []string                // unique, normalized config file paths
 	snapshots          map[string]fileSnapshot // path -> snapshot at last capture

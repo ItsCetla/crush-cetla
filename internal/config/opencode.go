@@ -68,7 +68,10 @@ func openCodePaths() opencode.Paths {
 // install.
 type openCodeImport struct {
 	settings openCodeSettings
-	config   *opencode.Config
+	// includeProject records whether project-level OpenCode files were
+	// read (only for trusted projects).
+	includeProject bool
+	config         *opencode.Config
 	// creds maps catwalk provider IDs to API keys from OpenCode's auth
 	// store. Only loaded when credentials are enabled.
 	creds map[string]string
@@ -83,7 +86,7 @@ func loadOpenCode(opts *Options, workingDir string, includeProject bool) *openCo
 	if !settings.enabled {
 		return nil
 	}
-	imp := &openCodeImport{settings: settings}
+	imp := &openCodeImport{settings: settings, includeProject: includeProject}
 	paths := openCodePaths()
 
 	if settings.mcp || settings.providers {
