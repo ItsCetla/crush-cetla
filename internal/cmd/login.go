@@ -10,20 +10,34 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/login"
+	"github.com/charmbracelet/crush/internal/logout"
 	"github.com/charmbracelet/crush/internal/oauth/copilot"
 	"github.com/charmbracelet/crush/internal/workspace"
 	"github.com/spf13/cobra"
 )
+
+// loginPlatforms are the platforms offered when `crush login` runs without
+// an argument, in the order they are listed. Keep this list in sync with
+// the switch in RunE and the logout command.
+var loginPlatforms = []struct {
+	id   string
+	name string
+}{
+	{id: "copilot", name: "GitHub Copilot"},
+	{id: "openai", name: "ChatGPT (OpenAI)"},
+	{id: "grok", name: "Grok (xAI)"},
+}
 
 var loginCmd = &cobra.Command{
 	Aliases: []string{"auth"},
 	Use:     "login [platform]",
 	Short:   "Login Crush to a platform",
 	Long: `Login Crush to a specified platform.
-	The platform should be provided as an argument.
-	Available platforms are: hyper, copilot, openai (chatgpt), grok (xai).`,
+	The platform should be provided as an argument. If no argument is given,
+	a list of available platforms will be shown.
+	Available platforms are: copilot, openai (chatgpt), grok (xai).`,
 	Example: `
-	# Authenticate with Charm Hyper
+	# Choose a platform to authenticate with
 	crush login
 
 	# Authenticate with GitHub Copilot
@@ -39,7 +53,6 @@ var loginCmd = &cobra.Command{
 	crush login -f copilot
 	`,
 	ValidArgs: []cobra.Completion{
-		"hyper",
 		"copilot",
 		"github",
 		"github-copilot",
@@ -50,28 +63,47 @@ var loginCmd = &cobra.Command{
 	},
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var provider string
+		if len(args) > 0 {
+			provider = args[0]
+		} else {
+			var err error
+			provider, err = pickLoginPlatform()
+			if err != nil {
+				return err
+			}
+			if provider == "" {
+				return nil
+			}
+		}
+
+		// Canonicalize aliases, rejecting unknown platforms before any
+		// workspace setup happens.
+		switch provider {
+		case "copilot", "github", "github-copilot":
+			provider = "copilot"
+		case "openai", "chatgpt":
+			provider = "openai"
+		case "grok", "xai":
+			provider = "grok"
+		default:
+			return fmt.Errorf("unknown platform: %s (available platforms: copilot, openai, grok)", provider)
+		}
+
 		ws, cleanup, err := setupWorkspaceWithProgressBar(cmd)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
 
-		provider := "hyper"
-		if len(args) > 0 {
-			provider = args[0]
-		}
 		force, _ := cmd.Flags().GetBool("force")
 		switch provider {
-		case "hyper":
-			return loginHyper(ws, force)
-		case "copilot", "github", "github-copilot":
+		case "copilot":
 			return loginCopilot(ws, force)
-		case "openai", "chatgpt":
+		case "openai":
 			return loginOpenAI(ws, force)
-		case "grok", "xai":
-			return loginGrok(ws, force)
 		default:
-			return fmt.Errorf("unknown platform: %s", args[0])
+			return loginGrok(ws, force)
 		}
 	},
 }
@@ -80,31 +112,22 @@ func init() {
 	loginCmd.Flags().BoolP("force", "f", false, "Force re-authentication even if already logged in")
 }
 
-func loginHyper(ws workspace.Workspace, force bool) error {
-	if !force {
-		cfg := ws.Config()
-		if cfg != nil {
-			if pc, ok := cfg.Providers.Get("hyper"); ok && pc.OAuthToken != nil {
-				fmt.Println("You are already logged in to Hyper.")
-				fmt.Println("Use --force to re-authenticate.")
-				return nil
-			}
-		}
+// pickLoginPlatform asks which platform to log in to and returns its ID, or
+// the empty string when the user cancels.
+func pickLoginPlatform() (string, error) {
+	names := make([]string, len(loginPlatforms))
+	for i, p := range loginPlatforms {
+		names[i] = p.name
 	}
-
-	ctx := getLoginContext()
-	token, err := login.Run(ctx, login.PlatformHyper)
+	choice, err := logout.Choose("Which platform do you want to log in to?", names)
 	if err != nil {
-		return err
+		return "", err
 	}
-
-	if err := ws.SetProviderAPIKey(config.ScopeGlobal, "hyper", token); err != nil {
-		return err
+	if choice < 0 {
+		fmt.Println("Login cancelled.")
+		return "", nil
 	}
-
-	fmt.Println()
-	fmt.Println("You're now authenticated with Hyper!")
-	return nil
+	return loginPlatforms[choice].id, nil
 }
 
 func loginCopilot(ws workspace.Workspace, force bool) error {

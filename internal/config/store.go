@@ -13,13 +13,11 @@ import (
 	"time"
 
 	"charm.land/catwalk/pkg/catwalk"
-	hyperp "github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/env"
 	"github.com/charmbracelet/crush/internal/lock"
 	"github.com/charmbracelet/crush/internal/oauth"
 	"github.com/charmbracelet/crush/internal/oauth/copilot"
 	"github.com/charmbracelet/crush/internal/oauth/grok"
-	"github.com/charmbracelet/crush/internal/oauth/hyper"
 	"github.com/charmbracelet/crush/internal/oauth/openai"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -181,66 +179,6 @@ func (s *ConfigStore) KnownProviders() []catwalk.Provider {
 	s.writeMu.RLock()
 	defer s.writeMu.RUnlock()
 	return s.knownProviders
-}
-
-// RefetchHyperProvider re-fetches the Hyper provider catalog from the
-// remote API and updates the in-memory known providers list and config.
-// This is called after OAuth authentication completes so the latest
-// models are available without restarting.
-func (s *ConfigStore) RefetchHyperProvider(ctx context.Context) error {
-	// Build a fresh client that reads the API key from the live config,
-	// not the stale snapshot captured at startup. The syncer's original
-	// client closes over the startup config and would send an expired
-	// token after OAuth re-authentication.
-	freshClient := realHyperClient{
-		baseURL:    hyperp.BaseURL(),
-		resolveKey: func() string { return ResolveHyperAPIKey(s.Config()) },
-	}
-	hyperSyncer.SetClient(freshClient)
-
-	hyperProvider, err := hyperSyncer.Refetch(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to refetch Hyper provider: %w", err)
-	}
-	if hyperProvider.ID == "" {
-		return nil
-	}
-
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-
-	// Replace or insert the Hyper entry in knownProviders.
-	found := false
-	for i, p := range s.knownProviders {
-		if string(p.ID) == string(hyperProvider.ID) {
-			s.knownProviders[i] = hyperProvider
-			found = true
-			break
-		}
-	}
-	if !found {
-		s.knownProviders = append([]catwalk.Provider{hyperProvider}, s.knownProviders...)
-	}
-
-	// Update the Hyper provider config with the refreshed model list
-	// and endpoint. Use cloneForWrite so readers always see a consistent
-	// snapshot (the store's contract forbids in-place config mutation).
-	nc := s.config.cloneForWrite()
-	if pc, ok := nc.Providers.Get(string(hyperProvider.ID)); ok {
-		pc.Models = hyperProvider.Models
-		if hyperProvider.APIEndpoint != "" {
-			pc.BaseURL = hyperProvider.APIEndpoint
-		}
-		nc.Providers.Set(string(hyperProvider.ID), pc)
-	}
-	s.setConfig(nc)
-
-	// Also update the memoized provider list so callers of
-	// config.Providers() (e.g. the models dialog) see fresh data.
-	UpdateProviderInList(hyperProvider)
-
-	s.SetupAgents()
-	return nil
 }
 
 // SetupAgents configures the coder and task agents on the config.
@@ -682,13 +620,6 @@ func (s *ConfigStore) SetProviderAPIKey(scope Scope, providerID string, apiKey a
 		cfg.Providers.Set(providerID, providerConfig)
 	}
 
-	// After authenticating with Hyper, re-fetch the provider catalog so
-	// the latest models are available without restarting.
-	if providerID == "hyper" {
-		if refetchErr := s.RefetchHyperProvider(context.Background()); refetchErr != nil {
-			slog.Warn("Failed to refetch Hyper provider after auth", "error", refetchErr)
-		}
-	}
 	// After authenticating with a ChatGPT account, fetch the Codex model
 	// catalog the subscription grants and persist it so the models
 	// dialog can offer it beside the API-key catalog.
@@ -704,8 +635,7 @@ func (s *ConfigStore) SetProviderAPIKey(scope Scope, providerID string, apiKey a
 }
 
 // fetchOpenAIModels fetches the ChatGPT model catalog from the Codex
-// backend. A package variable so tests can stub the network call,
-// matching how the catwalk and hyper syncers are swappable globals.
+// backend. A package variable so tests can stub the network call.
 var fetchOpenAIModels = openai.Models
 
 // refetchOpenAIModels stores the Codex model catalog the ChatGPT plan
@@ -765,8 +695,7 @@ func (s *ConfigStore) RefetchOpenAIChatGPTModels(ctx context.Context) {
 }
 
 // fetchGrokModels fetches the Grok model catalog from the xAI API. A
-// package variable so tests can stub the network call, matching how the
-// catwalk and hyper syncers are swappable globals.
+// package variable so tests can stub the network call.
 var fetchGrokModels = grok.Models
 
 // refetchGrokModels stores the model catalog the Grok plan grants next
@@ -827,7 +756,7 @@ func (s *ConfigStore) RefetchGrokModels(ctx context.Context) {
 
 // RefreshOAuthToken refreshes the OAuth token for the given provider.
 //
-// Providers like Hyper rotate refresh tokens: each exchange consumes the
+// Some OAuth providers rotate refresh tokens: each exchange consumes the
 // caller's refresh token, issues a new pair, and revokes the old one. If
 // two crush instances (or two goroutines) refresh concurrently with the
 // same stored refresh token, the second exchange reuses an already-revoked
@@ -1069,8 +998,6 @@ func (s *ConfigStore) exchange(ctx context.Context, providerID, refreshToken str
 		return openai.RefreshToken(ctx, refreshToken)
 	case string(catwalk.InferenceProviderXAI):
 		return grok.RefreshToken(ctx, refreshToken)
-	case hyperp.Name:
-		return hyper.ExchangeToken(ctx, refreshToken)
 	default:
 		return nil, fmt.Errorf("OAuth refresh not supported for provider %s", providerID)
 	}

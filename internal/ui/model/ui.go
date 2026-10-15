@@ -27,7 +27,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/agent/notify"
 	agenttools "github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
@@ -79,10 +78,6 @@ const pasteColsThreshold = 1000
 
 // Session details panel max height.
 const sessionDetailsMaxHeight = 20
-
-// hyperCreditsPollInterval is how often the Hyper credits balance is
-// refreshed while no session is running.
-const hyperCreditsPollInterval = 60 * time.Second
 
 // gitBranchPollInterval is how often the workspace's checked-out branch is
 // re-read. A checkout emits no event Crush can subscribe to, so the branch
@@ -174,13 +169,6 @@ type (
 	// closeDialogMsg is sent to close the current dialog.
 	closeDialogMsg struct{}
 
-	// hyperRefreshDoneMsg is sent after a silent Hyper OAuth refresh
-	// finishes. It carries the original model-selection action so the
-	// selection can be resumed.
-	hyperRefreshDoneMsg struct {
-		action dialog.ActionSelectModel
-	}
-
 	// copyChatHighlightMsg is sent to copy the current chat highlight to clipboard.
 	copyChatHighlightMsg struct{}
 
@@ -188,16 +176,6 @@ type (
 	sessionFilesUpdatesMsg struct {
 		sessionFiles []SessionFile
 	}
-
-	// creditsUpdatedMsg is sent when the remaining Hyper credits have been
-	// fetched from the API. credits is nil when the team has hypercredit
-	// display disabled.
-	creditsUpdatedMsg struct {
-		credits *int
-	}
-
-	// hyperCreditsPollMsg is sent by the Hyper credits poll timer.
-	hyperCreditsPollMsg struct{}
 
 	// gitBranchUpdatedMsg carries the workspace's checked-out branch. branch
 	// is empty when the workspace is not a Git repository or HEAD is
@@ -468,12 +446,6 @@ type UI struct {
 	hoverX        int
 	hoverY        int
 
-	// hyperCredits is the remaining Hyper credits as last fetched from
-	// the /v1/credits endpoint. It is nil when no fetch has reported a
-	// balance yet, or when the team has hypercredit display disabled, and
-	// no balance is rendered in either case.
-	hyperCredits *int
-
 	// gitBranch is the workspace's checked-out branch as of the last poll,
 	// empty when there is none to show. Reading it costs a file read
 	// locally and a request in client/server mode, so renders take it from
@@ -658,16 +630,9 @@ func (m *UI) Init() tea.Cmd {
 	if cmd := m.dispatchBusyRefresh(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
-	// The credits balance is shown from the first frame on, so fetch it
-	// right away and keep polling it while Crush sits idle. The poll runs
-	// for every provider: it is a no-op unless Hyper is selected.
-	if m.com.IsHyper() {
-		cmds = append(cmds, m.fetchHyperCredits())
-	}
 	// The branch is shown from the first frame on, so read it now and keep
 	// polling for checkouts made outside Crush.
 	cmds = append(cmds, m.fetchGitBranch(), m.gitBranchTicker())
-	cmds = append(cmds, m.hyperCreditsTicker())
 	// Prime the memoized MCP state off-thread. There is deliberately no
 	// wait for server-side MCP initialization: the init gate is
 	// process-local and only armed where mcp.Initialize runs (the server),
@@ -1048,7 +1013,6 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.session != nil && msg.Payload.ID == m.session.ID {
 			prevHasInProgress := hasInProgressTodo(m.session.Todos)
 			prevPillsHeight := m.pillsAreaHeight()
-			m.updateHyperCredits()
 			m.session = &msg.Payload
 			if !prevHasInProgress && hasInProgressTodo(m.session.Todos) {
 				m.todoIsSpinning = true
@@ -1520,20 +1484,6 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chat.ScrollToBottom()
 		}
 		cmds = append(cmds, m.loadPromptHistory())
-	case hyperRefreshDoneMsg:
-		if cmd := m.handleSelectModel(msg.action); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	case creditsUpdatedMsg:
-		m.hyperCredits = msg.credits
-	case hyperCreditsPollMsg:
-		// While a session runs every response refreshes the balance, so
-		// the poll only has to cover idle time. Re-arm it either way: the
-		// next poll may well land after the agent went idle again.
-		if m.com.IsHyper() && !m.isAgentBusy() {
-			cmds = append(cmds, m.fetchHyperCredits())
-		}
-		cmds = append(cmds, m.hyperCreditsTicker())
 	case gitBranchUpdatedMsg:
 		m.gitBranch = msg.branch
 	case gitBranchPollMsg:
@@ -2647,88 +2597,6 @@ func substituteArgs(content string, args map[string]string) string {
 	return content
 }
 
-// refreshHyperAndRetrySelect returns a command that silently refreshes
-// the Hyper OAuth token and then re-runs the model selection. If the
-// refresh fails, the selection resumes with ReAuthenticate set so the
-// OAuth dialog opens.
-func (m *UI) refreshHyperAndRetrySelect(msg dialog.ActionSelectModel) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if err := m.com.Workspace.RefreshOAuthToken(ctx, config.ScopeGlobal, "hyper"); err != nil {
-			slog.Warn("Hyper OAuth refresh failed, requesting re-auth", "error", err)
-			msg.ReAuthenticate = true
-		}
-		return hyperRefreshDoneMsg{action: msg}
-	}
-}
-
-// updateHyperCredits refreshes the displayed Hyper balance from the most
-// recent /v1/credits fetch. The balance is fetched on startup, polled
-// while idle and refreshed on every response during a session, so reading
-// the stored value here is enough: until the first fetch lands the
-// balance is unknown and stays hidden.
-func (m *UI) updateHyperCredits() {
-	if !m.com.IsHyper() {
-		return
-	}
-	m.hyperCredits = hyper.Balance()
-}
-
-// fetchHyperCredits returns a command that asynchronously fetches the
-// remaining Hyper credits from the /v1/credits endpoint. An expired
-// OAuth token is refreshed first so a long-running session keeps
-// reporting a balance.
-func (m *UI) fetchHyperCredits() tea.Cmd {
-	return func() tea.Msg {
-		var (
-			apiKey      string
-			cfg         *config.Config
-			providerCfg config.ProviderConfig
-		)
-		getAPIKey := func() (ok bool) {
-			if cfg = m.com.Config(); cfg == nil || cfg.Providers == nil {
-				return false
-			}
-			if providerCfg, ok = cfg.Providers.Get(hyper.Name); !ok {
-				return false
-			}
-			var err error
-			apiKey, err = m.com.Workspace.Resolver().ResolveValue(providerCfg.APIKey)
-			return err == nil && apiKey != ""
-		}
-		if !getAPIKey() {
-			return nil
-		}
-
-		if providerCfg.OAuthToken != nil && providerCfg.OAuthToken.IsExpired() {
-			ctxRefresh, cancelRefresh := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancelRefresh()
-			if err := m.com.Workspace.RefreshOAuthToken(ctxRefresh, config.ScopeGlobal, hyper.Name); err != nil {
-				slog.Warn("Hyper OAuth refresh failed before fetching credits, trying with existing token", "error", err)
-			} else if !getAPIKey() {
-				return nil
-			}
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		credits, err := hyper.FetchCredits(ctx, apiKey)
-		if err != nil {
-			slog.Warn("Failed to fetch Hyper credits", "error", err)
-			return nil
-		}
-		return creditsUpdatedMsg{credits: credits}
-	}
-}
-
-// hyperCreditsTicker schedules the next Hyper credits poll.
-func (m *UI) hyperCreditsTicker() tea.Cmd {
-	return tea.Tick(hyperCreditsPollInterval, func(time.Time) tea.Msg {
-		return hyperCreditsPollMsg{}
-	})
-}
-
 // fetchGitBranch reads the workspace's checked-out branch off the render
 // path. A failed read keeps whatever the last poll reported.
 func (m *UI) fetchGitBranch() tea.Cmd {
@@ -2814,8 +2682,7 @@ func (m *UI) restoreModelFromSession(msgs []message.Message) tea.Cmd {
 	})
 }
 
-// handleSelectModel performs the model selection after any provider
-// pre-checks (such as a silent Hyper OAuth refresh) have completed.
+// handleSelectModel performs the model selection.
 func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -2835,16 +2702,6 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 		isConfigured = func() bool { _, ok := cfg.Providers.Get(providerID); return ok }
 		isOnboarding = m.state == uiOnboarding
 	)
-
-	// For Hyper, if the stored OAuth token is expired, try a silent
-	// refresh before deciding whether the provider is configured. Keeps
-	// users from hitting a 401 on their first message after the
-	// short-lived access token ages out.
-	if !msg.ReAuthenticate && providerID == "hyper" {
-		if pc, ok := cfg.Providers.Get(providerID); ok && pc.OAuthToken != nil && pc.OAuthToken.IsExpired() {
-			return m.refreshHyperAndRetrySelect(msg)
-		}
-	}
 
 	// Attempt to import GitHub Copilot tokens from VSCode if available.
 	if isCopilot && !isConfigured() && !msg.ReAuthenticate {
@@ -2959,8 +2816,6 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 		if cmd := m.dispatchBusyRefresh(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-	} else if m.com.IsHyper() {
-		cmds = append(cmds, m.fetchHyperCredits())
 	}
 
 	return tea.Batch(cmds...)
@@ -2975,8 +2830,6 @@ func (m *UI) openAuthenticationDialog(provider catwalk.Provider, model config.Se
 	)
 
 	switch provider.ID {
-	case "hyper":
-		dlg, cmd = dialog.NewOAuthHyper(m.com, isOnboarding, provider, model, modelType)
 	case catwalk.InferenceProviderCopilot:
 		dlg, cmd = dialog.NewOAuthCopilot(m.com, isOnboarding, provider, model, modelType)
 	case catwalk.InferenceProviderOpenAI:
@@ -3602,7 +3455,6 @@ func (m *UI) drawHeader(scr uv.Screen, area uv.Rectangle) {
 		m.detailsOpen,
 		area.Dx(),
 		m.lspErrorCount(),
-		m.hyperCredits,
 		m.gitBranch,
 	)
 }
@@ -5122,7 +4974,7 @@ func (m *UI) renderEditorView(width int) string {
 
 // cacheSidebarLogo renders and caches the sidebar logo at the specified width.
 func (m *UI) cacheSidebarLogo(width int) {
-	m.sidebarLogo = renderLogo(m.com.Styles, true, m.com.IsHyper(), width)
+	m.sidebarLogo = renderLogo(m.com.Styles, true, width)
 }
 
 // applyThemeForProvider swaps the active theme to the one associated with
@@ -5926,13 +5778,6 @@ func (m *UI) handleAgentNotification(n notify.Notification) tea.Cmd {
 			Title:   "Crush is waiting...",
 			Message: fmt.Sprintf("Agent's turn completed in \"%s\"", n.SessionTitle),
 		}))
-		// Show what the stored balance says right away, and fetch again:
-		// the refresh for the turn's last response is only kicked off once
-		// its request finishes, so it may still be in flight here.
-		m.updateHyperCredits()
-		if m.com.IsHyper() {
-			cmds = append(cmds, m.fetchHyperCredits())
-		}
 	case notify.TypeAgentError:
 		// Terminal edge like TypeAgentFinished; fall through to the
 		// busy/queue refresh below.
@@ -6436,7 +6281,7 @@ func (m *UI) disableDockerMCP() tea.Msg {
 }
 
 // renderLogo renders the Crush logo with the given styles and dimensions.
-func renderLogo(t *styles.Styles, compact, hyper bool, width int) string {
+func renderLogo(t *styles.Styles, compact bool, width int) string {
 	return logo.Render(t.Logo.GradCanvas, version.Version, compact, logo.Opts{
 		FieldColor:   t.Logo.FieldColor,
 		TitleColorA:  t.Logo.TitleColorA,
@@ -6444,6 +6289,5 @@ func renderLogo(t *styles.Styles, compact, hyper bool, width int) string {
 		CharmColor:   t.Logo.CharmColor,
 		VersionColor: t.Logo.VersionColor,
 		Width:        width,
-		Hyper:        hyper,
 	})
 }

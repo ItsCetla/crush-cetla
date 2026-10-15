@@ -3,8 +3,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/http"
 	"testing"
 
 	"charm.land/catwalk/pkg/catwalk"
@@ -541,32 +539,6 @@ func TestGetProviderOptionsReasoningEffort(t *testing.T) {
 			assert.Equal(t, anthropic.Effort("max"), *parsed.Effort)
 		})
 	}
-}
-
-func TestIsUnauthorized(t *testing.T) {
-	t.Run("nil error", func(t *testing.T) {
-		assert.False(t, isUnauthorized(nil))
-	})
-
-	t.Run("non-provider error", func(t *testing.T) {
-		assert.False(t, isUnauthorized(errors.New("something broke")))
-	})
-
-	t.Run("provider error with 401", func(t *testing.T) {
-		err := &fantasy.ProviderError{StatusCode: http.StatusUnauthorized, Message: "unauthorized"}
-		assert.True(t, isUnauthorized(err))
-	})
-
-	t.Run("provider error with non-401", func(t *testing.T) {
-		err := &fantasy.ProviderError{StatusCode: http.StatusForbidden, Message: "forbidden"}
-		assert.False(t, isUnauthorized(err))
-	})
-
-	t.Run("wrapped provider error with 401", func(t *testing.T) {
-		inner := &fantasy.ProviderError{StatusCode: http.StatusUnauthorized, Message: "expired"}
-		err := fmt.Errorf("request failed: %w", inner)
-		assert.True(t, isUnauthorized(err))
-	})
 }
 
 func TestGetProviderOptionsReasoningEffortCustomProvider(t *testing.T) {

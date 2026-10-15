@@ -45,17 +45,8 @@ func newHeader(com *common.Common) *header {
 // after the theme changes.
 func (h *header) refresh() {
 	t := h.com.Styles
-	isHyper := h.com.IsHyper()
-	charm := "Charm™"
-	if !isHyper {
-		charm = " " + charm
-	}
-	name := "CRUSH"
-	if isHyper {
-		name = "HYPERCRUSH"
-	}
-	h.compactLogo = t.Header.Charm.Render(charm) + " " +
-		styles.ApplyBoldForegroundGrad(t.Header.LogoGradCanvas, name, t.Header.LogoGradFromColor, t.Header.LogoGradToColor) + " "
+	h.compactLogo = t.Header.Charm.Render(" Charm™") + " " +
+		styles.ApplyBoldForegroundGrad(t.Header.LogoGradCanvas, "CRUSH", t.Header.LogoGradFromColor, t.Header.LogoGradToColor) + " "
 	// Force drawHeader to re-render the wide logo on the next frame.
 	h.width = 0
 	h.logo = ""
@@ -72,12 +63,11 @@ func (h *header) drawHeader(
 	detailsOpen bool,
 	width int,
 	lspErrorCount int,
-	hyperCredits *int,
 	gitBranch string,
 ) {
 	t := h.com.Styles
 	if width != h.width || compact != h.compact {
-		h.logo = renderLogo(h.com.Styles, compact, h.com.IsHyper(), width)
+		h.logo = renderLogo(h.com.Styles, compact, width)
 	}
 
 	h.width = width
@@ -102,7 +92,6 @@ func (h *header) drawHeader(
 		lspErrorCount,
 		detailsOpen,
 		availDetailWidth,
-		hyperCredits,
 		gitBranch,
 	)
 
@@ -135,7 +124,6 @@ func renderHeaderDetails(
 	lspErrorCount int,
 	detailsOpen bool,
 	availWidth int,
-	hyperCredits *int,
 	gitBranch string,
 ) string {
 	t := com.Styles
@@ -156,11 +144,6 @@ func renderHeaderDetails(
 		}
 		formattedPercentage := t.Header.Percentage.Render(percentageText)
 		parts = append(parts, formattedPercentage)
-	}
-
-	if com.IsHyper() && hyperCredits != nil {
-		hc := t.Header.HypercreditIcon.Render(styles.HypercreditIcon) + " " + t.Header.Percentage.Render(common.FormatCredits(*hyperCredits))
-		parts = append(parts, hc)
 	}
 
 	const keystroke = "ctrl+d"

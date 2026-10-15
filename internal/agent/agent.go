@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -34,7 +33,6 @@ import (
 	"charm.land/fantasy/providers/openrouter"
 	"charm.land/fantasy/providers/vercel"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/agent/notify"
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
@@ -1072,8 +1070,6 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				}
 			}
 			currentAssistant.AddFinish(finishReason, "", "")
-			currentAssistant.PrismModelID, currentAssistant.PrismModelName = extractPrismModel(stepResult.ProviderMetadata)
-			currentAssistant.PrismHypercreditSavings, currentAssistant.PrismDollarSavings = extractPrismSavings(stepResult.ProviderMetadata)
 			sessionLock.Lock()
 			defer sessionLock.Unlock()
 
@@ -1118,12 +1114,10 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 		},
 	})
 	if err != nil {
-		isHyper := largeModel.ModelCfg.Provider == hyper.Name
 		isCancelErr := errors.Is(err, context.Canceled)
 		slog.Info("Agent stream returned error",
 			"error", err.Error(),
 			"error_type", fmt.Sprintf("%T", err),
-			"is_hyper", isHyper,
 			"is_cancel", isCancelErr)
 		if currentAssistant == nil {
 			// Cancel-before-assistant-creation window: the run was
@@ -1216,8 +1210,6 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			// Checked before the provider branches so a deadline our own
 			// request timeout imposed is never reported as a provider error.
 			currentAssistant.AddFinish(message.FinishReasonError, "Request timed out", requestTimedOutErr.userMessage())
-		} else if isHyper && errors.As(err, &providerErr) && providerErr.StatusCode == http.StatusUnauthorized {
-			currentAssistant.AddFinish(message.FinishReasonError, "Unauthorized", `Please re-authenticate with Hyper. You can also run "crush auth" to re-authenticate.`)
 		} else if errors.As(err, &providerErr) {
 			if providerErr.Message == "The requested model is not supported." {
 				url := "https://github.com/settings/copilot/features"
@@ -1981,51 +1973,6 @@ func (a *sessionAgent) openrouterCost(metadata fantasy.ProviderMetadata) *float6
 		return nil
 	}
 	return &opts.Usage.Cost
-}
-
-// extractPrismModel returns the ID and name of the model that actually
-// served the turn, as reported by the Hyper Prism model router headers,
-// or empty strings when the turn was not routed through a Prism model.
-func extractPrismModel(metadata fantasy.ProviderMetadata) (modelID, modelName string) {
-	openaiMeta, ok := metadata[openai.Name]
-	if !ok {
-		return "", ""
-	}
-	pm, ok := openaiMeta.(*openai.ProviderMetadata)
-	if !ok {
-		return "", ""
-	}
-	_ = pm.ExtraField(hyper.PrismModelIDField, &modelID)
-	_ = pm.ExtraField(hyper.PrismModelNameField, &modelName)
-	return modelID, modelName
-}
-
-// extractPrismSavings returns the hypercredit and dollar savings from
-// routing the turn through the Hyper Prism model router, as reported by
-// its savings trailers, or nil when not reported or malformed.
-func extractPrismSavings(metadata fantasy.ProviderMetadata) (hypercredits, dollars *float64) {
-	openaiMeta, ok := metadata[openai.Name]
-	if !ok {
-		return nil, nil
-	}
-	pm, ok := openaiMeta.(*openai.ProviderMetadata)
-	if !ok {
-		return nil, nil
-	}
-	return extraFieldFloat(pm, hyper.PrismHypercreditSavingsField), extraFieldFloat(pm, hyper.PrismDollarSavingsField)
-}
-
-func extraFieldFloat(pm *openai.ProviderMetadata, key string) *float64 {
-	var value string
-	if !pm.ExtraField(key, &value) {
-		return nil
-	}
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		slog.Warn("Could not parse Prism savings", "key", key, "value", value, "error", err)
-		return nil
-	}
-	return &parsed
 }
 
 func (a *sessionAgent) updateSessionUsage(model Model, session *session.Session, usage fantasy.Usage, overrideCost *float64, estimated bool) {

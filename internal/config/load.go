@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"charm.land/catwalk/pkg/catwalk"
-	"github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/discover"
 	"github.com/charmbracelet/crush/internal/env"
@@ -103,11 +102,8 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 	// Load known providers, this loads the config from catwalk. A failed
 	// refresh still yields the cached or embedded catalog, so only an empty
 	// list is fatal: starting up without providers is worse than starting
-	// up with slightly stale ones. Pass a Hyper token refresher so the
-	// catalog fetch can retry on 401.
-	providers, err := Providers(cfg, func(ctx context.Context) error {
-		return store.RefreshOAuthToken(ctx, ScopeGlobal, "hyper")
-	})
+	// up with slightly stale ones.
+	providers, err := Providers(cfg)
 	if err != nil {
 		if len(providers) == 0 {
 			return nil, err
@@ -368,20 +364,6 @@ func (c *Config) configureProviders(ctx context.Context, store *ConfigStore, env
 				}
 				continue
 			}
-		case catwalk.InferenceProvider("hyper"):
-			if apiKey := env.Get("HYPER_API_KEY"); apiKey != "" {
-				prepared.APIKey = apiKey
-				prepared.APIKeyTemplate = apiKey
-			} else {
-				v, err := resolver.ResolveValue(p.APIKey)
-				if v == "" || err != nil {
-					if configExists {
-						slog.Warn("Skipping Hyper provider due to missing API key", "provider", p.ID)
-						c.Providers.Del(string(p.ID))
-					}
-					continue
-				}
-			}
 		default:
 			// An OAuth login is a credential too: providers signed in
 			// through OAuth (e.g. OpenAI with a ChatGPT account) are
@@ -463,7 +445,6 @@ func (c *Config) configureProviders(ctx context.Context, store *ConfigStore, env
 		// Default to OpenAI if not set.
 		providerConfig.Type = cmp.Or(providerConfig.Type, catwalk.TypeOpenAICompat)
 		if !slices.Contains(catwalk.KnownProviderTypes(), providerConfig.Type) &&
-			providerConfig.Type != hyper.Name &&
 			!discover.IsKnownCustomProvider(string(providerConfig.Type)) {
 			slog.Warn("Skipping custom provider due to unsupported provider type", "provider", id)
 			c.Providers.Del(id)

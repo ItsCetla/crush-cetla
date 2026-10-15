@@ -21,7 +21,6 @@ import (
 
 	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/fantasy"
-	"github.com/charmbracelet/crush/internal/agent/hyper"
 	"github.com/charmbracelet/crush/internal/agent/notify"
 	"github.com/charmbracelet/crush/internal/agent/prompt"
 	"github.com/charmbracelet/crush/internal/agent/tools"
@@ -407,17 +406,6 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 	result, originalErr := run()
 	logTurnSkillUsage(sessionID, prompt, c.activeSkills, c.skillTracker, beforeLoaded)
 
-	// Notify only if still unauthorized after retry — a successful
-	// retry means the user doesn't need to re-authenticate. AWS SSO is
-	// handled transparently inside OnAuthRefresh, so it needs no post-run
-	// notification here.
-	if originalErr != nil && isUnauthorized(originalErr) && c.notify != nil && model.ModelCfg.Provider == hyper.Name {
-		c.notify.Publish(pubsub.CreatedEvent, notify.Notification{
-			Type:       notify.TypeReAuthenticate,
-			ProviderID: model.ModelCfg.Provider,
-		})
-	}
-
 	if hasLatest && c.runComplete != nil {
 		c.runComplete.PublishMustDeliver(ctx, pubsub.UpdatedEvent, latest)
 		// Signal to the dispatcher (backend.runAgent) that the
@@ -636,7 +624,7 @@ func getProviderOptions(model Model, providerCfg config.ProviderConfig) fantasy.
 			options[google.Name] = parsed
 		}
 
-	case openaicompat.Name, hyper.Name:
+	case openaicompat.Name:
 		extraBody := make(map[string]any)
 
 		_, hasReasoningEffort := mergedOptions["reasoning_effort"]
@@ -661,8 +649,6 @@ func getProviderOptions(model Model, providerCfg config.ProviderConfig) fantasy.
 		// TODO: Abstract this in Fantasy somehow?
 		// TODO: Allow custom providers to specify how to set this?
 		switch providerCfg.ID {
-		case hyper.Name:
-			extraBody["thinking"] = model.ModelCfg.Think
 		case string(catwalk.InferenceProviderIoNet):
 			if _, ok := extraBody["reasoning"]; !ok && model.CatwalkCfg.CanReason {
 				if model.ModelCfg.Think {
@@ -1040,15 +1026,6 @@ func (c *coordinator) buildAgentModels(ctx context.Context, isSubAgent bool) (Mo
 	largeModel = newRequestTimeoutModel(largeModel, requestTimeout)
 	smallModel = newRequestTimeoutModel(smallModel, requestTimeout)
 
-	// Hyper completions no longer report the hypercredit balance, so wrap
-	// the Hyper models to fetch it from /v1/credits on every request.
-	if largeModelCfg.Provider == hyper.Name {
-		largeModel = newHyperCreditsModel(largeModel, c.hyperAPIKey)
-	}
-	if smallModelCfg.Provider == hyper.Name {
-		smallModel = newHyperCreditsModel(smallModel, c.hyperAPIKey)
-	}
-
 	large := Model{
 		Model:      largeModel,
 		CatwalkCfg: *largeCatwalkModel,
@@ -1063,13 +1040,6 @@ func (c *coordinator) buildAgentModels(ctx context.Context, isSubAgent bool) (Mo
 	}
 
 	return large, small, nil
-}
-
-// hyperAPIKey resolves the Hyper API key from the live config, so an
-// OAuth token refreshed after the models were built is picked up by the
-// next credits fetch.
-func (c *coordinator) hyperAPIKey() string {
-	return config.ResolveHyperAPIKey(c.cfg.Config())
 }
 
 func (c *coordinator) buildAnthropicProvider(baseURL, apiKey string, headers map[string]string, providerID string) (fantasy.Provider, error) {
@@ -1189,16 +1159,6 @@ func (c *coordinator) buildOpenaiCompatProvider(baseURL, apiKey string, headers 
 			opts,
 			openaicompat.WithUseResponsesAPI(),
 			openaicompat.WithResponsesAPIFunc(isOpenCodeResponsesModel),
-		)
-
-	case hyper.Name:
-		// Hyper may route requests through a Prism model; capture the
-		// router headers so the UI can show which model answered.
-		opts = append(
-			opts,
-			openaicompat.WithLanguageModelOptions(
-				openai.WithLanguageModelHeaderFunc(hyper.HeaderFunc),
-			),
 		)
 	}
 	if httpClient == nil && c.cfg.Config().Options.Debug {
@@ -1366,10 +1326,8 @@ func (c *coordinator) buildProvider(providerCfg config.ProviderConfig, model con
 		return c.buildGoogleProvider(baseURL, apiKey, headers)
 	case "google-vertex":
 		return c.buildGoogleVertexProvider(headers, providerCfg.ExtraParams)
-	case openaicompat.Name, hyper.Name:
+	case openaicompat.Name:
 		switch providerCfg.ID {
-		case hyper.Name:
-			baseURL = hyper.BaseURL() + "/v1"
 		case string(catwalk.InferenceProviderZAI):
 			if providerCfg.ExtraBody == nil {
 				providerCfg.ExtraBody = map[string]any{}
@@ -1579,12 +1537,6 @@ func (c *coordinator) waitForInteractiveReauth(ctx context.Context, providerID s
 	return nil
 }
 
-// isUnauthorized reports whether err is an HTTP 401 from a provider.
-func isUnauthorized(err error) bool {
-	var providerErr *fantasy.ProviderError
-	return errors.As(err, &providerErr) && providerErr.StatusCode == http.StatusUnauthorized
-}
-
 // makeAuthRefreshCallback returns an OnAuthRefresh callback for fantasy that
 // delegates to the coordinator's existing credential refresh logic. Returns
 // nil if no refresh mechanism is configured for the provider.
@@ -1695,14 +1647,6 @@ func (c *coordinator) runSubAgent(ctx context.Context, params subAgentParams) (f
 		})
 	}
 	result, err := run()
-	// Notify only if still unauthorized after retry. AWS SSO is handled
-	// transparently inside OnAuthRefresh, so it needs no post-run notice.
-	if err != nil && isUnauthorized(err) && c.notify != nil && model.ModelCfg.Provider == hyper.Name {
-		c.notify.Publish(pubsub.CreatedEvent, notify.Notification{
-			Type:       notify.TypeReAuthenticate,
-			ProviderID: model.ModelCfg.Provider,
-		})
-	}
 	if err != nil {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf("Failed to generate response: %s", err)), nil
 	}

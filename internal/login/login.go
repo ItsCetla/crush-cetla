@@ -18,13 +18,11 @@ import (
 	"github.com/charmbracelet/crush/internal/oauth"
 	"github.com/charmbracelet/crush/internal/oauth/copilot"
 	"github.com/charmbracelet/crush/internal/oauth/grok"
-	"github.com/charmbracelet/crush/internal/oauth/hyper"
 	"github.com/charmbracelet/crush/internal/oauth/openai"
 )
 
 // Platforms accepted by Run.
 const (
-	PlatformHyper   = "hyper"
 	PlatformCopilot = "copilot"
 	PlatformOpenAI  = "openai"
 	PlatformGrok    = "grok"
@@ -32,7 +30,6 @@ const (
 
 // startMessages are the first lines printed by the non-interactive flow.
 var startMessages = map[string]string{
-	PlatformHyper:   "Initiating device authorization...",
 	PlatformCopilot: "Requesting device code from GitHub...",
 	PlatformOpenAI:  "Starting browser authorization...",
 	PlatformGrok:    "Starting browser authorization...",
@@ -40,7 +37,6 @@ var startMessages = map[string]string{
 
 // titles are the provider names shown in the mini TUI header.
 var titles = map[string]string{
-	PlatformHyper:   "Charm Hyper",
 	PlatformCopilot: "GitHub Copilot",
 	PlatformOpenAI:  "ChatGPT",
 	PlatformGrok:    "Grok",
@@ -124,8 +120,6 @@ func openBrowser(rawURL string) {
 // flowFor returns the constructor for the platform's flow.
 func flowFor(platform string) (func() flow, error) {
 	switch platform {
-	case PlatformHyper:
-		return func() flow { return &hyperFlow{} }, nil
 	case PlatformCopilot:
 		return func() flow { return &copilotFlow{} }, nil
 	case PlatformOpenAI:
@@ -136,45 +130,6 @@ func flowFor(platform string) (func() flow, error) {
 		return nil, fmt.Errorf("unknown platform: %s", platform)
 	}
 }
-
-// hyperFlow runs the Charm Hyper device code flow.
-type hyperFlow struct {
-	deviceCode string
-	expiresIn  int
-}
-
-func (f *hyperFlow) Start(ctx context.Context) (string, string, error) {
-	resp, err := hyper.InitiateDeviceAuth(ctx)
-	if err != nil {
-		return "", "", err
-	}
-	f.deviceCode = resp.DeviceCode
-	f.expiresIn = resp.ExpiresIn
-	return resp.VerificationURL, resp.UserCode, nil
-}
-
-func (f *hyperFlow) Wait(ctx context.Context) (*oauth.Token, error) {
-	refreshToken, err := hyper.PollForToken(ctx, f.deviceCode, f.expiresIn)
-	if err != nil {
-		return nil, err
-	}
-
-	token, err := hyper.ExchangeToken(ctx, refreshToken)
-	if err != nil {
-		return nil, err
-	}
-
-	introspect, err := hyper.IntrospectToken(ctx, token.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("token introspection failed: %w", err)
-	}
-	if !introspect.Active {
-		return nil, errors.New("access token is not active")
-	}
-	return token, nil
-}
-
-func (hyperFlow) Close() {}
 
 // copilotFlow runs the GitHub Copilot device code flow.
 type copilotFlow struct {

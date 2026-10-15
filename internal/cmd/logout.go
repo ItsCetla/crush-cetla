@@ -17,7 +17,6 @@ import (
 // providerDisplayNames maps OAuth-capable provider IDs to display names.
 // Keep this list in sync with the switch in RunE and the login command.
 var providerDisplayNames = map[string]string{
-	"hyper":   "Charm Hyper",
 	"copilot": "GitHub Copilot",
 	"openai":  "ChatGPT",
 	"xai":     "Grok",
@@ -30,11 +29,8 @@ var logoutCmd = &cobra.Command{
 	Long: `Logout Crush from a specified platform, removing stored credentials.
 The platform should be provided as an argument.
 If no argument is given, a list of logged-in platforms will be shown.
-Available platforms are: hyper, copilot, openai (chatgpt), grok (xai).`,
+Available platforms are: copilot, openai (chatgpt), grok (xai).`,
 	Example: `
-# Sign out from Charm Hyper
-crush logout hyper
-
 # Sign out from GitHub Copilot
 crush logout copilot
 
@@ -45,7 +41,6 @@ crush logout openai
 crush logout grok
   `,
 	ValidArgs: []cobra.Completion{
-		"hyper",
 		"copilot",
 		"github",
 		"github-copilot",
@@ -84,7 +79,6 @@ crush logout grok
 
 		// Canonicalize aliases before prompting.
 		switch provider {
-		case "hyper":
 		case "copilot", "github", "github-copilot":
 			provider = "copilot"
 		case "openai", "chatgpt":
@@ -110,8 +104,6 @@ crush logout grok
 		}
 
 		switch provider {
-		case "hyper":
-			return logoutHyper(c, ws.ID)
 		case "copilot":
 			return logoutCopilot(c, ws.ID)
 		case "openai":
@@ -122,20 +114,6 @@ crush logout grok
 			return fmt.Errorf("unknown platform: %s", provider)
 		}
 	},
-}
-
-func logoutHyper(c *client.Client, wsID string) error {
-	ctx := getLogoutContext()
-
-	if err := cmp.Or(
-		c.RemoveConfigField(ctx, wsID, config.ScopeGlobal, "providers.hyper.api_key"),
-		c.RemoveConfigField(ctx, wsID, config.ScopeGlobal, "providers.hyper.oauth"),
-	); err != nil {
-		return err
-	}
-
-	fmt.Printf("Successfully logged out of %s.\n", providerDisplayNames["hyper"])
-	return nil
 }
 
 func logoutCopilot(c *client.Client, wsID string) error {
@@ -205,7 +183,7 @@ func pickLoggedInProvider(c *client.Client, wsID string) (string, bool, error) {
 		id   string
 		name string
 	}
-	for _, id := range []string{"hyper", "copilot", "openai", "xai"} {
+	for _, id := range []string{"copilot", "openai", "xai"} {
 		if p, ok := cfg.Providers.Get(id); ok && p.OAuthToken != nil {
 			loggedIn = append(loggedIn, struct {
 				id   string

@@ -57,7 +57,7 @@ func (m *UI) modelInfo(width int) string {
 	if model != nil {
 		modelName = model.CatwalkCfg.Name
 	}
-	return common.ModelInfo(m.com.Styles, modelName, providerName, reasoningInfo, modelContext, width, m.hyperCredits)
+	return common.ModelInfo(m.com.Styles, modelName, providerName, reasoningInfo, modelContext, width)
 }
 
 // updateSidebarScrollState renders the sidebar content and computes scroll
@@ -80,9 +80,7 @@ func (m *UI) updateSidebarScrollState() {
 	cwd := common.PrettyPathWithBranch(t, m.com.Workspace.WorkingDir(), m.gitBranch, contentWidth)
 	sidebarLogo := m.sidebarLogo
 	if height < logoHeightBreakpoint {
-		sidebarLogo = lipgloss.JoinVertical(lipgloss.Left, logo.SmallRender(m.com.Styles, contentWidth, logo.Opts{
-			Hyper: m.com.IsHyper(),
-		}), "")
+		sidebarLogo = lipgloss.JoinVertical(lipgloss.Left, logo.SmallRender(m.com.Styles, contentWidth, logo.Opts{}), "")
 	}
 
 	var logoRect, contentRect image.Rectangle

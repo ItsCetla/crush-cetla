@@ -27,8 +27,29 @@ func TestLoginCmd_ValidArgs(t *testing.T) {
 	for _, p := range loginCmd.ValidArgs {
 		validPlatforms[p] = true
 	}
-	require.True(t, validPlatforms["hyper"])
+	require.False(t, validPlatforms["hyper"], "Charm Hyper is not a supported platform")
 	require.True(t, validPlatforms["copilot"])
 	require.True(t, validPlatforms["openai"])
 	require.True(t, validPlatforms["chatgpt"])
+	require.True(t, validPlatforms["grok"])
+}
+
+func TestLoginCmd_PickerOffersSupportedPlatforms(t *testing.T) {
+	t.Parallel()
+
+	var ids []string
+	for _, p := range loginPlatforms {
+		ids = append(ids, p.id)
+	}
+	require.Equal(t, []string{"copilot", "openai", "grok"}, ids)
+}
+
+func TestLoginCmd_RejectsUnknownPlatform(t *testing.T) {
+	t.Parallel()
+
+	for _, platform := range []string{"hyper", "nope"} {
+		err := loginCmd.RunE(loginCmd, []string{platform})
+		require.ErrorContains(t, err, "unknown platform: "+platform)
+		require.ErrorContains(t, err, "available platforms: copilot, openai, grok")
+	}
 }

@@ -17,9 +17,9 @@ import (
 // expensive style rebuild. This is the single source of truth for the
 // provider-to-theme mapping; [ThemeForProvider] builds on it.
 func ThemeKeyForProvider(providerID string) string {
+	// Every provider currently uses the default theme. Add a case here to
+	// give a provider its own theme.
 	switch providerID {
-	case "hyper":
-		return "hyper"
 	default:
 		return "default"
 	}
@@ -30,8 +30,6 @@ func ThemeKeyForProvider(providerID string) string {
 // theme.
 func ThemeForProvider(providerID string) Styles {
 	switch ThemeKeyForProvider(providerID) {
-	case "hyper":
-		return HypercrushObsidiana()
 	default:
 		return CharmtonePantera()
 	}
@@ -159,11 +157,6 @@ func charmtoneOverrides(s Styles) Styles {
 		Foreground(charmtone.Violet)
 
 	return s
-}
-
-// HypercrushObsidiana returns the Hypercrush dark theme.
-func HypercrushObsidiana() Styles {
-	return CharmtonePantera()
 }
 
 // gruvboxDarkOpts returns the quickStyleOpts for the Gruvbox Dark theme,

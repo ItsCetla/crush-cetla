@@ -705,7 +705,6 @@
             "azure",
             "bedrock",
             "google-vertex",
-            "hyper",
             "litellm",
             "llamacpp",
             "lmstudio",
