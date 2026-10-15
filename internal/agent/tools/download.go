@@ -32,6 +32,9 @@ type DownloadPermissionsParams struct {
 
 const DownloadToolName = "download"
 
+// maxDownloadSize caps how many bytes the download tool writes to disk.
+const maxDownloadSize = 100 << 20
+
 //go:embed download.md.tpl
 var downloadDescriptionTmpl []byte
 
@@ -134,6 +137,10 @@ func NewDownloadTool(permissions permission.Service, workingDir string, client *
 				return fantasy.NewTextErrorResponse(fmt.Sprintf("Request failed with status code: %d", resp.StatusCode)), nil
 			}
 
+			if resp.ContentLength > maxDownloadSize {
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("Download too large: %d bytes exceeds the %d byte limit", resp.ContentLength, maxDownloadSize)), nil
+			}
+
 			// Create parent directories if they don't exist
 			if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
 				return fantasy.ToolResponse{}, fmt.Errorf("failed to create parent directories: %w", err)
@@ -144,14 +151,21 @@ func NewDownloadTool(permissions permission.Service, workingDir string, client *
 			if err != nil {
 				return fantasy.ToolResponse{}, fmt.Errorf("failed to create output file: %w", err)
 			}
-			defer outFile.Close()
-
-			// Copy data without an explicit size limit.
-			// The overall download is still constrained by the HTTP client's timeout
-			// and any upstream server limits.
-			bytesWritten, err := io.Copy(outFile, resp.Body)
+			// Read one byte past the limit so an oversized body is detected
+			// rather than silently truncated.
+			bytesWritten, err := io.Copy(outFile, io.LimitReader(resp.Body, maxDownloadSize+1))
+			closeErr := outFile.Close()
 			if err != nil {
+				_ = os.Remove(filePath)
 				return fantasy.ToolResponse{}, fmt.Errorf("failed to write file: %w", err)
+			}
+			if bytesWritten > maxDownloadSize {
+				_ = os.Remove(filePath)
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("Download too large: exceeds the %d byte limit; the partial file was removed", maxDownloadSize)), nil
+			}
+			if closeErr != nil {
+				_ = os.Remove(filePath)
+				return fantasy.ToolResponse{}, fmt.Errorf("failed to write file: %w", closeErr)
 			}
 
 			contentType := resp.Header.Get("Content-Type")
