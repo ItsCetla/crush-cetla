@@ -126,6 +126,20 @@ func TestIsSafeReadOnlyCommand_RequiresPermission(t *testing.T) {
 		{"du files0-from", "du --files0-from=/etc/passwd"},
 		{"git blame revs file", "git blame -S /etc/passwd main.go"},
 		{"git blame ignore revs file", "git blame --ignore-revs-file=/etc/passwd main.go"},
+		{"ls absolute", "ls /etc"},
+		{"ls home", "ls ~/.ssh"},
+		{"ls parent", "ls -la .."},
+
+		// Environment dumps, which hold API keys.
+		{"env", "env"},
+		{"printenv", "printenv"},
+		{"printenv one", "printenv ANTHROPIC_API_KEY"},
+		{"set", "set"},
+		{"export", "export -p"},
+		{"ps bsd environment", "ps eww"},
+		{"ps aux environment", "ps auxe"},
+		{"ps macos environment", "ps -E"},
+		{"ps clustered environment", "ps -axE"},
 	}
 
 	for _, tt := range tests {
@@ -150,7 +164,8 @@ func TestIsSafeReadOnlyCommand_AutoApproves(t *testing.T) {
 		"date",
 		"hostname",
 		"hostname -f",
-		"printenv PATH",
+		"ps aux",
+		"ps -ef",
 		"ls -la # list everything",
 		"git status",
 		"git status --short",

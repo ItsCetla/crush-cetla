@@ -19,7 +19,8 @@ type argCheck func(args []string) bool
 // pass to run without a permission prompt. Commands that run other commands
 // (env, nice, nohup, timeout, time, xargs) or change state (kill, killall,
 // set, unset) do not belong here, and neither do commands that reach the
-// network (git ls-remote, ping, nslookup).
+// network (git ls-remote, ping, nslookup) or print environment variables,
+// which hold API keys (printenv, ps e).
 var safeCommands = map[string]argCheck{
 	// System information.
 	"cal":      anyArgs,
@@ -30,9 +31,7 @@ var safeCommands = map[string]argCheck{
 	"groups":   anyArgs,
 	"hostname": hostnameArgs,
 	"id":       anyArgs,
-	"ls":       anyArgs,
-	"printenv": anyArgs,
-	"ps":       anyArgs,
+	"ps":       psArgs,
 	"pwd":      anyArgs,
 	"top":      anyArgs,
 	"type":     anyArgs,
@@ -48,6 +47,7 @@ var safeCommands = map[string]argCheck{
 	// because --files0-from echoes a file's content in its errors.)
 	"cat":   confined(anyArgs),
 	"du":    confined(anyArgs),
+	"ls":    confined(anyArgs),
 	"egrep": confined(anyArgs),
 	"fgrep": confined(anyArgs),
 	"find":  confined(denyWords("-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint", "-fprint0", "-fprintf", "-fls")),
@@ -177,6 +177,26 @@ func sameDir(a, b string) bool {
 }
 
 func anyArgs([]string) bool { return true }
+
+// psArgs rejects the options that print each process's environment: BSD
+// style e (ps e, ps auxe) and -E on macOS and the BSDs.
+func psArgs(args []string) bool {
+	for _, a := range args {
+		if strings.HasPrefix(a, "--") {
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			if strings.Contains(a, "E") {
+				return false
+			}
+			continue
+		}
+		if strings.Contains(a, "e") {
+			return false
+		}
+	}
+	return true
+}
 
 // confined additionally requires that no argument names a path outside the
 // working directory.
