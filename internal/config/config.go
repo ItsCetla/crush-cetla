@@ -497,7 +497,7 @@ type Options struct {
 	Notifications             string           `json:"notifications,omitempty" jsonschema:"description=Notification style to use. Options: auto (default)\\, native\\, osc\\, bell\\, disabled. Auto selects based on environment: native for local sessions\\, osc for SSH (with automatic OSC 99/777 detection).,enum=auto,enum=native,enum=osc,enum=bell,enum=disabled,default=auto"`
 	DisabledSkills            []string         `json:"disabled_skills,omitempty" jsonschema:"description=List of skill names to disable and hide from the agent,example=crush-config"`
 	RequestTimeout            *int             `json:"request_timeout,omitempty" jsonschema:"description=Timeout in seconds for each LLM API request. Streaming responses are aborted only after this much inactivity\\, so slow but active streams are never killed. 0 disables it\\, negative values are invalid.,default=60,example=120,example=300,example=0"`
-	OpenCode                  *OpenCodeOptions `json:"opencode,omitempty" jsonschema:"description=Import MCP servers\\, providers and the models catalog from a local OpenCode install. Read from disk only; never fetched"`
+	OpenCode                  *OpenCodeOptions `json:"opencode,omitempty" jsonschema:"description=Import MCP servers\\, providers\\, models\\, rules\\, skills\\, commands\\, tool toggles and file-edit permissions from a local OpenCode install. Read from disk only; never fetched"`
 	EnableWebTools            bool             `json:"enable_web_tools,omitempty" jsonschema:"description=Enable the built-in tools that make outbound network requests for the agent (fetch\\, agentic_fetch\\, download\\, sourcegraph). The CRUSH_ENABLE_WEB_TOOLS environment variable overrides this when set,default=false"`
 	// TrustedPaths lists directories whose projects are trusted without
 	// `crush trust`. It is only read from system and global config: the
@@ -899,7 +899,19 @@ type Config struct {
 	// Env is a map of environment variables set on startup.
 	Env map[string]string `json:"env,omitempty" jsonschema:"description=Environment variables to set on startup"`
 
+	// OpenCodeCommands are the custom commands imported from OpenCode. They
+	// are set on every load (never read from config files) and travel with
+	// the config so clients see them too.
+	OpenCodeCommands []OpenCodeCommand `json:"opencode_commands,omitempty" jsonschema:"-"`
+
 	Agents map[string]Agent `json:"-"`
+}
+
+// OpenCodeCommand is a custom command imported from OpenCode.
+type OpenCodeCommand struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Template    string `json:"template"`
 }
 
 // cloneForWrite returns a copy of c that the store's typed field mutators

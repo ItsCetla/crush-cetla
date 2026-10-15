@@ -422,6 +422,8 @@ func (c *Commands) setCommandItems(commandType CommandType) {
 			item := NewCommandItem(c.com.Styles, "custom_"+cmd.ID, cmd.Name, "", action)
 			if cmd.Skill != nil {
 				item = item.WithDescription(cmd.Skill.Description)
+			} else if cmd.Description != "" {
+				item = item.WithDescription(cmd.Description)
 			}
 			commandItems = append(commandItems, item)
 		}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -631,6 +632,18 @@ func MatchTool(pattern, name string) bool {
 	}
 	ok, err := path.Match(pattern, name)
 	return err == nil && ok
+}
+
+// unsafeToolChars are the characters OpenCode replaces with "_" when it
+// names MCP tools.
+var unsafeToolChars = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
+// MCPToolName is the name OpenCode gives a tool of an MCP server, which is
+// what tools and permission keys refer to: "<server>_<tool>" with unsafe
+// characters replaced. An empty tool gives the server's prefix.
+func MCPToolName(server, tool string) string {
+	return unsafeToolChars.ReplaceAllString(server, "_") + "_" +
+		unsafeToolChars.ReplaceAllString(tool, "_")
 }
 
 // modelRef parses a "provider/model" string from markdown frontmatter.

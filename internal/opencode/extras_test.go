@@ -465,3 +465,12 @@ func TestMatchTool(t *testing.T) {
 		require.Equal(t, tt.want, MatchTool(tt.pattern, tt.name), "%s ~ %s", tt.pattern, tt.name)
 	}
 }
+
+func TestMCPToolName(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "my_docs_search", MCPToolName("my.docs", "search"))
+	require.Equal(t, "my_docs_", MCPToolName("my.docs", ""))
+	require.Equal(t, "git-hub_list_issues", MCPToolName("git-hub", "list issues"))
+	require.Equal(t, "bench_add_note", MCPToolName("bench", "add_note"))
+}

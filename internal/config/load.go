@@ -103,6 +103,7 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 		slog.Warn("Continuing with the previously known providers", "error", err)
 	}
 	store.knownProviders = providers
+	cfg.applyOpenCodeProviderFilter(merged.openCode, providers)
 
 	env := env.New()
 	// Configure providers

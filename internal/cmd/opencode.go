@@ -15,17 +15,26 @@ import (
 var openCodeCmd = &cobra.Command{
 	Use:   "opencode",
 	Short: "Show what Crush imports from your OpenCode install",
-	Long: `Show the MCP servers, provider settings and models Crush imports from a
-local OpenCode install. Everything is read from OpenCode's files on disk:
-its config files, its cached models.dev catalog and, when enabled, the API
-keys saved by "opencode auth login". Nothing is fetched.
+	Long: `Show what Crush imports from a local OpenCode install: MCP servers,
+provider settings, model choices, the models catalog, instructions, skills,
+commands, tool toggles and permissions. Everything is read from OpenCode's
+files on disk: its config files, its cached models.dev catalog and, when
+enabled, the API keys saved by "opencode auth login". Nothing is fetched,
+and OpenCode plugins are never run.
 
 Project-level OpenCode config (opencode.json and .opencode/ in the project)
 is only read for projects you have trusted with "crush trust".
 
-Configure the import with options.opencode in crush.json:
+Imported settings live in memory only; Crush never writes them to its own
+config. Your crush.json always wins over OpenCode's settings.
 
-  {"options": {"opencode": {"mcp": true, "providers": true, "models": true, "credentials": false}}}
+Each part can be turned off with options.opencode in crush.json; all are on
+except credentials:
+
+  {"options": {"opencode": {"mcp": true, "providers": true, "models": true,
+    "credentials": false, "instructions": true, "skills": true,
+    "commands": true, "tools": true, "permissions": true,
+    "compaction": true}}}
 
 Set CRUSH_DISABLE_OPENCODE=1 or options.opencode.disabled to turn it off.`,
 	Args: cobra.NoArgs,
@@ -94,11 +103,23 @@ func printOpenCodeStatus(w io.Writer, st config.OpenCodeStatus) {
 	} else {
 		fmt.Fprintf(w, "  %s\n", strings.Join(st.Providers, ", "))
 	}
-	if st.Model != "" {
-		fmt.Fprintf(w, "  model:        %s (used when Crush has no selection)\n", st.Model)
+	for _, p := range st.Applied.DisabledProviders {
+		fmt.Fprintf(w, "  disabled %s (enabled_providers / disabled_providers)\n", p)
 	}
-	if st.SmallModel != "" {
-		fmt.Fprintf(w, "  small model:  %s\n", st.SmallModel)
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Model choice (%s)\n", onOff(st.ProvidersEnabled))
+	switch {
+	case len(st.Applied.Models) > 0:
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		for _, m := range st.Applied.Models {
+			fmt.Fprintf(tw, "  %s\t%s\t(%s)\t%s\n", m.Type, m.Ref, m.Source, m.Result)
+		}
+		tw.Flush()
+	case st.Model == "" && st.SmallModel == "":
+		fmt.Fprintln(w, "  none set in OpenCode")
+	default:
+		fmt.Fprintln(w, "  not applied")
 	}
 
 	fmt.Fprintln(w)
@@ -108,7 +129,11 @@ func printOpenCodeStatus(w io.Writer, st config.OpenCodeStatus) {
 	case c == nil && st.CatalogErr != nil:
 		fmt.Fprintf(w, "  could not read: %v\n", st.CatalogErr)
 	case c == nil:
-		fmt.Fprintln(w, "  no cached catalog found (run OpenCode once to create it)")
+		fmt.Fprintln(w, "  no cached catalog found; run OpenCode once to create it, or set")
+		fmt.Fprintln(w, "  OPENCODE_MODELS_PATH to a models.dev api.json file. Looked in:")
+		for _, loc := range st.CatalogLocations {
+			fmt.Fprintf(w, "    %s\n", home.Short(loc))
+		}
 	default:
 		updated := "unknown"
 		if !c.UpdatedAt.IsZero() {
@@ -130,6 +155,8 @@ func printOpenCodeStatus(w io.Writer, st config.OpenCodeStatus) {
 		fmt.Fprintln(w, "Credentials (off): set options.opencode.credentials to use API keys from `opencode auth login`")
 	}
 
+	printOpenCodeApplied(w, st)
+
 	if len(st.Warnings) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Warnings")
@@ -137,6 +164,83 @@ func printOpenCodeStatus(w io.Writer, st config.OpenCodeStatus) {
 			fmt.Fprintf(w, "  %s\n", warn)
 		}
 	}
+}
+
+func printOpenCodeApplied(w io.Writer, st config.OpenCodeStatus) {
+	a := st.Applied
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Instructions (%s)\n", onOff(st.InstructionsEnabled))
+	printList(w, "project", a.ContextPaths, true)
+	printList(w, "global", a.GlobalContextPaths, true)
+	if len(a.ContextPaths)+len(a.GlobalContextPaths) == 0 {
+		fmt.Fprintln(w, "  none added")
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Skills (%s)\n", onOff(st.SkillsEnabled))
+	printList(w, "paths", a.SkillsPaths, true)
+	if len(a.SkillsPaths) == 0 {
+		fmt.Fprintln(w, "  none added")
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Commands (%s)\n", onOff(st.CommandsEnabled))
+	if len(a.Commands) == 0 {
+		fmt.Fprintln(w, "  none")
+	} else {
+		fmt.Fprintf(w, "  %s\n", strings.Join(prefixed("opencode:", a.Commands), ", "))
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Tools (%s) and permissions (%s)\n", onOff(st.ToolsEnabled), onOff(st.PermissionsEnabled))
+	printList(w, "disabled tools", a.DisabledTools, false)
+	printList(w, "disabled MCP servers", a.DisabledMCP, false)
+	printList(w, "disabled MCP tools", a.DisabledMCPTools, false)
+	printList(w, "no prompt for project files", a.ProjectAllowedTools, false)
+	if len(a.DisabledTools)+len(a.DisabledMCP)+len(a.DisabledMCPTools)+len(a.ProjectAllowedTools) == 0 {
+		fmt.Fprintln(w, "  no changes")
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Compaction (%s)\n", onOff(st.CompactionEnabled))
+	if a.AutoSummarizeOff {
+		fmt.Fprintln(w, "  auto-summarize turned off (compaction.auto is false)")
+	} else {
+		fmt.Fprintln(w, "  no changes")
+	}
+
+	if len(a.Notes) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Notes")
+		for _, n := range a.Notes {
+			fmt.Fprintf(w, "  %s\n", n)
+		}
+	}
+}
+
+// printList prints a labeled list, one path per line when paths is set and
+// comma-separated otherwise. It prints nothing for an empty list.
+func printList(w io.Writer, label string, items []string, paths bool) {
+	if len(items) == 0 {
+		return
+	}
+	if !paths {
+		fmt.Fprintf(w, "  %s: %s\n", label, strings.Join(items, ", "))
+		return
+	}
+	fmt.Fprintf(w, "  %s:\n", label)
+	for _, item := range items {
+		fmt.Fprintf(w, "    %s\n", home.Short(item))
+	}
+}
+
+func prefixed(prefix string, items []string) []string {
+	out := make([]string, len(items))
+	for i, item := range items {
+		out[i] = prefix + strings.ReplaceAll(item, "/", ":")
+	}
+	return out
 }
 
 func onOff(b bool) string {

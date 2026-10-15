@@ -308,3 +308,35 @@ func TestReadOnlyDSN(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+func TestCatalogLocations(t *testing.T) {
+	t.Parallel()
+
+	data := t.TempDir()
+	p := Paths{DataDir: data, CacheDir: "/cache"}
+	env := func(vals map[string]string) func(string) string {
+		return func(k string) string { return vals[k] }
+	}
+
+	require.Equal(t, []string{
+		filepath.Join(data, "opencode.db"),
+		filepath.Join("/cache", "models.json"),
+	}, CatalogLocations(p, nil))
+
+	require.Equal(t, []string{
+		"/override/api.json",
+		filepath.Join(data, "custom.db"),
+		filepath.Join("/cache", "models.json"),
+	}, CatalogLocations(p, env(map[string]string{
+		"OPENCODE_MODELS_PATH": "/override/api.json",
+		"OPENCODE_DB":          "custom.db",
+	})))
+
+	require.Equal(t, []string{
+		filepath.Join(data, "opencode.db"),
+	}, CatalogLocations(Paths{DataDir: data}, env(map[string]string{
+		"OPENCODE_DB": ":memory:",
+	})))
+
+	require.Empty(t, CatalogLocations(Paths{}, nil))
+}

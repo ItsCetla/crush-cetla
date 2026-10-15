@@ -183,7 +183,7 @@ func TestApplyOpenCodeModelPreference(t *testing.T) {
 
 	providers := csync.NewMap[string, ProviderConfig]()
 	providers.Set("anthropic", ProviderConfig{ID: "anthropic", Models: []catwalk.Model{{ID: "claude-x"}, {ID: "claude-small"}}})
-	imp := &openCodeImport{config: &opencode.Config{Model: "anthropic/claude-x", SmallModel: "anthropic/missing"}}
+	imp := &openCodeImport{settings: openCodeModelChoice, config: &opencode.Config{Model: "anthropic/claude-x", SmallModel: "anthropic/missing"}}
 
 	cfg := &Config{Providers: providers, Models: map[SelectedModelType]SelectedModel{}}
 	cfg.applyOpenCodeModelPreference(imp)
@@ -248,12 +248,18 @@ func TestOpenCodeCatalogSourceInclude(t *testing.T) {
 func TestOpenCodeSettings(t *testing.T) {
 	t.Setenv("CRUSH_DISABLE_OPENCODE", "")
 	f := false
-	require.Equal(t, openCodeSettings{enabled: true, mcp: true, providers: true, models: true}, openCodeSettingsFor(nil))
+	all := openCodeSettings{
+		enabled: true, mcp: true, providers: true, models: true,
+		instructions: true, skills: true, commands: true, tools: true,
+		permissions: true, compaction: true,
+	}
+	require.Equal(t, all, openCodeSettingsFor(nil))
 	require.Equal(t, openCodeSettings{}, openCodeSettingsFor(&Options{OpenCode: &OpenCodeOptions{Disabled: true}}))
-	require.Equal(t,
-		openCodeSettings{enabled: true, providers: true, models: true, credentials: true},
-		openCodeSettingsFor(&Options{OpenCode: &OpenCodeOptions{MCP: &f, Credentials: true}}),
-	)
+	want := all
+	want.mcp, want.permissions, want.credentials = false, false, true
+	require.Equal(t, want, openCodeSettingsFor(&Options{OpenCode: &OpenCodeOptions{
+		MCP: &f, Permissions: &f, Credentials: true,
+	}}))
 
 	t.Setenv("CRUSH_DISABLE_OPENCODE", "1")
 	require.Equal(t, openCodeSettings{}, openCodeSettingsFor(nil))
@@ -314,7 +320,6 @@ func TestOpenCodeImportEndToEnd(t *testing.T) {
 	cfg.applyOpenCodeMCP(trusted)
 	require.Contains(t, cfg.MCP, "evil", "trusted project config is imported")
 	require.ElementsMatch(t, []string{filepath.Join(dir, "opencode.jsonc"), filepath.Join(project, "opencode.json")}, trusted.files())
-
 }
 
 // isolateOpenCode enables the OpenCode import (TestMain disables it) with

@@ -261,6 +261,25 @@ func LoadCatalog(ctx context.Context, p Paths, getenv func(string) string) (*Cat
 	return nil, nil
 }
 
+// CatalogLocations lists the files LoadCatalog checks, in the same order.
+// It tells users where a catalog is expected when none is found.
+func CatalogLocations(p Paths, getenv func(string) string) []string {
+	getenv = envOrEmpty(getenv)
+	var locs []string
+	if path := getenv("OPENCODE_MODELS_PATH"); path != "" {
+		locs = append(locs, path)
+	}
+	if db := databasePath(p, getenv); db != "" {
+		locs = append(locs, db)
+	} else if p.DataDir != "" {
+		locs = append(locs, filepath.Join(p.DataDir, "opencode.db"))
+	}
+	if p.CacheDir != "" {
+		locs = append(locs, filepath.Join(p.CacheDir, "models.json"))
+	}
+	return locs
+}
+
 func catalogFromFile(path, kind string) (*Catalog, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

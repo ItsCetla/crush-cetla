@@ -288,6 +288,10 @@ func loadMergedConfig(ctx context.Context, p loadParams) (*mergedConfig, error) 
 		}
 	}
 
+	// Rules, skills, tool toggles, permissions and commands go in last so
+	// they add to the defaults and the workspace config.
+	cfg.applyOpenCodeContext(openCode, p.workingDir)
+
 	return &mergedConfig{
 		cfg:           cfg,
 		configPaths:   slices.Concat(globalPaths, projectPaths, openCode.stalenessPaths()),

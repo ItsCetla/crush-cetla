@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/skills"
 	"github.com/stretchr/testify/require"
 )
@@ -111,4 +112,62 @@ func TestFromSkillCatalog_UsesDiscoveredSymlinkedSkills(t *testing.T) {
 	require.Equal(t, "user:linked-skill", cmds[0].ID)
 	require.Equal(t, "linked-skill", cmds[0].Skill.Name)
 	require.Equal(t, filepath.Join(link, skills.SkillFileName), cmds[0].Skill.SkillFilePath)
+}
+
+func TestFromOpenCode(t *testing.T) {
+	t.Parallel()
+
+	cmds := FromOpenCode([]config.OpenCodeCommand{
+		{Name: "git/push", Description: "Push the branch", Template: "Push to $1 as $2, then confirm $1."},
+		{Name: "review", Template: "Review $ARGUMENTS"},
+	})
+	require.Len(t, cmds, 2)
+
+	push := cmds[0]
+	require.Equal(t, "opencode:git:push", push.ID)
+	require.Equal(t, push.ID, push.Name)
+	require.Equal(t, "Push the branch", push.Description)
+	require.Equal(t, "Push to $ARG1 as $ARG2, then confirm $ARG1.", push.Content)
+	require.Equal(t, []Argument{
+		{ID: "ARG1", Title: "ARG1"},
+		{ID: "ARG2", Title: "ARG2"},
+	}, push.Arguments)
+	require.Nil(t, push.Skill)
+
+	review := cmds[1]
+	require.Equal(t, "opencode:review", review.ID)
+	require.Equal(t, "Review $ARGUMENTS", review.Content)
+	require.Equal(t, []Argument{{ID: "ARGUMENTS", Title: "ARGUMENTS"}}, review.Arguments)
+}
+
+func TestOpenCodeTemplate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		template string
+		content  string
+		args     []string
+	}{
+		{"no placeholders", "Run the tests.", "Run the tests.", nil},
+		{"zero stays literal", "Cost is $0 today.", "Cost is $0 today.", nil},
+		{"multi-digit stays literal", "Pay $10 for $1.", "Pay $10 for $ARG1.", []string{"ARG1"}},
+		{"first-seen order", "$2 then $1 then $2", "$ARG2 then $ARG1 then $ARG2", []string{"ARG2", "ARG1"}},
+		{"arguments and positional", "$1: $ARGUMENTS", "$ARG1: $ARGUMENTS", []string{"ARG1", "ARGUMENTS"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			content, args := openCodeTemplate(tt.template)
+			require.Equal(t, tt.content, content)
+			var ids []string
+			for _, a := range args {
+				require.Equal(t, a.ID, a.Title)
+				require.False(t, a.Required)
+				ids = append(ids, a.ID)
+			}
+			require.Equal(t, tt.args, ids)
+		})
+	}
 }

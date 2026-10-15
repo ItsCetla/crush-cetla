@@ -529,7 +529,7 @@
         },
         "providers": {
           "type": "boolean",
-          "description": "Import provider base URLs, API keys, headers and custom models from OpenCode config. Values set in crush.json win",
+          "description": "Import provider base URLs, API keys, headers and custom models from OpenCode config and honor its enabled_providers and disabled_providers. Values set in crush.json win",
           "default": true
         },
         "models": {
@@ -541,6 +541,36 @@
           "type": "boolean",
           "description": "Use API keys saved by opencode auth login. OAuth logins are never imported",
           "default": false
+        },
+        "instructions": {
+          "type": "boolean",
+          "description": "Add OpenCode's instructions files and global AGENTS.md to the context",
+          "default": true
+        },
+        "skills": {
+          "type": "boolean",
+          "description": "Add OpenCode's skill directories",
+          "default": true
+        },
+        "commands": {
+          "type": "boolean",
+          "description": "Offer OpenCode's custom commands as opencode:\u003cname\u003e commands",
+          "default": true
+        },
+        "tools": {
+          "type": "boolean",
+          "description": "Apply OpenCode's global tools toggles to built-in tools and imported MCP servers. A toggle that any OpenCode agent turns back on is skipped",
+          "default": true
+        },
+        "permissions": {
+          "type": "boolean",
+          "description": "Apply OpenCode's edit: allow as prompt-free file edits inside the project and its whole-tool deny rules as disabled tools. Nothing else is imported",
+          "default": true
+        },
+        "compaction": {
+          "type": "boolean",
+          "description": "Turn off auto-summarize when OpenCode's compaction.auto is false and no OpenCode plugin is installed",
+          "default": true
         }
       },
       "additionalProperties": false,
@@ -688,7 +718,7 @@
         },
         "opencode": {
           "$ref": "#/$defs/OpenCodeOptions",
-          "description": "Import MCP servers, providers and the models catalog from a local OpenCode install. Read from disk only; never fetched"
+          "description": "Import MCP servers, providers, models, rules, skills, commands, tool toggles and file-edit permissions from a local OpenCode install. Read from disk only; never fetched"
         },
         "enable_web_tools": {
           "type": "boolean",

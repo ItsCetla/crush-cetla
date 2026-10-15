@@ -1390,6 +1390,7 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 		}
 		slog.Warn("Reload continuing with the previously known providers", "error", err)
 	}
+	cfg.applyOpenCodeProviderFilter(merged.openCode, providers)
 
 	if err := cfg.configureProviders(ctx, s, env, resolver, providers); err != nil {
 		return fmt.Errorf("failed to configure providers during reload: %w", err)

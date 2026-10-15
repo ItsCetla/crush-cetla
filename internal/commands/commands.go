@@ -15,11 +15,17 @@ import (
 	"github.com/charmbracelet/crush/internal/skills"
 )
 
-var namedArgPattern = regexp.MustCompile(`\$([A-Z][A-Z0-9_]*)`)
+var (
+	namedArgPattern = regexp.MustCompile(`\$([A-Z][A-Z0-9_]*)`)
+	// openCodeArgPattern matches the placeholders OpenCode fills from a
+	// command's arguments.
+	openCodeArgPattern = regexp.MustCompile(`\$(ARGUMENTS|[0-9]+)`)
+)
 
 const (
-	userCommandPrefix    = "user:"
-	projectCommandPrefix = "project:"
+	userCommandPrefix     = "user:"
+	projectCommandPrefix  = "project:"
+	openCodeCommandPrefix = "opencode:"
 )
 
 // Argument represents a command argument with its metadata.
@@ -42,10 +48,11 @@ type MCPPrompt struct {
 
 // CustomCommand represents a user-defined custom command loaded from markdown files.
 type CustomCommand struct {
-	ID        string
-	Name      string
-	Content   string
-	Arguments []Argument
+	ID          string
+	Name        string
+	Description string
+	Content     string
+	Arguments   []Argument
 	// Skill is set when this command represents a user-invocable skill
 	Skill *skills.Skill
 }
@@ -58,7 +65,53 @@ type commandSource struct {
 // LoadCustomCommands loads custom commands from multiple sources including
 // XDG config directory, home directory, and project directory.
 func LoadCustomCommands(cfg *config.Config) ([]CustomCommand, error) {
-	return loadAll(buildCommandSources(cfg))
+	commands, err := loadAll(buildCommandSources(cfg))
+	if err != nil {
+		return nil, err
+	}
+	return append(commands, FromOpenCode(cfg.OpenCodeCommands)...), nil
+}
+
+// FromOpenCode converts the commands imported from OpenCode. $ARGUMENTS
+// and $1 to $9 become optional arguments. Shell (!`cmd`) and file (@path)
+// references stay literal text: Crush never runs or reads them on its own.
+func FromOpenCode(cmds []config.OpenCodeCommand) []CustomCommand {
+	commands := make([]CustomCommand, 0, len(cmds))
+	for _, c := range cmds {
+		content, args := openCodeTemplate(c.Template)
+		id := openCodeCommandPrefix + strings.ReplaceAll(c.Name, "/", ":")
+		commands = append(commands, CustomCommand{
+			ID:          id,
+			Name:        id,
+			Description: c.Description,
+			Content:     content,
+			Arguments:   args,
+		})
+	}
+	return commands
+}
+
+// openCodeTemplate rewrites OpenCode's positional placeholders $1 to $9 as
+// $ARG1 to $ARG9, which Crush's argument dialog can fill, and returns the
+// arguments in the order they first appear.
+func openCodeTemplate(template string) (string, []Argument) {
+	var args []Argument
+	seen := map[string]bool{}
+	content := openCodeArgPattern.ReplaceAllStringFunc(template, func(m string) string {
+		id := m[1:]
+		if id != "ARGUMENTS" {
+			if len(id) != 1 || id == "0" {
+				return m
+			}
+			id = "ARG" + id
+		}
+		if !seen[id] {
+			seen[id] = true
+			args = append(args, Argument{ID: id, Title: id})
+		}
+		return "$" + id
+	})
+	return content, args
 }
 
 // FromSkillCatalog converts user-invocable catalog entries into custom

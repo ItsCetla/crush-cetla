@@ -22,20 +22,39 @@ import (
 // install. Everything comes from OpenCode's files on disk; nothing is
 // fetched.
 type OpenCodeOptions struct {
-	Disabled    bool  `json:"disabled,omitempty" jsonschema:"description=Turn off all importing from OpenCode,default=false"`
-	MCP         *bool `json:"mcp,omitempty" jsonschema:"description=Import MCP servers from OpenCode config. A server with the same name in crush.json wins,default=true"`
-	Providers   *bool `json:"providers,omitempty" jsonschema:"description=Import provider base URLs\\, API keys\\, headers and custom models from OpenCode config. Values set in crush.json win,default=true"`
-	Models      *bool `json:"models,omitempty" jsonschema:"description=Extend the model catalog with OpenCode's locally cached models.dev catalog,default=true"`
-	Credentials bool  `json:"credentials,omitempty" jsonschema:"description=Use API keys saved by opencode auth login. OAuth logins are never imported,default=false"`
+	Disabled     bool  `json:"disabled,omitempty" jsonschema:"description=Turn off all importing from OpenCode,default=false"`
+	MCP          *bool `json:"mcp,omitempty" jsonschema:"description=Import MCP servers from OpenCode config. A server with the same name in crush.json wins,default=true"`
+	Providers    *bool `json:"providers,omitempty" jsonschema:"description=Import provider base URLs\\, API keys\\, headers and custom models from OpenCode config and honor its enabled_providers and disabled_providers. Values set in crush.json win,default=true"`
+	Models       *bool `json:"models,omitempty" jsonschema:"description=Extend the model catalog with OpenCode's locally cached models.dev catalog,default=true"`
+	Credentials  bool  `json:"credentials,omitempty" jsonschema:"description=Use API keys saved by opencode auth login. OAuth logins are never imported,default=false"`
+	Instructions *bool `json:"instructions,omitempty" jsonschema:"description=Add OpenCode's instructions files and global AGENTS.md to the context,default=true"`
+	Skills       *bool `json:"skills,omitempty" jsonschema:"description=Add OpenCode's skill directories,default=true"`
+	Commands     *bool `json:"commands,omitempty" jsonschema:"description=Offer OpenCode's custom commands as opencode:<name> commands,default=true"`
+	Tools        *bool `json:"tools,omitempty" jsonschema:"description=Apply OpenCode's global tools toggles to built-in tools and imported MCP servers. A toggle that any OpenCode agent turns back on is skipped,default=true"`
+	Permissions  *bool `json:"permissions,omitempty" jsonschema:"description=Apply OpenCode's edit: allow as prompt-free file edits inside the project and its whole-tool deny rules as disabled tools. Nothing else is imported,default=true"`
+	Compaction   *bool `json:"compaction,omitempty" jsonschema:"description=Turn off auto-summarize when OpenCode's compaction.auto is false and no OpenCode plugin is installed,default=true"`
 }
 
 // openCodeSettings is the effective form of [OpenCodeOptions].
 type openCodeSettings struct {
-	enabled     bool
-	mcp         bool
-	providers   bool
-	models      bool
-	credentials bool
+	enabled      bool
+	mcp          bool
+	providers    bool
+	models       bool
+	credentials  bool
+	instructions bool
+	skills       bool
+	commands     bool
+	tools        bool
+	permissions  bool
+	compaction   bool
+}
+
+// readsConfig reports whether any enabled import needs OpenCode's config
+// files.
+func (s openCodeSettings) readsConfig() bool {
+	return s.mcp || s.providers || s.instructions || s.skills || s.commands ||
+		s.tools || s.permissions || s.compaction
 }
 
 func openCodeSettingsFor(o *Options) openCodeSettings {
@@ -51,12 +70,19 @@ func openCodeSettingsFor(o *Options) openCodeSettings {
 	if oc.Disabled {
 		return openCodeSettings{}
 	}
+	on := func(b *bool) bool { return b == nil || *b }
 	return openCodeSettings{
-		enabled:     true,
-		mcp:         oc.MCP == nil || *oc.MCP,
-		providers:   oc.Providers == nil || *oc.Providers,
-		models:      oc.Models == nil || *oc.Models,
-		credentials: oc.Credentials,
+		enabled:      true,
+		mcp:          on(oc.MCP),
+		providers:    on(oc.Providers),
+		models:       on(oc.Models),
+		credentials:  oc.Credentials,
+		instructions: on(oc.Instructions),
+		skills:       on(oc.Skills),
+		commands:     on(oc.Commands),
+		tools:        on(oc.Tools),
+		permissions:  on(oc.Permissions),
+		compaction:   on(oc.Compaction),
 	}
 }
 
@@ -105,13 +131,18 @@ func isWithinDir(root, dir string) bool {
 }
 
 // stalenessPaths are the OpenCode config files to watch for changes: the
-// ones that were read plus the global ones that could appear.
+// ones that were read (including markdown commands and agents) plus the
+// global ones that could appear.
 func (imp *openCodeImport) stalenessPaths() []string {
 	if imp == nil {
 		return nil
 	}
 	dir := openCodePaths().ConfigDir
-	return append(imp.files(),
+	files := imp.files()
+	if imp.config != nil {
+		files = append(files, imp.config.ExtraFiles...)
+	}
+	return append(files,
 		filepath.Join(dir, "config.json"),
 		filepath.Join(dir, "opencode.json"),
 		filepath.Join(dir, "opencode.jsonc"),
@@ -134,6 +165,14 @@ type openCodeImport struct {
 	// creds maps catwalk provider IDs to API keys from OpenCode's auth
 	// store. Only loaded when credentials are enabled.
 	creds map[string]string
+	// ownProviders are the provider IDs Crush's own config defines,
+	// recorded before anything is imported. They are never disabled.
+	ownProviders map[string]bool
+	// importedMCP names the MCP servers that came from OpenCode.
+	importedMCP map[string]bool
+	// applied records what was taken from OpenCode beyond MCP servers and
+	// provider settings.
+	applied OpenCodeApplied
 }
 
 // loadOpenCode reads the user's OpenCode config (and, when enabled, its
@@ -148,7 +187,7 @@ func loadOpenCode(opts *Options, workingDir string, includeProject bool) *openCo
 	imp := &openCodeImport{settings: settings, includeProject: includeProject}
 	paths := openCodePaths()
 
-	if settings.mcp || settings.providers {
+	if settings.readsConfig() {
 		cfg, err := opencode.LoadConfig(opencode.LoadOptions{
 			Paths:           paths,
 			Getenv:          os.Getenv,
@@ -359,7 +398,13 @@ func (c *Config) applyOpenCodeMCP(imp *openCodeImport) {
 			c.MCP[name] = m
 		case existing.isPartial():
 			c.MCP[name] = overlayMCP(m, existing)
+		default:
+			continue
 		}
+		if imp.importedMCP == nil {
+			imp.importedMCP = map[string]bool{}
+		}
+		imp.importedMCP[name] = true
 	}
 }
 
@@ -373,11 +418,15 @@ func (c *Config) applyOpenCodeProviders(imp *openCodeImport) {
 	if c.Providers == nil {
 		c.Providers = csync.NewMap[string, ProviderConfig]()
 	}
+	imp.ownProviders = map[string]bool{}
+	for id := range c.Providers.Seq2() {
+		imp.ownProviders[id] = true
+	}
 	if imp.settings.providers && imp.config != nil {
 		for _, id := range slices.Sorted(maps.Keys(imp.config.Providers)) {
 			cid := opencode.CatwalkID(id)
-			pc, _ := c.Providers.Get(cid)
-			if mergeOpenCodeProvider(&pc, cid, imp.config.Providers[id]) {
+			pc, exists := c.Providers.Get(cid)
+			if mergeOpenCodeProvider(&pc, cid, imp.config.Providers[id], exists) {
 				c.Providers.Set(cid, pc)
 			}
 		}
@@ -394,8 +443,11 @@ func (c *Config) applyOpenCodeProviders(imp *openCodeImport) {
 }
 
 // mergeOpenCodeProvider fills the empty fields of pc from an OpenCode
-// provider and reports whether anything changed.
-func mergeOpenCodeProvider(pc *ProviderConfig, id string, p opencode.Provider) bool {
+// provider and reports whether anything changed. The provider's identity
+// (ID, name and API type) is only filled when Crush already has an entry
+// for it or something else was imported, so an OpenCode block that adds
+// nothing doesn't create a provider.
+func mergeOpenCodeProvider(pc *ProviderConfig, id string, p opencode.Provider, exists bool) bool {
 	changed := false
 	if pc.APIKey == "" && p.APIKey != "" {
 		pc.APIKey = literalValue(p.APIKey)
@@ -420,6 +472,10 @@ func mergeOpenCodeProvider(pc *ProviderConfig, id string, p opencode.Provider) b
 		if om.Disabled != nil && *om.Disabled {
 			continue
 		}
+		// Crush's agent can't work without tool calls.
+		if om.ToolCall != nil && !*om.ToolCall {
+			continue
+		}
 		m := modelFromOpenCode(key, om)
 		if slices.ContainsFunc(pc.Models, func(x catwalk.Model) bool { return x.ID == m.ID }) {
 			continue
@@ -427,17 +483,21 @@ func mergeOpenCodeProvider(pc *ProviderConfig, id string, p opencode.Provider) b
 		pc.Models = append(pc.Models, m)
 		changed = true
 	}
-	if !changed {
+	if !changed && !exists {
 		return false
 	}
 	pc.ID = cmp.Or(pc.ID, id)
-	pc.Name = cmp.Or(pc.Name, p.Name)
+	if pc.Name == "" && p.Name != "" {
+		pc.Name = p.Name
+		changed = true
+	}
 	if pc.Type == "" && p.NPM != "" {
 		if typ, _, ok := opencode.WireFor(p.NPM, p.BaseURL); ok {
 			pc.Type = typ
+			changed = true
 		}
 	}
-	return true
+	return changed
 }
 
 // modelFromOpenCode converts a model from an OpenCode provider block.
@@ -469,44 +529,92 @@ func modelFromOpenCode(key string, m opencode.Model) catwalk.Model {
 	return out
 }
 
-// applyOpenCodeModelPreference selects OpenCode's "model" and
-// "small_model" when Crush has no selection of its own and the referenced
-// provider and model are available.
+// applyOpenCodeModelPreference selects OpenCode's models when Crush has no
+// selection of its own and the referenced provider and model are
+// available. The large model is the default agent's model, else "model";
+// the small model is "small_model". It is part of the provider settings,
+// so options.opencode.providers turns it off.
 func (c *Config) applyOpenCodeModelPreference(imp *openCodeImport) {
 	if imp == nil || imp.config == nil {
 		return
 	}
+	imp.applied.Models = nil
+	if !imp.settings.providers {
+		return
+	}
+	type candidate struct{ ref, source string }
+	var large []candidate
+	agentName := cmp.Or(imp.config.DefaultAgent, "build")
+	if a, ok := imp.config.Agents[agentName]; ok && !a.Disabled && a.Model != "" {
+		large = append(large, candidate{a.Model, "agent " + agentName})
+	}
+	if imp.config.Model != "" {
+		large = append(large, candidate{imp.config.Model, "model"})
+	}
+	var small []candidate
+	if imp.config.SmallModel != "" {
+		small = append(small, candidate{imp.config.SmallModel, "small_model"})
+	}
 	prefs := []struct {
-		typ SelectedModelType
-		ref string
+		typ        SelectedModelType
+		candidates []candidate
 	}{
-		{SelectedModelTypeLarge, imp.config.Model},
-		{SelectedModelTypeSmall, imp.config.SmallModel},
+		{SelectedModelTypeLarge, large},
+		{SelectedModelTypeSmall, small},
 	}
 	for _, pref := range prefs {
-		if pref.ref == "" {
-			continue
+		for _, cand := range pref.candidates {
+			choice := OpenCodeModelChoice{Type: pref.typ, Ref: cand.ref, Source: cand.source}
+			if sel, set := c.Models[pref.typ]; set {
+				choice.Result = "not used: Crush already selects " + sel.Provider + "/" + sel.Model
+				imp.applied.Models = append(imp.applied.Models, choice)
+				break
+			}
+			provider, model, reason := c.resolveOpenCodeModel(imp, cand.ref)
+			if reason != "" {
+				choice.Result = "not used: " + reason
+				imp.applied.Models = append(imp.applied.Models, choice)
+				continue
+			}
+			if c.Models == nil {
+				c.Models = map[SelectedModelType]SelectedModel{}
+			}
+			c.Models[pref.typ] = SelectedModel{Provider: provider, Model: model}
+			choice.Result = "selected"
+			imp.applied.Models = append(imp.applied.Models, choice)
+			slog.Debug("Using OpenCode model preference", "type", pref.typ, "source", cand.source, "provider", provider, "model", model)
+			break
 		}
-		if _, set := c.Models[pref.typ]; set {
-			continue
-		}
-		provider, model, ok := strings.Cut(pref.ref, "/")
-		if !ok {
-			continue
-		}
-		provider = opencode.CatwalkID(provider)
-		if pc, ok := c.Providers.Get(provider); !ok || pc.Disable {
-			continue
-		}
-		if c.GetModel(provider, model) == nil {
-			continue
-		}
-		if c.Models == nil {
-			c.Models = map[SelectedModelType]SelectedModel{}
-		}
-		c.Models[pref.typ] = SelectedModel{Provider: provider, Model: model}
-		slog.Debug("Using OpenCode model preference", "type", pref.typ, "provider", provider, "model", model)
 	}
+}
+
+// resolveOpenCodeModel maps an OpenCode "provider/model" reference to a
+// configured Crush provider and model ID, or says why it can't.
+func (c *Config) resolveOpenCodeModel(imp *openCodeImport, ref string) (provider, model, reason string) {
+	ocProvider, key, ok := strings.Cut(ref, "/")
+	if !ok || key == "" {
+		return "", "", "not a provider/model reference"
+	}
+	provider = opencode.CatwalkID(ocProvider)
+	pc, ok := c.Providers.Get(provider)
+	if !ok {
+		return "", "", "provider " + provider + " is not configured"
+	}
+	if pc.Disable {
+		return "", "", "provider " + provider + " is disabled"
+	}
+	model = key
+	// OpenCode refers to a custom model by its config key, which can
+	// differ from the model ID sent to the API.
+	if p, ok := imp.config.Providers[ocProvider]; ok {
+		if om, ok := p.Models[key]; ok {
+			model = modelFromOpenCode(key, om).ID
+		}
+	}
+	if c.GetModel(provider, model) == nil {
+		return "", "", "model " + model + " is not available from " + provider
+	}
+	return provider, model, ""
 }
 
 // envRefRe finds the variables a catalog API key template reads.

@@ -41,12 +41,18 @@ type OpenCodeCatalogStatus struct {
 // OpenCodeStatus summarizes what the last config load read from a local
 // OpenCode install.
 type OpenCodeStatus struct {
-	Enabled            bool
-	MCPEnabled         bool
-	ProvidersEnabled   bool
-	ModelsEnabled      bool
-	CredentialsEnabled bool
-	ProjectIncluded    bool
+	Enabled             bool
+	MCPEnabled          bool
+	ProvidersEnabled    bool
+	ModelsEnabled       bool
+	CredentialsEnabled  bool
+	InstructionsEnabled bool
+	SkillsEnabled       bool
+	CommandsEnabled     bool
+	ToolsEnabled        bool
+	PermissionsEnabled  bool
+	CompactionEnabled   bool
+	ProjectIncluded     bool
 
 	Paths    opencode.Paths
 	Files    []string
@@ -58,8 +64,15 @@ type OpenCodeStatus struct {
 	SmallModel  string
 	Credentials int
 
+	// Applied is what the import changed beyond MCP servers and provider
+	// settings, and what it found but left alone.
+	Applied OpenCodeApplied
+
 	Catalog    *OpenCodeCatalogStatus
 	CatalogErr error
+	// CatalogLocations lists where a catalog was looked for when none was
+	// found.
+	CatalogLocations []string
 }
 
 // OpenCodeStatus reports what was imported from OpenCode. It reads only
@@ -68,12 +81,18 @@ func (s *ConfigStore) OpenCodeStatus(ctx context.Context) OpenCodeStatus {
 	cfg := s.Config()
 	settings := openCodeSettingsFor(cfg.Options)
 	st := OpenCodeStatus{
-		Enabled:            settings.enabled,
-		MCPEnabled:         settings.mcp,
-		ProvidersEnabled:   settings.providers,
-		ModelsEnabled:      settings.models,
-		CredentialsEnabled: settings.credentials,
-		Paths:              openCodePaths(),
+		Enabled:             settings.enabled,
+		MCPEnabled:          settings.mcp,
+		ProvidersEnabled:    settings.providers,
+		ModelsEnabled:       settings.models,
+		CredentialsEnabled:  settings.credentials,
+		InstructionsEnabled: settings.instructions,
+		SkillsEnabled:       settings.skills,
+		CommandsEnabled:     settings.commands,
+		ToolsEnabled:        settings.tools,
+		PermissionsEnabled:  settings.permissions,
+		CompactionEnabled:   settings.compaction,
+		Paths:               openCodePaths(),
 	}
 	if !settings.enabled {
 		return st
@@ -82,6 +101,7 @@ func (s *ConfigStore) OpenCodeStatus(ctx context.Context) OpenCodeStatus {
 	if imp := s.openCode; imp != nil {
 		st.ProjectIncluded = imp.includeProject
 		st.Credentials = len(imp.creds)
+		st.Applied = imp.applied.clone()
 		if oc := imp.config; oc != nil {
 			st.Files = oc.Files
 			st.Warnings = oc.Warnings
@@ -98,6 +118,9 @@ func (s *ConfigStore) OpenCodeStatus(ctx context.Context) OpenCodeStatus {
 
 	if settings.models {
 		st.Catalog, st.CatalogErr = s.openCodeCatalogStatus(ctx)
+		if st.Catalog == nil {
+			st.CatalogLocations = opencode.CatalogLocations(st.Paths, os.Getenv)
+		}
 	}
 	return st
 }
