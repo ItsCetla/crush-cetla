@@ -207,19 +207,19 @@ func NewBashTool(permissions permission.Service, workingDir, spillDir string, at
 			// Determine working directory
 			execWorkingDir := cmp.Or(params.WorkingDir, workingDir)
 
-			isSafeReadOnly := false
-			cmdLower := strings.ToLower(params.Command)
-
-			if !containsCommandChaining(params.Command) {
-				for _, safe := range safeCommands {
-					if strings.HasPrefix(cmdLower, safe) {
-						if len(cmdLower) == len(safe) || cmdLower[len(safe)] == ' ' || cmdLower[len(safe)] == '-' {
-							isSafeReadOnly = true
-							break
-						}
-					}
-				}
+			// Refuse banned commands wherever they appear in the command,
+			// including behind wrappers (env curl, sh -c 'curl ...'). The
+			// shell's block list re-checks at run time with expanded
+			// arguments.
+			if banned := bannedCommandIn(params.Command); banned != "" {
+				return fantasy.NewTextErrorResponse(fmt.Sprintf("command is not allowed for security reasons: %q", banned)), nil
 			}
+
+			// Read-only commands skip the prompt only in the session's
+			// working directory: safe-list path checks are relative to it,
+			// and git must not be run inside a repository-shaped
+			// subdirectory whose config could run programs.
+			isSafeReadOnly := sameDir(execWorkingDir, workingDir) && isSafeReadOnlyCommand(params.Command)
 
 			sessionID := GetSessionFromContext(ctx)
 			if sessionID == "" {
