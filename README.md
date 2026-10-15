@@ -182,26 +182,20 @@ go install -tags sqlite3_dotlk github.com/charmbracelet/crush@latest
 
 ## Getting Started
 
-The quickest way to get started is to choose a [Hyper][hyper] model from model
-picker. Follow the steps to authenticate and you'll be good to go.
-
-[Hyper], from Charm, is the official Crush provider. It’s subscription-based,
-with a free tier, and optimized for Crush. It’s privacy focused, with zero data
-retention (ZDR) is and designed to comply with GDPR. [More on Hyper][hyper].
-
-<p><a href="https://hyper.charm.land"><img width="340" height="200" alt="Charm Hyper" src="https://github.com/user-attachments/assets/50875289-7992-454d-9f14-9f790413fb5e" /></a></p>
+Press <kbd>ctrl+l</kbd> to open the model picker, choose a provider and paste
+its API key, or set one of the environment variables below. GitHub Copilot,
+ChatGPT and Grok accounts can also sign in with `crush login`.
 
 ## API Keys
 
-You can also use Crush with many other providers such as Anthopic, OpenAI,
-Gemini, OpenRouter and so on. Press <kbd>ctrl+l</kbd> to open the model picker,
+You can use Crush with many providers such as Anthropic, OpenAI, Gemini,
+OpenRouter and so on. Press <kbd>ctrl+l</kbd> to open the model picker,
 choose the provider of your choice, and paste your API key.
 
 That said, you can also set environment variables for preferred providers:
 
 | Environment Variable        | Provider                                           |
 | --------------------------- | -------------------------------------------------- |
-| `HYPER_API_KEY`             | [Charm Hyper][hyper]                               |
 | `ANTHROPIC_API_KEY`         | Anthropic                                          |
 | `OPENAI_API_KEY`            | OpenAI                                             |
 | `VERCEL_API_KEY`            | Vercel AI Gateway                                  |
@@ -229,8 +223,6 @@ That said, you can also set environment variables for preferred providers:
 | `AZURE_OPENAI_API_KEY`      | Azure OpenAI models (optional when using Entra ID) |
 | `AZURE_OPENAI_API_VERSION`  | Azure OpenAI models                                |
 | `MOONSHOT_API_KEY`          | Moonshot                                           |
-
-[hyper]: https://hyper.charm.land
 
 Also note that Crush can support nearly any provider, including
 [Local Models](#local-models). For more info see
@@ -569,6 +561,10 @@ in the root of your project or in subdirectories.
 By default, Crush will ask you for permission before running tool calls. If
 you'd like, you can allow tools to be executed without prompting you for
 permissions. Use this with care.
+
+Tools that reach the network ask before every call unless allowed here:
+`fetch`, `download`, `agentic_fetch`, and `sourcegraph`, which sends its search
+query to sourcegraph.com.
 
 ```bash
 permissions allow view ls grep edit mcp_context7_get-library-doc
@@ -931,42 +927,23 @@ option debug true
 option debug-lsp true
 ```
 
-## Provider Auto-Updates
+## Provider Catalog
 
-By default, Crush automatically checks for the latest and greatest list of
-providers and models from [Catwalk](https://github.com/charmbracelet/catwalk),
-the open source Crush provider database. This means that when new providers and
-models are available, or when model metadata changes, Crush automatically
-updates your local configuration.
+Crush’s list of providers and models comes from
+[Catwalk](https://github.com/charmbracelet/catwalk), the open source Crush
+provider database. Crush never updates it on its own and makes no network
+request to load it: it uses the catalog saved by `crush update-providers` or,
+if none has been saved, the catalog embedded in the release.
 
-### Custom provider catalog
+The `provider-auto-update` option and the `CRUSH_DISABLE_PROVIDER_AUTO_UPDATE`
+environment variable are deprecated and have no effect.
 
-You can also override [Catwalk](https://github.com/charmbracelet/catwalk) default URL (for testing, using a fork).
+### Updating providers
 
-You can do so by setting `CATWALK_URL` enviromental variable. (e.g. `export CATWALK_URL=http://localhost:8000`)
-
-### Disabling automatic provider updates
-
-For those with restricted internet access, or those who prefer to work in
-air-gapped environments, this might not be want you want, and this feature can
-be disabled.
-
-To disable automatic provider updates in your `crushrc`:
-
-```bash
-option provider-auto-update false
-```
-
-Or set the `CRUSH_DISABLE_PROVIDER_AUTO_UPDATE` environment variable:
-
-```bash
-export CRUSH_DISABLE_PROVIDER_AUTO_UPDATE=1
-```
-
-### Manually updating providers
-
-Manually updating providers is possible with the `crush update-providers`
-command:
+`crush update-providers` is the only way to refresh the catalog. Without an
+argument it downloads the catalog from `https://catwalk.charm.land`, or from
+`CATWALK_URL` when set (e.g. `export CATWALK_URL=http://localhost:8000` for a
+fork):
 
 ```bash
 # Update providers remotely from Catwalk.

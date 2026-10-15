@@ -149,7 +149,6 @@ tasks:
     generates:
       - schema.json
 
-
   fetch-tags:
     cmds:
       - git tag -d nightly || true

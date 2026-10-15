@@ -180,8 +180,10 @@ option reset <list-key>    # clear a list option back to empty
 - **Boolean keys** (value optional, defaults `true`): `debug`, `debug-lsp`,
   `auto-lsp`, `progress`.
 - **Boolean keys phrased positively** (stored as the negated field):
-  `auto-summarize`, `provider-auto-update`, `default-providers`. Example:
-  `option auto-summarize false` disables automatic summarization.
+  `auto-summarize`, `default-providers`. Example: `option auto-summarize false`
+  disables automatic summarization. `provider-auto-update` and `metrics` are
+  still accepted but deprecated and have no effect: the provider catalog only
+  changes through `crush update-providers`, and this fork has no telemetry.
 - **String keys**: `data-directory`, `initialize-as`, `notifications`.
 - **Attribution keys**: `attribution-trailer-style` (`none`, `co-authored-by`,
   `assisted-by`) and `attribution-generated-with` (boolean).

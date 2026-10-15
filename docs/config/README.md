@@ -474,7 +474,7 @@ Boolean Keys:
   auto-lsp                       automatically configure language servers
   progress                       show progress indicators
   auto-summarize                 automatically summarize long conversations
-  provider-auto-update           update the provider catalog automatically
+  provider-auto-update           deprecated; has no effect
   default-providers              include built-in providers
   attribution-generated-with     add the Generated with Crush line
 
