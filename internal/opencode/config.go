@@ -56,6 +56,35 @@ type Config struct {
 	EnabledProviders []string
 	// DisabledProviders is the union of every disabled_providers list.
 	DisabledProviders []string
+	// Instructions are the rule files matched by the instructions entries,
+	// in order, without duplicates. URL entries are skipped.
+	Instructions []string
+	// GlobalRules is the global rules file OpenCode reads: AGENTS.md in the
+	// config directory, else ~/.claude/CLAUDE.md. Empty when neither exists.
+	GlobalRules string
+	// SkillPaths are existing skill directories: skill(s) in each config
+	// directory, then the skills.paths entries.
+	SkillPaths []string
+	// Plugins are the plugin specs from the plugin entries and the plugin
+	// files in the config directories. They are listed, never run.
+	Plugins []string
+	// CompactionAuto is compaction.auto from the last document that set it.
+	CompactionAuto *bool
+	// Tools enables or disables tools globally, by name or wildcard.
+	Tools map[string]bool
+	// Permission holds the permission rules by tool name ("*" for all).
+	Permission map[string]Permission
+	// Commands holds the custom commands by name.
+	Commands map[string]Command
+	// Agents holds the agent definitions by name.
+	Agents map[string]Agent
+	// DefaultAgent is the default_agent from the last document that set it.
+	DefaultAgent string
+	// ConfigDirs are the existing directories scanned for skills, commands,
+	// agents and plugins, lowest priority first.
+	ConfigDirs []string
+	// ExtraFiles are the markdown command and agent files that were read.
+	ExtraFiles []string
 	// Files lists the documents that were read and parsed, lowest
 	// priority first. The inline document appears as [ContentSource].
 	Files []string
@@ -170,6 +199,12 @@ type Cost struct {
 // neither OPENCODE_DISABLE_PROJECT_CONFIG nor
 // OPENCODE_CONFIG_PROJECT_DISABLE is truthy. A file that cannot be parsed
 // is skipped as a whole with a warning. Missing files are ignored.
+//
+// It then scans the config directories (the global one, ~/.opencode and,
+// for included projects, each .opencode directory of the walk) for skills,
+// markdown commands and agents, and plugin files, and resolves the
+// instructions entries and the global rules file. Remote instructions and
+// skills are never fetched and plugins are never run.
 func LoadConfig(opts LoadOptions) (*Config, error) {
 	getenv := envOrEmpty(opts.Getenv)
 	cwd := opts.Cwd
@@ -248,6 +283,21 @@ func LoadConfig(opts LoadOptions) (*Config, error) {
 			l.loadFile(filepath.Join(opts.ManagedDir, name))
 		}
 	}
+
+	// Markdown commands and agents override same-named config entries.
+	configDirs := []string{opts.ConfigDir}
+	if opts.Home != "" {
+		configDirs = append(configDirs, filepath.Join(opts.Home, ".opencode"))
+	}
+	if opts.IncludeProject && !projectDisabled && cwd != "" {
+		for _, dir := range projectDirs(opts.ProjectBoundary, cwd) {
+			configDirs = append(configDirs, filepath.Join(dir, ".opencode"))
+		}
+	}
+	l.scanConfigDirs(slices.DeleteFunc(configDirs, func(dir string) bool { return dir == "" }))
+	l.resolveExtras(opts, cwd, projectDisabled || !opts.IncludeProject)
+	l.warnings = append(l.warnings, l.m.cfg.Warnings...)
+	l.m.cfg.Warnings = nil
 
 	cfg := l.m.result()
 	cfg.Files = l.files
@@ -376,13 +426,18 @@ type merger struct {
 	v1Timeout     map[string]int
 	v2Timeout     map[string]int
 	globalStartup int
+	extra         extraState
 }
 
 func newMerger() *merger {
 	return &merger{
 		cfg: &Config{
-			MCP:       map[string]MCPServer{},
-			Providers: map[string]Provider{},
+			MCP:        map[string]MCPServer{},
+			Providers:  map[string]Provider{},
+			Tools:      map[string]bool{},
+			Permission: map[string]Permission{},
+			Commands:   map[string]Command{},
+			Agents:     map[string]Agent{},
 		},
 		mcpEnabled: map[string]bool{},
 		v1Timeout:  map[string]int{},
@@ -433,6 +488,7 @@ func (m *merger) apply(doc document, source string) {
 			}
 		}
 	}
+	m.applyExtras(doc, source)
 }
 
 func (m *merger) result() *Config {
