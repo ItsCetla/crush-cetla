@@ -162,6 +162,9 @@ func (c *coordinator) agenticFetchTool(_ context.Context, client *http.Client) (
 				return fantasy.ToolResponse{}, errors.New("small model provider not configured")
 			}
 
+			// The sub-agent's network tools (web_fetch, web_search and
+			// sourcegraph) do not ask for permission again: the
+			// agentic_fetch permission request above covers them.
 			webFetchTool := tools.NewWebFetchTool(tmpDir, client)
 			webSearchTool := tools.NewWebSearchTool(client)
 			fetchTools := []fantasy.AgentTool{
@@ -169,7 +172,7 @@ func (c *coordinator) agenticFetchTool(_ context.Context, client *http.Client) (
 				webSearchTool,
 				tools.NewGlobTool(tmpDir, c.cfg.Config().Tools.Glob),
 				tools.NewGrepTool(tmpDir, c.cfg.Config().Tools.Grep),
-				tools.NewSourcegraphTool(client),
+				tools.NewPreapprovedSourcegraphTool(client),
 				tools.NewViewTool(c.lspManager, c.permissions, c.filetracker, nil, tmpDir),
 			}
 

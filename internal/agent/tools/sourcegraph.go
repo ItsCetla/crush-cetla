@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/charmbracelet/crush/internal/permission"
 )
 
 type SourcegraphParams struct {
@@ -22,12 +23,25 @@ type SourcegraphParams struct {
 	Timeout       int    `json:"timeout,omitempty" description:"Optional timeout in seconds (max 120)"`
 }
 
+// SourcegraphPermissionsParams defines the permission parameters for the
+// sourcegraph tool.
+type SourcegraphPermissionsParams struct {
+	Query         string `json:"query"`
+	Count         int    `json:"count,omitempty"`
+	ContextWindow int    `json:"context_window,omitempty"`
+	Timeout       int    `json:"timeout,omitempty"`
+}
+
 type SourcegraphResponseMetadata struct {
 	NumberOfMatches int  `json:"number_of_matches"`
 	Truncated       bool `json:"truncated"`
 }
 
 const SourcegraphToolName = "sourcegraph"
+
+// sourcegraphAPIURL is the endpoint every sourcegraph tool call sends its
+// query to.
+const sourcegraphAPIURL = "https://sourcegraph.com/.api/graphql"
 
 //go:embed sourcegraph.md.tpl
 var sourcegraphDescriptionTmpl []byte
@@ -47,7 +61,27 @@ func sourcegraphDescription() string {
 	})
 }
 
-func NewSourcegraphTool(client *http.Client) fantasy.AgentTool {
+// NewSourcegraphTool returns the sourcegraph tool. The search query leaves
+// the machine for sourcegraph.com, so every call asks for permission first,
+// like the fetch tool does.
+func NewSourcegraphTool(permissions permission.Service, workingDir string, client *http.Client) fantasy.AgentTool {
+	if permissions == nil {
+		panic("sourcegraph tool requires a permission service")
+	}
+	return newSourcegraphTool(permissions, workingDir, client)
+}
+
+// NewPreapprovedSourcegraphTool returns the sourcegraph tool without its
+// per-call permission request. Only use it inside a tool whose own
+// permission request already covered sending queries to the web, such as
+// the agentic_fetch sub-agent.
+func NewPreapprovedSourcegraphTool(client *http.Client) fantasy.AgentTool {
+	return newSourcegraphTool(nil, "", client)
+}
+
+// newSourcegraphTool builds the sourcegraph tool. A nil permissions service
+// means the caller has already obtained permission for every call.
+func newSourcegraphTool(permissions permission.Service, workingDir string, client *http.Client) fantasy.AgentTool {
 	if client == nil {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.MaxIdleConns = 100
@@ -75,6 +109,32 @@ func NewSourcegraphTool(client *http.Client) fantasy.AgentTool {
 
 			if params.ContextWindow <= 0 {
 				params.ContextWindow = 10 // Default context window
+			}
+
+			if permissions != nil {
+				sessionID := GetSessionFromContext(ctx)
+				if sessionID == "" {
+					return fantasy.ToolResponse{}, fmt.Errorf("session ID is required for searching Sourcegraph")
+				}
+
+				p, err := permissions.Request(
+					ctx,
+					permission.CreatePermissionRequest{
+						SessionID:   sessionID,
+						Path:        workingDir,
+						ToolCallID:  call.ID,
+						ToolName:    SourcegraphToolName,
+						Action:      "search",
+						Description: fmt.Sprintf("Send search query to sourcegraph.com: %s", params.Query),
+						Params:      SourcegraphPermissionsParams(params),
+					},
+				)
+				if err != nil {
+					return fantasy.ToolResponse{}, err
+				}
+				if !p {
+					return NewPermissionDeniedResponse(), nil
+				}
 			}
 
 			// Handle timeout with context
@@ -110,7 +170,7 @@ func NewSourcegraphTool(client *http.Client) fantasy.AgentTool {
 			req, err := http.NewRequestWithContext(
 				requestCtx,
 				"POST",
-				"https://sourcegraph.com/.api/graphql",
+				sourcegraphAPIURL,
 				bytes.NewBuffer([]byte(graphqlQuery)),
 			)
 			if err != nil {

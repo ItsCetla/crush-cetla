@@ -555,6 +555,8 @@ func (p *Permissions) renderContent(width int) string {
 		return p.renderFetchContent(width)
 	case tools.AgenticFetchToolName:
 		return p.renderAgenticFetchContent(width)
+	case tools.SourcegraphToolName:
+		return p.renderSourcegraphContent(width)
 	case tools.ViewToolName:
 		return p.renderViewContent(width)
 	case tools.LSToolName:
@@ -673,6 +675,22 @@ func (p *Permissions) renderAgenticFetchContent(width int) string {
 		content = fmt.Sprintf("URL: %s\n\nPrompt: %s", params.URL, params.Prompt)
 	} else {
 		content = fmt.Sprintf("Prompt: %s", params.Prompt)
+	}
+
+	return p.renderContentPanel(content, width)
+}
+
+// renderSourcegraphContent shows the query a sourcegraph tool call is about
+// to send, and where it goes, since the search runs on sourcegraph.com.
+func (p *Permissions) renderSourcegraphContent(width int) string {
+	params, ok := p.permission.Params.(tools.SourcegraphPermissionsParams)
+	if !ok {
+		return ""
+	}
+
+	content := fmt.Sprintf("Query: %s\nSent to: sourcegraph.com", params.Query)
+	if params.Count > 0 {
+		content += fmt.Sprintf("\nMax results: %d", params.Count)
 	}
 
 	return p.renderContentPanel(content, width)

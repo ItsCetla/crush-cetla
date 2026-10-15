@@ -191,6 +191,10 @@ type SourcegraphParams struct {
 	Timeout       int    `json:"timeout,omitempty"`
 }
 
+// SourcegraphPermissionsParams represents the permission parameters for the
+// sourcegraph tool.
+type SourcegraphPermissionsParams = tools.SourcegraphPermissionsParams
+
 // SourcegraphResponseMetadata represents the metadata for a sourcegraph tool response.
 type SourcegraphResponseMetadata struct {
 	NumberOfMatches int  `json:"number_of_matches"`

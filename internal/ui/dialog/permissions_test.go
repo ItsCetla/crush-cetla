@@ -4,9 +4,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/styles"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,4 +97,27 @@ func TestPermissions_EscapeDenies(t *testing.T) {
 	resp, ok := action.(ActionPermissionResponse)
 	require.True(t, ok)
 	require.Equal(t, PermissionDeny, resp.Action)
+}
+
+// TestPermissions_RendersSourcegraphQuery verifies that a sourcegraph
+// permission request shows the query and where it is sent.
+func TestPermissions_RendersSourcegraphQuery(t *testing.T) {
+	t.Parallel()
+
+	s := styles.CharmtonePantera()
+	com := &common.Common{Styles: &s}
+	p := NewPermissions(com, permission.PermissionRequest{
+		ID:         "perm-test",
+		ToolCallID: "tool-call-test",
+		ToolName:   tools.SourcegraphToolName,
+		Params: tools.SourcegraphPermissionsParams{
+			Query: "func main lang:go",
+			Count: 10,
+		},
+	})
+
+	content := ansi.Strip(p.renderContent(80))
+	require.Contains(t, content, "Query: func main lang:go")
+	require.Contains(t, content, "Sent to: sourcegraph.com")
+	require.Contains(t, content, "Max results: 10")
 }

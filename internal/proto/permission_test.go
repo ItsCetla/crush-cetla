@@ -157,6 +157,20 @@ func TestPermissionRequestParamsTypeAssertable(t *testing.T) {
 				require.Equal(t, "summarize this page", v.Prompt)
 			},
 		},
+		{
+			name:     "sourcegraph",
+			toolName: tools.SourcegraphToolName,
+			params: tools.SourcegraphPermissionsParams{
+				Query: "func main lang:go",
+				Count: 5,
+			},
+			assert: func(t *testing.T, got any) {
+				v, ok := got.(tools.SourcegraphPermissionsParams)
+				require.True(t, ok, "params must decode as tools.SourcegraphPermissionsParams, got %T", got)
+				require.Equal(t, "func main lang:go", v.Query)
+				require.Equal(t, 5, v.Count)
+			},
+		},
 	}
 
 	for _, tc := range tests {
