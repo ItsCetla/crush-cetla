@@ -540,6 +540,12 @@ func (w *ClientWorkspace) WorkingDir() string {
 	return w.cached().Path
 }
 
+// TrustNotice returns the server's warning about project config it skipped
+// because the project is not trusted, or the empty string.
+func (w *ClientWorkspace) TrustNotice() string {
+	return w.cached().TrustNotice
+}
+
 // GitBranch asks the server for the branch checked out in the workspace's
 // working directory. Callers keep this off the render path; the TUI polls it
 // on a ticker and renders from its own state.

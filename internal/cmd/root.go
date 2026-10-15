@@ -136,6 +136,7 @@ crush --continue
 			tea.WithFilter(inputFilter.Filter),
 		)
 		go ws.Subscribe(program)
+		sendTrustNotice(program, ws)
 
 		if _, err := program.Run(); err != nil {
 			slog.Error("TUI run error", "error", err)

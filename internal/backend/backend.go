@@ -1129,6 +1129,8 @@ func workspaceToProto(ws *Workspace) proto.Workspace {
 		Config:   cfg,
 		Env:      ws.Env,
 		Version:  version.Version,
+		// Shown by clients; the server log already has it.
+		TrustNotice: ws.Cfg.ProjectTrust().Notice(),
 	}
 	if ws.Skills != nil {
 		out.Skills = skillStatesToProto(ws.Skills.States())

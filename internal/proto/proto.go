@@ -29,6 +29,9 @@ type Workspace struct {
 	// creation time. Subsequent updates flow through the SSE event
 	// stream.
 	Skills []SkillState `json:"skills,omitempty"`
+	// TrustNotice warns that the server skipped the workspace's
+	// project-level config because the project is not trusted.
+	TrustNotice string `json:"trust_notice,omitempty"`
 }
 
 // Error represents an error response.

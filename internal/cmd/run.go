@@ -96,6 +96,7 @@ crush run --continue "Follow up on your last response"
 			if err != nil {
 				return err
 			}
+			printTrustNotice(ws.TrustNotice)
 			defer cleanup()
 
 			if !ws.Config.IsConfigured() {
@@ -126,6 +127,7 @@ crush run --continue "Follow up on your last response"
 		if err != nil {
 			return err
 		}
+		printTrustNotice(projectTrustNotice(ws))
 		defer cleanup()
 
 		if !ws.Config().IsConfigured() {

@@ -71,6 +71,11 @@ func writeConfigStaleness(b *strings.Builder, cfg *config.ConfigStore) {
 
 	b.WriteString("[config]\n")
 	fmt.Fprintf(b, "dirty = %v\n", staleness.Dirty)
+	if trust := cfg.ProjectTrust(); !trust.Trusted && len(trust.Files) > 0 {
+		// Explains config the user expects but Crush skipped.
+		fmt.Fprintf(b, "untrusted_project_config = %s (ignored until the user reviews it and runs `crush trust`)\n",
+			strings.Join(trust.DisplayFiles(), ", "))
+	}
 
 	if len(staleness.Changed) > 0 {
 		sorted := slices.Clone(staleness.Changed)
