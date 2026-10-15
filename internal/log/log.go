@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -17,10 +18,16 @@ import (
 var (
 	initOnce    sync.Once
 	initialized atomic.Bool
+	logDir      atomic.Pointer[string]
 )
 
 func Setup(logFile string, debug bool, ws ...io.Writer) {
 	initOnce.Do(func() {
+		if logFile != "" {
+			dir := filepath.Dir(logFile)
+			logDir.Store(&dir)
+		}
+
 		logRotator := &lumberjack.Logger{
 			Filename:   logFile,
 			MaxSize:    10,    // Max size in MB
@@ -64,11 +71,7 @@ func Initialized() bool {
 
 func RecoverPanic(name string, cleanup func()) {
 	if r := recover(); r != nil {
-		// Create a timestamped panic log file
-		timestamp := time.Now().Format("20060102-150405")
-		filename := fmt.Sprintf("crush-panic-%s-%s.log", name, timestamp)
-
-		file, err := os.Create(filename)
+		file, err := createPanicLog(name)
 		if err == nil {
 			defer file.Close()
 
@@ -83,4 +86,17 @@ func RecoverPanic(name string, cleanup func()) {
 			}
 		}
 	}
+}
+
+// createPanicLog creates a timestamped panic log file next to the Crush log,
+// or in the system temp directory when that is not available. CreateTemp
+// makes the file readable only by the user and never reuses an existing path.
+func createPanicLog(name string) (*os.File, error) {
+	pattern := fmt.Sprintf("crush-panic-%s-%s-*.log", name, time.Now().Format("20060102-150405"))
+	if dir := logDir.Load(); dir != nil {
+		if file, err := os.CreateTemp(*dir, pattern); err == nil {
+			return file, nil
+		}
+	}
+	return os.CreateTemp(os.TempDir(), pattern)
 }
