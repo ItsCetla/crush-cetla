@@ -378,5 +378,14 @@ the request.
 
 Both formats are trusted code. `crushrc` runs entirely, and any `$(...)` in
 `crush.json` runs at load time, with the invoking user's shell privileges,
-before the UI appears. Don't launch Crush in a directory whose config you
-haven't reviewed.
+before the UI appears.
+
+So project-local config (including the workspace config
+`.crush/crush.json`) is ignored until the user trusts the project with
+`crush trust` (see `crush trust --help`). Crush stores a fingerprint of those
+files; any change, new file or removed file makes the project untrusted again
+until the user reviews it and runs `crush trust` once more. Directories in
+`options.trusted_paths` of the global config, or runs with
+`CRUSH_TRUST_PROJECT=1`, skip the check. If a user's project config seems to
+be ignored, suggest reviewing it and running `crush trust`; never run it on
+their behalf.

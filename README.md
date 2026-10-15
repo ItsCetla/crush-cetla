@@ -314,9 +314,26 @@ $HOME/.local/share/crush/crush.json
 #### A note on security
 
 Both `crushrc` and `crush.json` are trusted code; `crushrc` runs in a full
-shell, and any `$(...)` in `crush.json` runs at load time. Don't launch Crush
-in a directory whose config you haven't reviewed, and don't randomly `source`
-files from the internet into your config.
+shell, and any `$(...)` in `crush.json` runs at load time. Don't randomly
+`source` files from the internet into your config.
+
+That's why Crush ignores a project's own config (any `crushrc`, `.crushrc`,
+`crush.json` or `.crush.json` in the project, plus the workspace config
+`.crush/crush.json`) until you trust the project. Review those files, then
+run:
+
+```bash
+crush trust            # trust the project in the current directory
+crush trust --list     # list trusted projects
+crush trust --revoke   # stop trusting it
+```
+
+Crush remembers a fingerprint of the files: if any of them changes, appears
+or disappears, it ignores them again until you run `crush trust` once more.
+Changes Crush makes to `.crush/crush.json` itself don't count. To trust every
+project under a directory you control, add it to `options.trusted_paths` in
+your global config (it's ignored in project config); for a single run, set
+`CRUSH_TRUST_PROJECT=1`.
 
 ### Environment Variables
 
