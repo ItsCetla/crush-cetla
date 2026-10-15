@@ -434,6 +434,9 @@ const (
 
 type Permissions struct {
 	AllowedTools []string `json:"allowed_tools,omitempty" jsonschema:"description=List of tools that don't require permission prompts,example=bash,example=view"`
+	// ProjectAllowedTools run without a prompt only when the file they
+	// write resolves inside the working directory.
+	ProjectAllowedTools []string `json:"project_allowed_tools,omitempty" jsonschema:"description=File-writing tools that don't require permission prompts when the file is inside the project. Supported: edit\\, multiedit\\, write\\, lsp_replace_symbol,example=edit,example=write"`
 }
 
 type TrailerStyle string

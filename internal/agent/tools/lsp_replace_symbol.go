@@ -43,6 +43,10 @@ type ReplaceSymbolPermissionsParams struct {
 	NewContent string `json:"new_content"`
 }
 
+// TargetFile returns the file the tool writes, for project-scoped
+// permission rules.
+func (p ReplaceSymbolPermissionsParams) TargetFile() string { return p.FilePath }
+
 func NewReplaceSymbolTool(
 	lspManager *lsp.Manager,
 	permissions permission.Service,

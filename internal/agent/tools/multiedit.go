@@ -36,6 +36,10 @@ type MultiEditPermissionsParams struct {
 	NewContent string `json:"new_content,omitempty"`
 }
 
+// TargetFile returns the file the tool writes, for project-scoped
+// permission rules.
+func (p MultiEditPermissionsParams) TargetFile() string { return p.FilePath }
+
 type FailedEdit struct {
 	Index int                `json:"index"`
 	Error string             `json:"error"`

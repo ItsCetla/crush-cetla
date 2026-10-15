@@ -2,9 +2,12 @@ package permission
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -112,6 +115,7 @@ type permissionService struct {
 	autoApproveSessionsMu sync.RWMutex
 	skip                  atomic.Bool
 	allowedTools          []string
+	projectAllowedTools   []string
 
 	// used to make sure we only process one request at a time
 	requestMu       sync.Mutex
@@ -197,6 +201,15 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 	commandKey := opts.ToolName + ":" + opts.Action
 	if slices.Contains(s.allowedTools, commandKey) || slices.Contains(s.allowedTools, opts.ToolName) {
 		return true, nil
+	}
+
+	// Tools allowed inside the project only run without asking when the
+	// file they write resolves, symlinks included, inside the working
+	// directory. Anything else falls through to the normal prompt.
+	if slices.Contains(s.projectAllowedTools, opts.ToolName) {
+		if target, ok := opts.Params.(FileTarget); ok && withinDir(s.workingDir, target.TargetFile()) {
+			return true, nil
+		}
 	}
 
 	// A PreToolUse hook that returned decision=allow stamps the context
@@ -333,7 +346,66 @@ func (s *permissionService) SkipRequests() bool {
 	return s.skip.Load()
 }
 
-func NewPermissionService(workingDir string, skip bool, allowedTools []string) Service {
+// FileTarget is implemented by the params of tools that write a single
+// file, so a project-scoped allow rule can check where the write lands.
+type FileTarget interface {
+	TargetFile() string
+}
+
+// withinDir reports whether path resolves to a location inside root.
+// Symlinks are followed on both sides, so a link inside the project can't
+// point the check somewhere else. A relative path resolves against the
+// process working directory, as the file system calls that write it do.
+func withinDir(root, path string) bool {
+	if root == "" || path == "" {
+		return false
+	}
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	realPath, err := resolveExisting(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(realRoot, realPath)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// resolveExisting resolves symlinks in the longest existing prefix of an
+// absolute, clean path and re-attaches the rest, so a file that doesn't
+// exist yet resolves through its real parent. A dangling symlink is an
+// error: writing through it would create its target, wherever that is.
+func resolveExisting(path string) (string, error) {
+	var rest []string
+	for {
+		real, err := filepath.EvalSymlinks(path)
+		if err == nil {
+			return filepath.Join(append([]string{real}, rest...)...), nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+		if _, lerr := os.Lstat(path); lerr == nil {
+			return "", err
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return "", err
+		}
+		rest = append([]string{filepath.Base(path)}, rest...)
+		path = parent
+	}
+}
+
+// NewPermissionService returns the permission service. allowedTools run
+// without asking anywhere; projectAllowedTools only when the file they
+// write is inside workingDir.
+func NewPermissionService(workingDir string, skip bool, allowedTools, projectAllowedTools []string) Service {
 	svc := &permissionService{
 		Broker:              pubsub.NewBroker[PermissionRequest](),
 		notificationBroker:  pubsub.NewBroker[PermissionNotification](),
@@ -341,6 +413,7 @@ func NewPermissionService(workingDir string, skip bool, allowedTools []string) S
 		sessionPermissions:  csync.NewMap[PermissionKey, bool](),
 		autoApproveSessions: make(map[string]bool),
 		allowedTools:        allowedTools,
+		projectAllowedTools: projectAllowedTools,
 		pendingRequests:     csync.NewMap[string, chan bool](),
 	}
 	svc.skip.Store(skip)

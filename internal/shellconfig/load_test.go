@@ -185,6 +185,27 @@ func TestLoadShellConfig_Permissions(t *testing.T) {
 	require.Equal(t, "view", tools[1])
 }
 
+// TestLoadShellConfig_PermissionsAllowInProject verifies that
+// `permissions allow-in-project` writes permissions.project_allowed_tools and
+// leaves allowed_tools alone.
+func TestLoadShellConfig_PermissionsAllowInProject(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	script := `permissions allow-in-project edit write edit`
+	path := filepath.Join(dir, "crushrc")
+
+	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(script))
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &result))
+
+	perms := result["permissions"].(map[string]any)
+	require.Equal(t, []any{"edit", "write"}, perms["project_allowed_tools"])
+	require.NotContains(t, perms, "allowed_tools")
+}
+
 // TestLoadShellConfig_PermissionsDeny verifies that `permissions deny` writes
 // to options.disabled_tools (not permissions.disabled_tools). This
 // cross-section write is load-bearing: deny wins over allow because

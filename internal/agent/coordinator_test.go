@@ -365,7 +365,7 @@ func TestRunSubAgent(t *testing.T) {
 		for _, parentApproved := range []bool{true, false} {
 			env := testEnv(t)
 			coord := newTestCoordinator(t, env, providerID, providerCfg)
-			perms := permission.NewPermissionService(env.workingDir, false, nil)
+			perms := permission.NewPermissionService(env.workingDir, false, nil, nil)
 			coord.permissions = perms
 
 			parentSession, err := env.sessions.Create(t.Context(), "Parent")

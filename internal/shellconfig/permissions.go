@@ -12,9 +12,12 @@ import (
 // Usage:
 //
 //	permissions allow <tool> [<tool> ...]
+//	permissions allow-in-project <tool> [<tool> ...]
 //	permissions deny <tool> [<tool> ...]
 //
 // "allow" adds tools to the allow-list (tools that skip permission prompts).
+// "allow-in-project" lets file tools skip the prompt only for files inside
+// the project (permissions.project_allowed_tools).
 // "deny" hides tools from the agent entirely (options.disabled_tools) — the
 // inverse of allow. Adding the same tool twice is a no-op.
 //
@@ -26,34 +29,38 @@ func handlePermissions(ctx context.Context, args []string, stdin io.Reader, stdo
 		return nil
 	}
 	if len(args) < 2 {
-		return usage(stderr, "usage: permissions allow|deny <tool> [<tool> ...]")
+		return usage(stderr, "usage: permissions allow|allow-in-project|deny <tool> [<tool> ...]")
 	}
 
 	switch args[1] {
 	case "allow":
-		return permissionsAllow(b, args, stderr)
+		return permissionsAllow(b, args, "allowed_tools", stderr)
+	case "allow-in-project":
+		return permissionsAllow(b, args, "project_allowed_tools", stderr)
 	case "deny":
 		return permissionsDeny(b, args, stderr)
 	default:
-		return usage(stderr, fmt.Sprintf("permissions: unknown subcommand %q (expected allow or deny)", args[1]))
+		return usage(stderr, fmt.Sprintf("permissions: unknown subcommand %q (expected allow, allow-in-project or deny)", args[1]))
 	}
 }
 
-func permissionsAllow(b *ConfigBuilder, args []string, stderr io.Writer) error {
+// permissionsAllow appends tools to the given list in the permissions
+// section.
+func permissionsAllow(b *ConfigBuilder, args []string, key string, stderr io.Writer) error {
 	if len(args) < 3 {
-		return usage(stderr, "usage: permissions allow <tool> [<tool> ...]")
+		return usage(stderr, fmt.Sprintf("usage: permissions %s <tool> [<tool> ...]", args[1]))
 	}
 	perms := b.section("permissions")
-	allowed, _ := perms["allowed_tools"].([]any)
+	allowed, _ := perms[key].([]any)
 
 	for _, tool := range args[2:] {
 		if !containsAny(allowed, tool) {
 			allowed = append(allowed, tool)
 		}
 	}
-	perms["allowed_tools"] = allowed
+	perms[key] = allowed
 
-	slog.Info("Permissions allowed in shell config", "tools", args[2:])
+	slog.Info("Permissions allowed in shell config", "list", key, "tools", args[2:])
 	return nil
 }
 

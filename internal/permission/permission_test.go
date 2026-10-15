@@ -2,6 +2,8 @@ package permission
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -58,7 +60,7 @@ func TestPermissionService_AllowedCommands(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewPermissionService("/tmp", false, tt.allowedTools)
+			service := NewPermissionService("/tmp", false, tt.allowedTools, nil)
 
 			// Create a channel to capture the permission request
 			// Since we're testing the allowlist logic, we need to simulate the request
@@ -83,7 +85,7 @@ func TestPermissionService_AllowedCommands(t *testing.T) {
 }
 
 func TestSkipRace(t *testing.T) {
-	svc := NewPermissionService("/tmp", false, nil)
+	svc := NewPermissionService("/tmp", false, nil, nil)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -98,7 +100,7 @@ func TestSkipRace(t *testing.T) {
 }
 
 func TestPermissionService_SkipMode(t *testing.T) {
-	service := NewPermissionService("/tmp", true, []string{})
+	service := NewPermissionService("/tmp", true, []string{}, nil)
 
 	result, err := service.Request(t.Context(), CreatePermissionRequest{
 		SessionID:   "test-session",
@@ -120,7 +122,7 @@ func TestPermissionService_HookApproval(t *testing.T) {
 
 	t.Run("matching tool call ID short-circuits the prompt", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		ctx := WithHookApproval(t.Context(), "call-42")
 		granted, err := service.Request(ctx, CreatePermissionRequest{
@@ -137,7 +139,7 @@ func TestPermissionService_HookApproval(t *testing.T) {
 
 	t.Run("approval is scoped to the stamped tool call ID", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		// Stamp for call-42, ask for a different call ID — must not leak.
 		ctx := WithHookApproval(t.Context(), "call-42")
@@ -170,7 +172,7 @@ func TestPermissionService_HookApproval(t *testing.T) {
 
 	t.Run("notifies subscribers that permission was granted", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		notifications := service.SubscribeNotifications(t.Context())
 
@@ -193,7 +195,7 @@ func TestPermissionService_HookApproval(t *testing.T) {
 
 func TestPermissionService_SequentialProperties(t *testing.T) {
 	t.Run("Sequential permission requests with persistent grants", func(t *testing.T) {
-		service := NewPermissionService("/tmp", false, []string{})
+		service := NewPermissionService("/tmp", false, []string{}, nil)
 
 		req1 := CreatePermissionRequest{
 			SessionID:   "session1",
@@ -238,7 +240,7 @@ func TestPermissionService_SequentialProperties(t *testing.T) {
 		assert.True(t, result2, "Second request should be auto-approved")
 	})
 	t.Run("Sequential requests with temporary grants", func(t *testing.T) {
-		service := NewPermissionService("/tmp", false, []string{})
+		service := NewPermissionService("/tmp", false, []string{}, nil)
 
 		req := CreatePermissionRequest{
 			SessionID:   "session2",
@@ -278,7 +280,7 @@ func TestPermissionService_SequentialProperties(t *testing.T) {
 		assert.False(t, result2, "Second request should be denied")
 	})
 	t.Run("Concurrent requests with different outcomes", func(t *testing.T) {
-		service := NewPermissionService("/tmp", false, []string{})
+		service := NewPermissionService("/tmp", false, []string{}, nil)
 
 		events := service.Subscribe(t.Context())
 
@@ -355,7 +357,7 @@ func TestPermissionService_ResolveIdempotency(t *testing.T) {
 
 	t.Run("concurrent grants resolve exactly once", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		events := service.Subscribe(t.Context())
 		notifications := service.SubscribeNotifications(t.Context())
@@ -451,7 +453,7 @@ func TestPermissionService_ResolveIdempotency(t *testing.T) {
 
 	t.Run("grant after deny is a no-op", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		events := service.Subscribe(t.Context())
 		notifications := service.SubscribeNotifications(t.Context())
@@ -513,7 +515,7 @@ func TestPermissionService_ResolveIdempotency(t *testing.T) {
 
 	t.Run("losing GrantPersistent does not record session permission", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		events := service.Subscribe(t.Context())
 		notifications := service.SubscribeNotifications(t.Context())
@@ -585,7 +587,7 @@ func TestPermissionService_ResolveIdempotency(t *testing.T) {
 
 	t.Run("grant for unknown id is a safe no-op", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		notifications := service.SubscribeNotifications(t.Context())
 
@@ -620,7 +622,7 @@ func TestActiveRequest(t *testing.T) {
 
 	t.Run("reports the pending request only while resolvable", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		_, ok := service.ActiveRequest()
 		assert.False(t, ok, "no request pending yet")
@@ -654,7 +656,7 @@ func TestActiveRequest(t *testing.T) {
 
 	t.Run("does not report a request whose waiter was cancelled", func(t *testing.T) {
 		t.Parallel()
-		service := NewPermissionService("/tmp", false, nil)
+		service := NewPermissionService("/tmp", false, nil, nil)
 
 		events := service.Subscribe(t.Context())
 		ctx, cancel := context.WithCancel(t.Context())
@@ -685,7 +687,7 @@ func TestActiveRequest(t *testing.T) {
 
 func TestNotificationsCarrySessionID(t *testing.T) {
 	t.Parallel()
-	service := NewPermissionService("/tmp", false, nil)
+	service := NewPermissionService("/tmp", false, nil, nil)
 
 	notifications := service.SubscribeNotifications(t.Context())
 	events := service.Subscribe(t.Context())
@@ -717,4 +719,108 @@ func TestNotificationsCarrySessionID(t *testing.T) {
 	second := <-notifications
 	assert.Equal(t, "s-notify", second.Payload.SessionID)
 	assert.True(t, second.Payload.Granted)
+}
+
+func TestWithinDir(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	root := filepath.Join(base, "proj")
+	outside := filepath.Join(base, "proj-other")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0o755))
+	require.NoError(t, os.MkdirAll(outside, 0o755))
+	require.NoError(t, os.Symlink(outside, filepath.Join(root, "link-out")))
+	require.NoError(t, os.Symlink(filepath.Join(root, "sub"), filepath.Join(root, "link-in")))
+	require.NoError(t, os.Symlink(filepath.Join(outside, "missing.txt"), filepath.Join(root, "dangling")))
+	require.NoError(t, os.Symlink(root, filepath.Join(base, "proj-link")))
+
+	tests := []struct {
+		name string
+		root string
+		path string
+		want bool
+	}{
+		{"new file", root, filepath.Join(root, "main.go"), true},
+		{"new nested dirs", root, filepath.Join(root, "sub", "a", "b.go"), true},
+		{"link to inside", root, filepath.Join(root, "link-in", "x.go"), true},
+		{"root given as link", filepath.Join(base, "proj-link"), filepath.Join(root, "x.go"), true},
+		{"path through root link", root, filepath.Join(base, "proj-link", "x.go"), true},
+		{"dot dot escape", root, filepath.Join(root, "..", "proj-other", "x.go"), false},
+		{"sibling with same prefix", root, filepath.Join(outside, "x.go"), false},
+		{"link to outside", root, filepath.Join(root, "link-out", "x.go"), false},
+		{"dangling link", root, filepath.Join(root, "dangling"), false},
+		{"empty root", "", filepath.Join(root, "x.go"), false},
+		{"empty path", root, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, withinDir(tt.root, tt.path))
+		})
+	}
+}
+
+type fileParams struct{ path string }
+
+func (p fileParams) TargetFile() string { return p.path }
+
+func TestPermissionService_ProjectAllowedTools(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	outside := t.TempDir()
+	service := NewPermissionService(root, false, nil, []string{"edit"})
+
+	// prompted runs the request and reports whether it reached the
+	// prompt. A prompt is denied so the request returns.
+	prompted := func(t *testing.T, req CreatePermissionRequest) bool {
+		t.Helper()
+		events := service.Subscribe(t.Context())
+		type outcome struct {
+			granted bool
+			err     error
+		}
+		result := make(chan outcome, 1)
+		go func() {
+			granted, err := service.Request(t.Context(), req)
+			result <- outcome{granted, err}
+		}()
+		select {
+		case got := <-result:
+			require.NoError(t, got.err)
+			require.True(t, got.granted)
+			return false
+		case event := <-events:
+			service.Deny(event.Payload)
+			got := <-result
+			require.NoError(t, got.err)
+			require.False(t, got.granted)
+			return true
+		case <-time.After(5 * time.Second):
+			t.Fatal("request neither returned nor prompted")
+			return false
+		}
+	}
+	req := func(tool string, params any) CreatePermissionRequest {
+		return CreatePermissionRequest{
+			SessionID:  "s",
+			ToolCallID: tool,
+			ToolName:   tool,
+			Action:     "write",
+			Params:     params,
+		}
+	}
+
+	t.Run("inside the project", func(t *testing.T) {
+		require.False(t, prompted(t, req("edit", fileParams{filepath.Join(root, "a.go")})))
+	})
+	t.Run("outside the project", func(t *testing.T) {
+		require.True(t, prompted(t, req("edit", fileParams{filepath.Join(outside, "a.go")})))
+	})
+	t.Run("tool not allowed", func(t *testing.T) {
+		require.True(t, prompted(t, req("write", fileParams{filepath.Join(root, "a.go")})))
+	})
+	t.Run("params without a target", func(t *testing.T) {
+		require.True(t, prompted(t, req("edit", map[string]string{"file": filepath.Join(root, "a.go")})))
+	})
 }

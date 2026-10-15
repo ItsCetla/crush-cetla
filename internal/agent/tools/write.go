@@ -35,6 +35,10 @@ type WritePermissionsParams struct {
 	NewContent string `json:"new_content,omitempty"`
 }
 
+// TargetFile returns the file the tool writes, for project-scoped
+// permission rules.
+func (p WritePermissionsParams) TargetFile() string { return p.FilePath }
+
 type WriteResponseMetadata struct {
 	Diff      string `json:"diff"`
 	Additions int    `json:"additions"`

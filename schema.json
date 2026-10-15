@@ -721,6 +721,17 @@
           },
           "type": "array",
           "description": "List of tools that don't require permission prompts"
+        },
+        "project_allowed_tools": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "edit",
+              "write"
+            ]
+          },
+          "type": "array",
+          "description": "File-writing tools that don't require permission prompts when the file is inside the project. Supported: edit, multiedit, write, lsp_replace_symbol"
         }
       },
       "additionalProperties": false,

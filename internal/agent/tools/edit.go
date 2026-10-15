@@ -35,6 +35,10 @@ type EditPermissionsParams struct {
 	NewContent string `json:"new_content,omitempty"`
 }
 
+// TargetFile returns the file the tool writes, for project-scoped
+// permission rules.
+func (p EditPermissionsParams) TargetFile() string { return p.FilePath }
+
 type EditResponseMetadata struct {
 	Additions  int    `json:"additions"`
 	Removals   int    `json:"removals"`
