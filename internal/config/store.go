@@ -1361,6 +1361,7 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	oldOverrides := s.overrides
 	oldWorkspacePath := s.workspacePath
 	oldTrust := s.ProjectTrust()
+	oldOpenCode := s.openCode
 
 	// Preserve runtime overrides
 	overrides := s.overrides
@@ -1379,6 +1380,8 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	// Apply top-level env vars before configuring providers so variables
 	// like AWS_PROFILE are visible to the AWS SDK credential chain.
 	cfg.applyEnv(resolver)
+
+	cfg.applyOpenCodeProviders(merged.openCode)
 
 	providers, err := Providers(cfg)
 	if err != nil {
@@ -1400,12 +1403,14 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 	s.overrides = overrides
 	s.workspacePath = workspacePath
 	s.setProjectTrust(merged.trust)
+	s.openCode = merged.openCode
 
 	// Mirror startup flow: setup models and agents against NEW config.
 	var setupErr error
 	if !cfg.IsConfigured() {
 		slog.Warn("No providers configured after reload")
 	} else {
+		cfg.applyOpenCodeModelPreference(merged.openCode)
 		resolved, resolveErr := resolveSelectedModels(cfg, providers)
 		if resolveErr != nil {
 			setupErr = fmt.Errorf("failed to configure selected models during reload: %w", resolveErr)
@@ -1425,6 +1430,7 @@ func (s *ConfigStore) reloadFromDiskLocked(ctx context.Context) error {
 		s.overrides = oldOverrides
 		s.workspacePath = oldWorkspacePath
 		s.setProjectTrust(oldTrust)
+		s.openCode = oldOpenCode
 		return setupErr
 	}
 

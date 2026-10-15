@@ -212,6 +212,7 @@ type mergedConfig struct {
 	loadedPaths   []string
 	workspacePath string
 	trust         ProjectTrust
+	openCode      *openCodeImport
 }
 
 // loadMergedConfig discovers, gates, reads and merges config files: system
@@ -252,6 +253,14 @@ func loadMergedConfig(ctx context.Context, p loadParams) (*mergedConfig, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	// Import from a local OpenCode install. Its project-level files are
+	// part of the trust fingerprint (see openCodeProjectFiles) and are
+	// only read for trusted projects. MCP servers go in before setDefaults,
+	// which drops partial MCP entries it can't place.
+	openCode := loadOpenCode(cfg.Options, p.workingDir, trust.Trusted)
+	cfg.applyOpenCodeMCP(openCode)
+
 	cfg.setDefaults(p.workingDir, p.dataDir)
 
 	// Load the workspace config last so it has the highest priority.
@@ -281,9 +290,10 @@ func loadMergedConfig(ctx context.Context, p loadParams) (*mergedConfig, error) 
 
 	return &mergedConfig{
 		cfg:           cfg,
-		configPaths:   slices.Concat(globalPaths, projectPaths),
+		configPaths:   slices.Concat(globalPaths, projectPaths, openCode.stalenessPaths()),
 		loadedPaths:   loadedPaths,
 		workspacePath: workspacePath,
 		trust:         trust,
+		openCode:      openCode,
 	}, nil
 }

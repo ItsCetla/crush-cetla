@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -57,6 +58,64 @@ func openCodeSettingsFor(o *Options) openCodeSettings {
 		models:      oc.Models == nil || *oc.Models,
 		credentials: oc.Credentials,
 	}
+}
+
+func init() {
+	RegisterProjectConfigFinder(openCodeProjectFiles)
+}
+
+// openCodeProjectFileNames are the project-level OpenCode config files
+// looked for in every directory from the project root down to the working
+// directory.
+var openCodeProjectFileNames = []string{
+	"opencode.json",
+	"opencode.jsonc",
+	filepath.Join(".opencode", "opencode.json"),
+	filepath.Join(".opencode", "opencode.jsonc"),
+}
+
+// openCodeProjectFiles reports the project-level OpenCode config files so
+// the project trust fingerprint covers them: an imported local MCP server
+// runs a command, so a repository that ships or changes one must be
+// trusted again before Crush reads it.
+func openCodeProjectFiles(workingDir, root string) []string {
+	if off, _ := strconv.ParseBool(os.Getenv("CRUSH_DISABLE_OPENCODE")); off {
+		return nil
+	}
+	globalDir := filepath.Clean(openCodePaths().ConfigDir)
+	dir, root := filepath.Clean(workingDir), filepath.Clean(root)
+	var files []string
+	for {
+		if dir != globalDir {
+			for _, name := range openCodeProjectFileNames {
+				files = append(files, filepath.Join(dir, name))
+			}
+		}
+		parent := filepath.Dir(dir)
+		if dir == root || parent == dir || !isWithinDir(root, parent) {
+			return files
+		}
+		dir = parent
+	}
+}
+
+func isWithinDir(root, dir string) bool {
+	rel, err := filepath.Rel(root, dir)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// stalenessPaths are the OpenCode config files to watch for changes: the
+// ones that were read plus the global ones that could appear.
+func (imp *openCodeImport) stalenessPaths() []string {
+	if imp == nil {
+		return nil
+	}
+	dir := openCodePaths().ConfigDir
+	return append(imp.files(),
+		filepath.Join(dir, "config.json"),
+		filepath.Join(dir, "opencode.json"),
+		filepath.Join(dir, "opencode.jsonc"),
+	)
 }
 
 func openCodePaths() opencode.Paths {

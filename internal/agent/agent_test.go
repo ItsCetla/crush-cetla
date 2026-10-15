@@ -24,6 +24,8 @@ import (
 
 func TestMain(m *testing.M) {
 	slog.SetLogLoggerLevel(slog.LevelError)
+	// Keep the developer's real OpenCode install out of loaded config.
+	os.Setenv("CRUSH_DISABLE_OPENCODE", "1")
 	m.Run()
 }
 

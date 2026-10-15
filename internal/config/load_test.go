@@ -41,6 +41,9 @@ func runIsolated(m *testing.M) int {
 	// trust project config by default. The trust gate's own tests clear
 	// this to exercise untrusted loading (see trust_test.go).
 	os.Setenv(TrustProjectEnv, "1")
+	// Never import the developer's real OpenCode install; the OpenCode
+	// tests clear this and point XDG paths at temp dirs.
+	os.Setenv("CRUSH_DISABLE_OPENCODE", "1")
 	return m.Run()
 }
 

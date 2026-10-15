@@ -246,6 +246,7 @@ func TestOpenCodeCatalogSourceInclude(t *testing.T) {
 }
 
 func TestOpenCodeSettings(t *testing.T) {
+	t.Setenv("CRUSH_DISABLE_OPENCODE", "")
 	f := false
 	require.Equal(t, openCodeSettings{enabled: true, mcp: true, providers: true, models: true}, openCodeSettingsFor(nil))
 	require.Equal(t, openCodeSettings{}, openCodeSettingsFor(&Options{OpenCode: &OpenCodeOptions{Disabled: true}}))
@@ -273,14 +274,7 @@ func TestSafeCatalogDropsShellSubstitution(t *testing.T) {
 // TestOpenCodeImportEndToEnd reads a real OpenCode config layout from a
 // temporary XDG home through loadOpenCode.
 func TestOpenCodeImportEndToEnd(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("HOME", root)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
-	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
-	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
-	t.Setenv("OPENCODE_CONFIG_DIR", "")
-	t.Setenv("OPENCODE_CONFIG", "")
-	t.Setenv("OPENCODE_CONFIG_CONTENT", "")
+	root := isolateOpenCode(t)
 	t.Setenv("OC_E2E_TOKEN", "tok$en")
 
 	dir := filepath.Join(root, "config", "opencode")
@@ -321,4 +315,82 @@ func TestOpenCodeImportEndToEnd(t *testing.T) {
 	require.Contains(t, cfg.MCP, "evil", "trusted project config is imported")
 	require.ElementsMatch(t, []string{filepath.Join(dir, "opencode.jsonc"), filepath.Join(project, "opencode.json")}, trusted.files())
 
+}
+
+// isolateOpenCode enables the OpenCode import (TestMain disables it) with
+// every OpenCode location under a temp dir, which it returns. OpenCode's
+// global config dir is <root>/config/opencode.
+func isolateOpenCode(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("CRUSH_DISABLE_OPENCODE", "")
+	t.Setenv("HOME", root)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	for _, k := range []string{"OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG", "OPENCODE_CONFIG_CONTENT", "OPENCODE_DB", "OPENCODE_MODELS_PATH", "OPENCODE_DISABLE_PROJECT_CONFIG", "OPENCODE_CONFIG_PROJECT_DISABLE"} {
+		t.Setenv(k, "")
+	}
+	return root
+}
+
+// TestLoadImportsOpenCode runs the full Load pipeline: global OpenCode MCP
+// servers and the cached models.dev catalog are imported, while a
+// project's opencode.json stays inert until the project is trusted.
+func TestLoadImportsOpenCode(t *testing.T) {
+	isolateTrust(t)
+	root := isolateOpenCode(t)
+	resetProviderState()
+	t.Cleanup(resetProviderState)
+	t.Setenv("OC_LOAD_TEST_API_KEY", "k")
+
+	writeFile(t, filepath.Join(root, "config", "opencode", "opencode.json"), `{
+		"mcp": {"docs": {"type": "remote", "url": "https://docs.example/mcp"}}
+	}`)
+	writeFile(t, filepath.Join(root, "cache", "opencode", "models.json"), `{
+		"octest": {
+			"id": "octest", "name": "OC Test", "env": ["OC_LOAD_TEST_API_KEY"],
+			"npm": "@ai-sdk/openai-compatible", "api": "https://oc.example/v1",
+			"models": {"m1": {"id": "m1", "name": "M1", "tool_call": true, "release_date": "2026-01-01",
+				"modalities": {"input": ["text"], "output": ["text"]},
+				"limit": {"context": 100000, "output": 8000}}}
+		}
+	}`)
+
+	project := t.TempDir()
+	marker := filepath.Join(t.TempDir(), "marker")
+	writeFile(t, filepath.Join(project, "opencode.json"),
+		`{"mcp": {"evil": {"type": "local", "command": ["sh", "-c", "touch `+marker+`"]}}}`)
+
+	store, err := Load(project, "", false)
+	require.NoError(t, err)
+	cfg := store.Config()
+	require.Contains(t, cfg.MCP, "docs")
+	require.NotContains(t, cfg.MCP, "evil")
+	trust := store.ProjectTrust()
+	require.False(t, trust.Trusted)
+	require.Contains(t, trust.DisplayFiles(), "opencode.json", "the trust notice names the OpenCode file")
+	requireNoFile(t, marker, "nothing from an untrusted project may run")
+
+	octest, ok := cfg.Providers.Get("octest")
+	require.True(t, ok, "an OpenCode-only provider with its key set is configured")
+	require.Equal(t, "https://oc.example/v1", octest.BaseURL)
+
+	st := store.OpenCodeStatus(t.Context())
+	require.NotNil(t, st.Catalog)
+	require.Equal(t, 1, st.Catalog.Listed)
+	require.False(t, st.ProjectIncluded)
+
+	_, err = TrustProject(t.Context(), project, "")
+	require.NoError(t, err)
+	store, err = Load(project, "", false)
+	require.NoError(t, err)
+	require.Contains(t, store.Config().MCP, "evil", "trusted project OpenCode config is imported")
+	require.True(t, store.OpenCodeStatus(t.Context()).ProjectIncluded)
+
+	// Changing the project's OpenCode config revokes trust.
+	writeFile(t, filepath.Join(project, "opencode.json"), `{"mcp": {}}`)
+	store, err = Load(project, "", false)
+	require.NoError(t, err)
+	require.False(t, store.ProjectTrust().Trusted)
 }

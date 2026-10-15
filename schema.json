@@ -299,6 +299,13 @@
           "type": "array",
           "description": "Arguments to pass to the MCP server command"
         },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for stdio MCP servers. Relative paths resolve against the project directory",
+          "examples": [
+            "./tools"
+          ]
+        },
         "type": {
           "type": "string",
           "enum": [
@@ -508,6 +515,37 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "OpenCodeOptions": {
+      "properties": {
+        "disabled": {
+          "type": "boolean",
+          "description": "Turn off all importing from OpenCode",
+          "default": false
+        },
+        "mcp": {
+          "type": "boolean",
+          "description": "Import MCP servers from OpenCode config. A server with the same name in crush.json wins",
+          "default": true
+        },
+        "providers": {
+          "type": "boolean",
+          "description": "Import provider base URLs, API keys, headers and custom models from OpenCode config. Values set in crush.json win",
+          "default": true
+        },
+        "models": {
+          "type": "boolean",
+          "description": "Extend the model catalog with OpenCode's locally cached models.dev catalog",
+          "default": true
+        },
+        "credentials": {
+          "type": "boolean",
+          "description": "Use API keys saved by opencode auth login. OAuth logins are never imported",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Options": {
       "properties": {
         "context_paths": {
@@ -647,6 +685,10 @@
             300,
             0
           ]
+        },
+        "opencode": {
+          "$ref": "#/$defs/OpenCodeOptions",
+          "description": "Import MCP servers, providers and the models catalog from a local OpenCode install. Read from disk only; never fetched"
         },
         "trusted_paths": {
           "items": {

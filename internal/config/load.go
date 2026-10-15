@@ -59,6 +59,7 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 		workspacePath:  merged.workspacePath,
 		loadedPaths:    loadedPaths,
 		trust:          merged.trust,
+		openCode:       merged.openCode,
 	}
 
 	if debug {
@@ -85,6 +86,10 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 		slog.Warn("Detected Apple Terminal, enabling transparent mode")
 		assignIfNil(&cfg.Options.TUI.Transparent, true)
 	}
+
+	// Fill provider settings imported from OpenCode before building the
+	// catalog: it lists OpenCode-only providers that are configured.
+	cfg.applyOpenCodeProviders(merged.openCode)
 
 	// Load the known providers from the local catalog. This never touches
 	// the network. A source that cannot be read in full still yields what
@@ -122,6 +127,7 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 		return store, nil
 	}
 
+	cfg.applyOpenCodeModelPreference(merged.openCode)
 	resolved, err := resolveSelectedModels(cfg, store.knownProviders)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure selected models: %w", err)
