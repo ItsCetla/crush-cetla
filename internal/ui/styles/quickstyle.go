@@ -1168,12 +1168,10 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Status.ModeBannerYolo = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.yolo).Padding(0, 1)
 	s.Status.SuccessIndicator = base.Foreground(o.bgLessVisible).Background(o.success).Padding(0, 1).Bold(true).SetString("OKAY!")
 	s.Status.InfoIndicator = s.Status.SuccessIndicator
-	s.Status.UpdateIndicator = s.Status.SuccessIndicator.SetString("HEY!")
 	s.Status.WarnIndicator = s.Status.SuccessIndicator.Foreground(o.bgMostVisible).Background(o.warning).SetString("WARNING")
 	s.Status.ErrorIndicator = s.Status.SuccessIndicator.Foreground(o.bgBase).Background(o.destructive).SetString("ERROR")
 	s.Status.SuccessMessage = base.Foreground(o.bgLessVisible).Background(o.successMostSubtle).Padding(0, 1)
 	s.Status.InfoMessage = s.Status.SuccessMessage
-	s.Status.UpdateMessage = s.Status.SuccessMessage
 	s.Status.WarnMessage = s.Status.SuccessMessage.Foreground(o.bgMostVisible).Background(o.warningSubtle)
 	s.Status.ErrorMessage = s.Status.SuccessMessage.Foreground(o.onPrimary).Background(o.error)
 

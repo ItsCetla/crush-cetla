@@ -987,7 +987,7 @@ crush update-providers --help
 
 ## Metrics
 
-This fork collects no telemetry.
+This fork collects no telemetry and does not check for updates.
 
 ## Q&A
 
