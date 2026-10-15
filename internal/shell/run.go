@@ -7,8 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
 
 	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/interp"
@@ -282,6 +284,80 @@ func withoutHerdrEnv(env []string) []string {
 		result = append(result, e)
 	}
 	return result
+}
+
+// providerKeyEnvVars are the LLM provider credentials removed from the agent
+// shell's environment, so a command the agent runs cannot read them. Other
+// credentials, such as GH_TOKEN or AWS access keys, are left in place because
+// the agent's tools legitimately use them.
+var providerKeyEnvVars = []string{
+	"ANTHROPIC_API_KEY",
+	"ANTHROPIC_AUTH_TOKEN",
+	"OPENAI_API_KEY",
+	"AZURE_OPENAI_API_KEY",
+	"GEMINI_API_KEY",
+	"GOOGLE_API_KEY",
+	"GOOGLE_GENERATIVE_AI_API_KEY",
+	"OPENROUTER_API_KEY",
+	"GROQ_API_KEY",
+	"XAI_API_KEY",
+	"DEEPSEEK_API_KEY",
+	"MISTRAL_API_KEY",
+	"CEREBRAS_API_KEY",
+	"TOGETHER_API_KEY",
+	"FIREWORKS_API_KEY",
+	"HF_TOKEN",
+	"HUGGINGFACE_API_KEY",
+	"VERCEL_API_KEY",
+	"AI_GATEWAY_API_KEY",
+	"ZAI_API_KEY",
+	"MOONSHOT_API_KEY",
+	"DASHSCOPE_API_KEY",
+	"OPENCODE_API_KEY",
+	"AWS_BEARER_TOKEN_BEDROCK",
+}
+
+var (
+	scrubbedEnvMu   sync.RWMutex
+	scrubbedEnvVars []string
+)
+
+// SetScrubbedEnvVars sets extra variable names, such as those the configured
+// providers read their API keys from, to remove from the agent shell's
+// environment along with the built-in provider key list. Hooks, MCP servers
+// and user-run shell commands keep the full environment.
+func SetScrubbedEnvVars(names []string) {
+	scrubbedEnvMu.Lock()
+	defer scrubbedEnvMu.Unlock()
+	scrubbedEnvVars = slices.Clone(names)
+}
+
+// withoutProviderKeys returns a new slice of env without provider API key
+// variables.
+func withoutProviderKeys(env []string) []string {
+	scrubbedEnvMu.RLock()
+	defer scrubbedEnvMu.RUnlock()
+	strip := make(map[string]bool, len(providerKeyEnvVars)+len(scrubbedEnvVars))
+	for _, k := range slices.Concat(providerKeyEnvVars, scrubbedEnvVars) {
+		strip[envKey(k)] = true
+	}
+	result := make([]string, 0, len(env))
+	for _, e := range env {
+		if key, _, ok := strings.Cut(e, "="); ok && strip[envKey(key)] {
+			continue
+		}
+		result = append(result, e)
+	}
+	return result
+}
+
+// envKey normalizes an environment variable name for comparison. Names are
+// case-insensitive on Windows.
+func envKey(name string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ToUpper(name)
+	}
+	return name
 }
 
 // execMiddleware wraps a base [interp.ExecHandlerFunc], composing like HTTP

@@ -40,6 +40,7 @@ import (
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/question"
 	"github.com/charmbracelet/crush/internal/session"
+	"github.com/charmbracelet/crush/internal/shell"
 	"github.com/charmbracelet/crush/internal/skills"
 	"golang.org/x/sync/errgroup"
 
@@ -860,6 +861,10 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 	if preToolHooks := c.cfg.Config().Hooks[hooks.EventPreToolUse]; len(preToolHooks) > 0 {
 		hookRunner = hooks.NewRunner(preToolHooks, c.cfg.WorkingDir(), c.cfg.WorkingDir())
 	}
+
+	// Hide the variables the configured providers read their API keys from
+	// in the agent's shells, on top of the shell package's built-in list.
+	shell.SetScrubbedEnvVars(c.cfg.Config().APIKeyEnvVars())
 
 	allTools = append(
 		allTools,

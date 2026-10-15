@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -945,6 +946,27 @@ func (c *Config) EnabledProviders() []ProviderConfig {
 		}
 	}
 	return enabled
+}
+
+// envVarRefPattern matches $VAR and ${VAR} references in a config value.
+var envVarRefPattern = regexp.MustCompile(`\$\{?([A-Za-z_][A-Za-z0-9_]*)`)
+
+// APIKeyEnvVars returns the names of the environment variables that the
+// configured providers' API keys are read from.
+func (c *Config) APIKeyEnvVars() []string {
+	if c.Providers == nil {
+		return nil
+	}
+	var names []string
+	for p := range c.Providers.Seq() {
+		for _, v := range []string{p.APIKey, p.APIKeyTemplate} {
+			for _, m := range envVarRefPattern.FindAllStringSubmatch(v, -1) {
+				names = append(names, m[1])
+			}
+		}
+	}
+	slices.Sort(names)
+	return slices.Compact(names)
 }
 
 // IsConfigured  return true if at least one provider is configured

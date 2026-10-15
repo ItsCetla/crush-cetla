@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -116,5 +117,45 @@ func TestCrossPlatformExecution(t *testing.T) {
 	// The output should contain "hello" regardless of platform
 	if !strings.Contains(strings.ToLower(stdout), "hello") {
 		t.Errorf("Echo output should contain 'hello', got: %q", stdout)
+	}
+}
+
+func TestNewShellScrubsProviderKeys(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "dummy")
+	t.Setenv("ANTHROPIC_AUTH_TOKEN", "dummy")
+	t.Setenv("AWS_BEARER_TOKEN_BEDROCK", "dummy")
+	t.Setenv("CUSTOM_PROVIDER_KEY", "dummy")
+	t.Setenv("GH_TOKEN", "kept")
+	t.Setenv("GITHUB_TOKEN", "kept")
+	t.Setenv("AWS_ACCESS_KEY_ID", "kept")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "kept")
+	t.Setenv("SSH_AUTH_SOCK", "kept")
+	SetScrubbedEnvVars([]string{"CUSTOM_PROVIDER_KEY"})
+	t.Cleanup(func() { SetScrubbedEnvVars(nil) })
+
+	sh := NewShell(&Options{WorkingDir: t.TempDir()})
+	env := sh.GetEnv()
+	for _, name := range []string{"OPENAI_API_KEY", "ANTHROPIC_AUTH_TOKEN", "AWS_BEARER_TOKEN_BEDROCK", "CUSTOM_PROVIDER_KEY"} {
+		if slices.ContainsFunc(env, func(e string) bool { return strings.HasPrefix(e, name+"=") }) {
+			t.Errorf("%s was not removed from the shell environment", name)
+		}
+	}
+	for _, name := range []string{"GH_TOKEN", "GITHUB_TOKEN", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "SSH_AUTH_SOCK"} {
+		if !slices.Contains(env, name+"=kept") {
+			t.Errorf("%s was removed from the shell environment", name)
+		}
+	}
+
+	stdout, _, err := sh.Exec(t.Context(), "echo \"${OPENAI_API_KEY:-unset} ${CUSTOM_PROVIDER_KEY:-unset} $GH_TOKEN\"")
+	if err != nil {
+		t.Fatalf("Exec failed: %v", err)
+	}
+	if got := strings.TrimSpace(stdout); got != "unset unset kept" {
+		t.Errorf("unexpected output %q", got)
+	}
+
+	SetScrubbedEnvVars(nil)
+	if !slices.Contains(NewShell(nil).GetEnv(), "CUSTOM_PROVIDER_KEY=dummy") {
+		t.Error("CUSTOM_PROVIDER_KEY was removed after the extra names were cleared")
 	}
 }

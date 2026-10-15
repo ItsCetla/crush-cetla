@@ -99,6 +99,9 @@ func NewShell(opts *Options) *Shell {
 	// the parent pane's agent authority.
 	env = withoutHerdrEnv(env)
 
+	// Keep LLM provider API keys away from commands the agent runs.
+	env = withoutProviderKeys(env)
+
 	// Allow tools to detect execution by Crush.
 	env = append(env, CrushEnvMarkers()...)
 
