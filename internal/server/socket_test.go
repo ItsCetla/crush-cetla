@@ -99,6 +99,80 @@ func TestDefaultHost_FallbackTemp(t *testing.T) {
 		"socket path %q should end in .sock", path)
 	require.Contains(t, filepath.Base(path), "crush",
 		"socket filename should contain 'crush'")
+	require.Equal(t, privateSocketDirName(currentUID()), filepath.Base(filepath.Dir(path)),
+		"without XDG_RUNTIME_DIR the socket must live in a private per-user directory")
+}
+
+func TestListen_SocketIsOwnerOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.sock")
+	ln, _, err := listen("unix", path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(socketFileMode), info.Mode().Perm())
+}
+
+func TestListen_CreatesPrivateSocketDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), privateSocketDirName(currentUID()))
+	ln, _, err := listen("unix", filepath.Join(dir, "s.sock"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	info, err := os.Stat(dir)
+	require.NoError(t, err)
+	require.True(t, info.IsDir())
+	require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+}
+
+func TestListen_RefusesUnsafeSocketDir(t *testing.T) {
+	name := privateSocketDirName(currentUID())
+
+	t.Run("writable by others", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), name)
+		require.NoError(t, os.Mkdir(dir, 0o700))
+		require.NoError(t, os.Chmod(dir, 0o777))
+		_, _, err := listen("unix", filepath.Join(dir, "s.sock"))
+		require.ErrorContains(t, err, "writable by other users")
+	})
+
+	t.Run("symlink", func(t *testing.T) {
+		base := t.TempDir()
+		target := filepath.Join(base, "elsewhere")
+		require.NoError(t, os.Mkdir(target, 0o700))
+		dir := filepath.Join(base, name)
+		require.NoError(t, os.Symlink(target, dir))
+		_, _, err := listen("unix", filepath.Join(dir, "s.sock"))
+		require.ErrorContains(t, err, "not a directory")
+	})
+
+	t.Run("owned by another user", func(t *testing.T) {
+		if os.Getuid() != 0 {
+			t.Skip("needs root to hand a directory to another user")
+		}
+		dir := filepath.Join(t.TempDir(), name)
+		require.NoError(t, os.Mkdir(dir, 0o700))
+		require.NoError(t, os.Chown(dir, 4242, 4242))
+		_, _, err := listen("unix", filepath.Join(dir, "s.sock"))
+		require.ErrorContains(t, err, "owned by uid 4242")
+	})
+}
+
+func TestVerifySocketOwner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.sock")
+	require.NoError(t, VerifySocketOwner(path), "a missing socket is left to the dial")
+
+	ln, _, err := listen("unix", path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	require.NoError(t, VerifySocketOwner(path))
+
+	if os.Getuid() != 0 {
+		t.Skip("needs root to hand the socket to another user")
+	}
+	require.NoError(t, os.Chown(path, 4242, 4242))
+	require.ErrorContains(t, VerifySocketOwner(path), "owned by uid 4242")
 }
 
 // staleSocketPath creates a deterministic stale unix socket file on

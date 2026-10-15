@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -48,6 +49,9 @@ func NewClient(path, network, address string) (*Client, error) {
 	c.network = network
 	c.addr = address
 	c.clientID = uuid.New().String()
+	if network == "tcp" {
+		slog.Warn("Connecting to the Crush server over unauthenticated TCP; requests include this process's environment", "address", address)
+	}
 	p := &http.Protocols{}
 	p.SetHTTP1(true)
 	p.SetUnencryptedHTTP2(true)
@@ -218,6 +222,11 @@ func (c *Client) dialer(ctx context.Context, network, address string) (net.Conn,
 		defer cancel()
 		return dialPipeContext(ctx, c.addr)
 	case "unix":
+		// Requests carry the client's environment, API keys included;
+		// never send them to a socket another user put in place.
+		if err := server.VerifySocketOwner(c.addr); err != nil {
+			return nil, err
+		}
 		return d.DialContext(ctx, "unix", c.addr)
 	default:
 		return d.DialContext(ctx, network, address)

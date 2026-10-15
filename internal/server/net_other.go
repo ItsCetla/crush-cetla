@@ -4,6 +4,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"net"
 	"os"
@@ -31,6 +32,9 @@ const staleSocketDialTimeout = 200 * time.Millisecond
 func listen(network, address string) (net.Listener, bool, error) {
 	var removedStale bool
 	if network == "unix" && address != "" {
+		if err := prepareSocketDir(address); err != nil {
+			return nil, false, err
+		}
 		if _, err := os.Stat(address); err == nil {
 			conn, dialErr := net.DialTimeout(network, address, staleSocketDialTimeout) //nolint:noctx
 			if dialErr == nil {
@@ -56,6 +60,14 @@ func listen(network, address string) (net.Listener, bool, error) {
 	ln, err := net.Listen(network, address)
 	if err != nil {
 		return nil, removedStale, err
+	}
+	if network == "unix" && address != "" {
+		// The socket is created with permissions from the umask; only the
+		// owner may connect.
+		if err := os.Chmod(address, socketFileMode); err != nil {
+			ln.Close()
+			return nil, removedStale, fmt.Errorf("restrict socket permissions: %w", err)
+		}
 	}
 	return ln, removedStale, nil
 }

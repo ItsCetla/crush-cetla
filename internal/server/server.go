@@ -24,14 +24,39 @@ const maxUnixSocketPathLen = 104
 
 // socketDir returns the directory used for the Crush Unix socket.
 // It prefers $XDG_RUNTIME_DIR when set (systemd's per-user runtime
-// directory on Linux), and otherwise falls back to [os.TempDir],
-// which resolves to the per-user private $TMPDIR on macOS and to
-// /tmp on Linux.
-func socketDir() string {
+// directory on Linux). Otherwise it uses a private per-user directory
+// (see [privateSocketDir]) inside [os.TempDir], which resolves to the
+// per-user $TMPDIR on macOS but to the world-writable /tmp on Linux.
+func socketDir(uid string) string {
 	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
 		return dir
 	}
-	return os.TempDir()
+	return privateSocketDir(os.TempDir(), uid)
+}
+
+// privateSocketDir returns the per-user directory holding the socket
+// inside a shared temporary directory. The server creates it with mode
+// 0700 and refuses to use it unless the current user owns it and nobody
+// else can write to it (see [ensurePrivateSocketDir]), so other users can
+// neither connect to the socket nor plant one of their own in its place.
+func privateSocketDir(base, uid string) string {
+	return filepath.Join(base, privateSocketDirName(uid))
+}
+
+func privateSocketDirName(uid string) string {
+	if uid == "" {
+		return "crush"
+	}
+	return "crush-" + uid
+}
+
+// currentUID returns the current user id as a string, or "" if unknown.
+func currentUID() string {
+	usr, err := user.Current()
+	if err != nil {
+		return ""
+	}
+	return usr.Uid
 }
 
 // ErrServerClosed is returned when the server is closed.
@@ -63,24 +88,24 @@ func ParseHostURL(host string) (*url.URL, error) {
 // DefaultHost returns the default server host.
 //
 // On Windows the address is a named pipe under \\.\pipe\. On Unix
-// platforms the socket lives in the per-user runtime directory
-// returned by [socketDir] and is named crush-<uid>.sock, falling
-// back to crush.sock when the current uid cannot be determined. If
-// the composed path would exceed [maxUnixSocketPathLen] bytes (the
-// macOS sun_path limit), we fall back to /tmp/crush-<uid>.sock so
-// the socket remains bindable.
+// platforms the socket lives in the per-user directory returned by
+// [socketDir] and is named crush-<uid>.sock, falling back to
+// crush.sock when the current uid cannot be determined. If the
+// composed path would exceed [maxUnixSocketPathLen] bytes (the macOS
+// sun_path limit), we fall back to /tmp/crush-<uid>/crush-<uid>.sock
+// so the socket remains bindable.
 func DefaultHost() string {
+	uid := currentUID()
 	sock := "crush.sock"
-	usr, err := user.Current()
-	if err == nil && usr.Uid != "" {
-		sock = fmt.Sprintf("crush-%s.sock", usr.Uid)
+	if uid != "" {
+		sock = fmt.Sprintf("crush-%s.sock", uid)
 	}
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("npipe:////./pipe/%s", sock)
 	}
-	path := filepath.Join(socketDir(), sock)
+	path := filepath.Join(socketDir(uid), sock)
 	if len(path) > maxUnixSocketPathLen {
-		path = filepath.Join("/tmp", sock)
+		path = filepath.Join(privateSocketDir("/tmp", uid), sock)
 	}
 	return "unix://" + path
 }
@@ -180,6 +205,9 @@ func (s *Server) Serve(ln net.Listener) error {
 func (s *Server) ListenAndServe() error {
 	if s.ln != nil {
 		return fmt.Errorf("server already started")
+	}
+	if s.network == "tcp" {
+		slog.Warn("The Crush server listens on TCP without authentication: any local process can connect, drive the agent and read the environment clients send", "address", s.Addr)
 	}
 	ln, removedStale, err := listen(s.network, s.Addr)
 	if err != nil {
