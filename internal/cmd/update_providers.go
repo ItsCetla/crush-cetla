@@ -15,7 +15,11 @@ var updateProvidersSource string
 var updateProvidersCmd = &cobra.Command{
 	Use:   "update-providers [path-or-url]",
 	Short: "Update providers",
-	Long:  `Update provider information from a specified local path or remote URL.`,
+	Long: `Update provider information from a specified local path or remote URL.
+
+Crush never updates the provider catalog on its own: it uses the catalog
+saved by this command, or the one embedded in this release when none has
+been saved. Running this command is the only way to fetch a newer catalog.`,
 	Example: `
 # Update Catwalk providers remotely (default)
 crush update-providers

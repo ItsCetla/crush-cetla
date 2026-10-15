@@ -33,8 +33,6 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-const defaultCatwalkURL = "https://catwalk.charm.land"
-
 // Load loads the configuration from the default paths and returns a
 // ConfigStore that owns both the pure-data Config and all runtime state.
 func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
@@ -99,10 +97,10 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 		assignIfNil(&cfg.Options.TUI.Transparent, true)
 	}
 
-	// Load known providers, this loads the config from catwalk. A failed
-	// refresh still yields the cached or embedded catalog, so only an empty
-	// list is fatal: starting up without providers is worse than starting
-	// up with slightly stale ones.
+	// Load the known providers from the local catalog. This never touches
+	// the network. A source that cannot be read in full still yields what
+	// it has, so only an empty list is fatal: starting up without
+	// providers is worse than starting up with a partial catalog.
 	providers, err := Providers(cfg)
 	if err != nil {
 		if len(providers) == 0 {
@@ -111,23 +109,6 @@ func Load(workingDir, dataDir string, debug bool) (*ConfigStore, error) {
 		slog.Warn("Continuing with the previously known providers", "error", err)
 	}
 	store.knownProviders = providers
-
-	// When Catwalk refreshed its catalog this run, give the model
-	// catalogs that shadow Catwalk's the same treatment: the ChatGPT and
-	// Grok catalogs are otherwise only fetched at login and would freeze
-	// there while Catwalk keeps moving. Best effort; a failed fetch keeps
-	// the catalog loaded from config.
-	//
-	// The refetches publish a copy-on-write config, so re-read it
-	// afterwards: the mutations below must land on the live config rather
-	// than a snapshot the store has already replaced.
-	if CatwalkUpdated() {
-		fetchCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		store.refetchOpenAIModels(fetchCtx, ScopeGlobal)
-		store.refetchGrokModels(fetchCtx, ScopeGlobal)
-		cancel()
-		cfg = store.Config()
-	}
 
 	env := env.New()
 	// Configure providers
@@ -616,10 +597,6 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 
 	// Project specific skills dirs.
 	c.Options.SkillsPaths = append(c.Options.SkillsPaths, ProjectSkillsDir(workingDir)...)
-
-	if str, ok := os.LookupEnv("CRUSH_DISABLE_PROVIDER_AUTO_UPDATE"); ok {
-		c.Options.DisableProviderAutoUpdate, _ = strconv.ParseBool(str)
-	}
 
 	if str, ok := os.LookupEnv("CRUSH_DISABLE_DEFAULT_PROVIDERS"); ok {
 		c.Options.DisableDefaultProviders, _ = strconv.ParseBool(str)

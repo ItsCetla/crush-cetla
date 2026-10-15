@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -214,25 +213,15 @@ func stubGrokModels(t *testing.T, models []catwalk.Model) *bool {
 	return &called
 }
 
-// TestLoadRefreshesGrokModelsWhenCatwalkUpdates covers the startup
-// wiring: when Catwalk delivers a fresh catalog, the Grok model catalog
-// is refreshed in the same run, and the config Load publishes afterwards
-// still carries the resolved default models (the refresh swaps the
-// config out from under Load, which must re-read it).
-func TestLoadRefreshesGrokModelsWhenCatwalkUpdates(t *testing.T) {
+// TestLoadDoesNotRefreshGrokModels verifies that startup stays offline for
+// the Grok model catalog: Load neither fetches the provider catalog nor
+// refreshes a persisted Grok model catalog, and the default models still
+// resolve from the local catalog.
+func TestLoadDoesNotRefreshGrokModels(t *testing.T) {
 	// Not parallel: swaps package-level provider state and the fetch
 	// stub, and sets environment variables.
 	workDir, dataDir := isolateLoadEnv(t)
-	newCatwalkStub(t, http.StatusOK, []catwalk.Provider{{
-		Name:                "xAI",
-		ID:                  catwalk.InferenceProviderXAI,
-		Type:                catwalk.TypeOpenAICompat,
-		DefaultLargeModelID: "grok-4.5",
-		DefaultSmallModelID: "grok-4.5",
-		Models: []catwalk.Model{
-			{ID: "grok-4.5", Name: "Grok 4.5"},
-		},
-	}})
+	forbidCatalogRequests(t)
 	resetProviderState()
 	t.Cleanup(resetProviderState)
 
@@ -246,45 +235,13 @@ func TestLoadRefreshesGrokModelsWhenCatwalkUpdates(t *testing.T) {
 
 	store, err := Load(workDir, dataDir, false)
 	require.NoError(t, err)
-
-	require.True(t, CatwalkUpdated(), "the stub served a fresh catalog")
-	require.True(t, *fetched, "the Grok catalog refresh rides the Catwalk update")
-
-	pc, ok := store.Config().Providers.Get("xai")
-	require.True(t, ok)
-	require.Equal(t, "grok-fresh", pc.GrokModels[0].ID, "the stale catalog is replaced")
-
-	large, ok := store.Config().Models[SelectedModelTypeLarge]
-	require.True(t, ok)
-	require.Equal(t, "grok-4.5", large.Model, "the resolved default model survives the catalog refresh")
-}
-
-// TestLoadKeepsGrokModelsWhenCatwalkNotModified verifies the refresh
-// only follows actual Catwalk updates: a 304 Not Modified leaves the
-// persisted catalog alone.
-func TestLoadKeepsGrokModelsWhenCatwalkNotModified(t *testing.T) {
-	// Not parallel: swaps package-level provider state and the fetch
-	// stub, and sets environment variables.
-	workDir, dataDir := isolateLoadEnv(t)
-	newCatwalkStub(t, http.StatusNotModified, nil)
-	resetProviderState()
-	t.Cleanup(resetProviderState)
-
-	require.NoError(t, os.WriteFile(
-		filepath.Join(workDir, "crush.json"),
-		[]byte(grokLoginConfig(chatGPTLoginToken())),
-		0o600,
-	))
-
-	fetched := stubGrokModels(t, []catwalk.Model{{ID: "grok-fresh", Name: "Grok Fresh"}})
-
-	store, err := Load(workDir, dataDir, false)
-	require.NoError(t, err)
-
-	require.False(t, CatwalkUpdated(), "the stub reported the catalog unchanged")
-	require.False(t, *fetched, "an unchanged Catwalk catalog does not trigger a refresh")
+	require.False(t, *fetched, "startup does not refresh the Grok catalog")
 
 	pc, ok := store.Config().Providers.Get("xai")
 	require.True(t, ok)
 	require.Equal(t, "grok-stale", pc.GrokModels[0].ID, "the persisted catalog is kept")
+
+	large, ok := store.Config().Models[SelectedModelTypeLarge]
+	require.True(t, ok)
+	require.Equal(t, "xai", large.Provider, "the default model resolves from the local catalog")
 }

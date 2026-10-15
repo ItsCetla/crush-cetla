@@ -583,8 +583,8 @@
         },
         "disable_provider_auto_update": {
           "type": "boolean",
-          "description": "Disable providers auto-update",
-          "default": false
+          "description": "Deprecated: has no effect. The provider catalog is never updated automatically; run crush update-providers to update it.",
+          "deprecated": true
         },
         "disable_default_providers": {
           "type": "boolean",

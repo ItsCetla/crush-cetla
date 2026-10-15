@@ -3,8 +3,6 @@ package config
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -314,30 +312,6 @@ func chatGPTLoginToken() *oauth.Token {
 	}
 }
 
-// newCatwalkStub serves the given response for /v2/providers so Load's
-// catalog fetch can be driven without the network. CATWALK_URL and
-// HYPER_URL are pointed at the stub: Hyper fails fast against it instead
-// of reaching the real service.
-func newCatwalkStub(t *testing.T, status int, catalog []catwalk.Provider) {
-	t.Helper()
-
-	catalogJSON, err := json.Marshal(catalog)
-	require.NoError(t, err)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v2/providers" && status == http.StatusOK {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(catalogJSON)
-			return
-		}
-		w.WriteHeader(status)
-	}))
-	t.Cleanup(server.Close)
-
-	t.Setenv("CATWALK_URL", server.URL)
-	t.Setenv("HYPER_URL", server.URL)
-}
-
 // isolateLoadEnv points the config discovery at throwaway directories.
 func isolateLoadEnv(t *testing.T) (workDir, dataDir string) {
 	t.Helper()
@@ -366,26 +340,15 @@ func stubChatGPTModels(t *testing.T, models []catwalk.Model) *bool {
 	return &called
 }
 
-// TestLoadRefreshesChatGPTModelsWhenCatwalkUpdates covers the startup
-// wiring: when Catwalk delivers a fresh catalog, the ChatGPT model catalog
-// is refreshed in the same run, and the config Load publishes afterwards
-// still carries the resolved default models (the refresh swaps the config
-// out from under Load, which must re-read it).
-func TestLoadRefreshesChatGPTModelsWhenCatwalkUpdates(t *testing.T) {
+// TestLoadDoesNotRefreshChatGPTModels verifies that startup stays offline
+// for the model catalogs that shadow Catwalk's: Load neither fetches the
+// provider catalog nor refreshes a persisted ChatGPT model catalog, and the
+// default models still resolve from the local catalog.
+func TestLoadDoesNotRefreshChatGPTModels(t *testing.T) {
 	// Not parallel: swaps package-level provider state and the fetch
 	// stub, and sets environment variables.
 	workDir, dataDir := isolateLoadEnv(t)
-	newCatwalkStub(t, http.StatusOK, []catwalk.Provider{{
-		Name:                "OpenAI",
-		ID:                  catwalk.InferenceProviderOpenAI,
-		Type:                catwalk.TypeOpenAI,
-		DefaultLargeModelID: "gpt-5.1",
-		DefaultSmallModelID: "gpt-5.1-mini",
-		Models: []catwalk.Model{
-			{ID: "gpt-5.1", Name: "GPT-5.1"},
-			{ID: "gpt-5.1-mini", Name: "GPT-5.1 mini"},
-		},
-	}})
+	forbidCatalogRequests(t)
 	resetProviderState()
 	t.Cleanup(resetProviderState)
 
@@ -399,45 +362,13 @@ func TestLoadRefreshesChatGPTModelsWhenCatwalkUpdates(t *testing.T) {
 
 	store, err := Load(workDir, dataDir, false)
 	require.NoError(t, err)
-
-	require.True(t, CatwalkUpdated(), "the stub served a fresh catalog")
-	require.True(t, *fetched, "the ChatGPT catalog refresh rides the Catwalk update")
-
-	pc, ok := store.Config().Providers.Get("openai")
-	require.True(t, ok)
-	require.Equal(t, "gpt-fresh", pc.ChatGPTModels[0].ID, "the stale catalog is replaced")
-
-	large, ok := store.Config().Models[SelectedModelTypeLarge]
-	require.True(t, ok)
-	require.Equal(t, "gpt-5.1", large.Model, "the resolved default model survives the catalog refresh")
-}
-
-// TestLoadKeepsChatGPTModelsWhenCatwalkNotModified verifies the refresh
-// only follows actual Catwalk updates: a 304 Not Modified leaves the
-// persisted catalog alone.
-func TestLoadKeepsChatGPTModelsWhenCatwalkNotModified(t *testing.T) {
-	// Not parallel: swaps package-level provider state and the fetch
-	// stub, and sets environment variables.
-	workDir, dataDir := isolateLoadEnv(t)
-	newCatwalkStub(t, http.StatusNotModified, nil)
-	resetProviderState()
-	t.Cleanup(resetProviderState)
-
-	require.NoError(t, os.WriteFile(
-		filepath.Join(workDir, "crush.json"),
-		[]byte(chatGPTLoginConfig(chatGPTLoginToken())),
-		0o600,
-	))
-
-	fetched := stubChatGPTModels(t, []catwalk.Model{{ID: "gpt-fresh", Name: "GPT Fresh"}})
-
-	store, err := Load(workDir, dataDir, false)
-	require.NoError(t, err)
-
-	require.False(t, CatwalkUpdated(), "the stub reported the catalog unchanged")
-	require.False(t, *fetched, "an unchanged Catwalk catalog does not trigger a refresh")
+	require.False(t, *fetched, "startup does not refresh the ChatGPT catalog")
 
 	pc, ok := store.Config().Providers.Get("openai")
 	require.True(t, ok)
 	require.Equal(t, "gpt-stale", pc.ChatGPTModels[0].ID, "the persisted catalog is kept")
+
+	large, ok := store.Config().Models[SelectedModelTypeLarge]
+	require.True(t, ok)
+	require.Equal(t, "openai", large.Provider, "the default model resolves from the local catalog")
 }

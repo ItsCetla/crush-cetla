@@ -683,8 +683,7 @@ func (s *ConfigStore) refetchOpenAIModels(ctx context.Context, scope Scope) {
 // OpenAI provider is signed in but has none — because the fetch at login
 // time failed, or the credentials predate the catalog. A no-op once the
 // catalog exists, so callers can invoke it freely on model updates: an
-// existing catalog is refreshed at startup instead, when Catwalk delivers
-// a new one (see Load).
+// existing catalog is only replaced by signing in again.
 func (s *ConfigStore) RefetchOpenAIChatGPTModels(ctx context.Context) {
 	cfg := s.Config()
 	pc, ok := cfg.Providers.Get(string(catwalk.InferenceProviderOpenAI))
@@ -743,8 +742,7 @@ func (s *ConfigStore) refetchGrokModels(ctx context.Context, scope Scope) {
 // provider is signed in but has none — because the fetch at login time
 // failed, or the credentials predate the catalog. A no-op once the
 // catalog exists, so callers can invoke it freely on model updates: an
-// existing catalog is refreshed at startup instead, when Catwalk
-// delivers a new one (see Load).
+// existing catalog is only replaced by signing in again.
 func (s *ConfigStore) RefetchGrokModels(ctx context.Context) {
 	cfg := s.Config()
 	pc, ok := cfg.Providers.Get(string(catwalk.InferenceProviderXAI))

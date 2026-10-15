@@ -4,22 +4,21 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/catwalk/pkg/embedded"
-	"github.com/charmbracelet/x/etag"
 )
 
-type syncer[T any] interface {
-	Get(context.Context) (T, error)
-}
+// defaultCatwalkURL is where `crush update-providers` fetches the Catwalk
+// catalog from when no source is given. Nothing else contacts it.
+const defaultCatwalkURL = "https://catwalk.charm.land"
 
 var (
 	providerOnce sync.Once
@@ -33,7 +32,10 @@ func cachePathFor(name string) string {
 	return filepath.Join(filepath.Dir(GlobalConfigData()), name+".json")
 }
 
-// UpdateProviders updates the Catwalk providers list from a specified source.
+// UpdateProviders updates the Catwalk providers list from a specified source
+// and saves it where [Providers] picks it up. It backs the explicit
+// `crush update-providers` command, which is the only way the catalog is
+// ever fetched over the network.
 func UpdateProviders(pathOrURL string) error {
 	var providers []catwalk.Provider
 	pathOrURL = cmp.Or(pathOrURL, os.Getenv("CATWALK_URL"), defaultCatwalkURL)
@@ -60,66 +62,84 @@ func UpdateProviders(pathOrURL string) error {
 		}
 	}
 
-	if err := newCache[[]catwalk.Provider](cachePathFor("providers")).Store(providers); err != nil {
+	path := cachePathFor("providers")
+	if err := newCache[[]catwalk.Provider](path).Store(providers); err != nil {
 		return fmt.Errorf("failed to save providers to cache: %w", err)
 	}
 
-	slog.Info("Providers updated successfully", "count", len(providers), "from", pathOrURL, "to", cachePathFor)
+	slog.Info("Providers updated successfully", "count", len(providers), "from", pathOrURL, "to", path)
 	return nil
 }
 
-var catwalkSyncer = &catwalkSync{}
-
-// CatwalkUpdated reports whether the Catwalk provider catalog was
-// refreshed with new data during this run's catalog fetch. The fetch
-// runs once per process, before the first call to Providers returns, so
-// the result is stable afterwards. Callers use it to renew catalogs that
-// shadow Catwalk's, such as the ChatGPT model catalog.
-func CatwalkUpdated() bool {
-	return catwalkSyncer.Updated()
+// catalogSource is one local source of provider definitions for
+// [Providers]. Load must not perform network I/O: the catalog is built on
+// every config load, including startup.
+//
+// Like the error Providers returns, an error from Load is advisory. A
+// source that runs into trouble should still return the best providers it
+// has (possibly none) and describe the problem in the error.
+type catalogSource struct {
+	name string
+	load func() ([]catwalk.Provider, error)
 }
 
-// Providers returns the list of providers, taking into account cached results
-// and whether or not auto update is enabled.
+// catalogSources are the sources [Providers] merges, in precedence order:
+// when several sources define the same provider ID, the definition from
+// the earliest source wins and the later ones are dropped. Catwalk comes
+// first so that its curated definitions always take precedence. To add a
+// source, append it here.
 //
-// It will:
-// 1. if auto update is disabled, it'll return the embedded providers at the
-// time of release.
-// 2. load the cached providers
-// 3. try to get the fresh list of providers, and return either this new list,
-// the cached list, or the embedded list if all others fail.
+// A package variable so tests can substitute their own sources.
+var catalogSources = []catalogSource{
+	{
+		name: "catwalk",
+		load: func() ([]catwalk.Provider, error) {
+			return loadCatwalkCatalog(cachePathFor("providers")), nil
+		},
+	},
+}
+
+// Providers returns the provider catalog: the known providers and their
+// models. It is built once per process, from local data only, by merging
+// [catalogSources]. It never touches the network; the Catwalk part of the
+// catalog is refreshed only by an explicit `crush update-providers`.
 //
-// A returned error is advisory: it reports that the catalog could not be
-// cached, or that an upstream returned nothing usable. It never means that no
-// providers are available, so callers should surface it as a warning and keep
-// using the returned list. A refresh that simply could not reach the network
-// is not an error at all: the cached or embedded catalog is a sound answer, so
-// those are logged and the fallback is returned.
+// A returned error is advisory: it reports that a source could not be read
+// in full. It never means that no providers are available, so callers
+// should surface it as a warning and keep using the returned list.
 func Providers(cfg *Config) ([]catwalk.Provider, error) {
 	providerOnce.Do(func() {
-		if cfg.Options.DisableDefaultProviders {
+		if cfg != nil && cfg.Options != nil && cfg.Options.DisableDefaultProviders {
 			return
 		}
-		autoupdate := !cfg.Options.DisableProviderAutoUpdate
-
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-		defer cancel()
-
-		catwalkURL := cmp.Or(os.Getenv("CATWALK_URL"), defaultCatwalkURL)
-		client := catwalk.NewWithURL(catwalkURL)
-		path := cachePathFor("providers")
-		catwalkSyncer.Init(client, path, autoupdate)
-
-		// A failure to refresh or cache the catalog is worth reporting,
-		// but the syncer still hands back the cached or embedded list.
-		// Dropping that would leave the user with no providers at all
-		// over a transient disk or network problem.
-		providerList, providerErr = catwalkSyncer.Get(ctx)
-		if providerErr != nil {
-			providerErr = fmt.Errorf("Crush was unable to fetch an updated list of providers from %s/v2/providers. Consider setting CRUSH_DISABLE_PROVIDER_AUTO_UPDATE=1 to use the embedded providers bundled at the time of this Crush release. You can also update providers manually. For more info see crush update-providers --help.\n\nCause: %w", catwalkURL, providerErr) //nolint:staticcheck
-		}
+		providerList, providerErr = mergeCatalogs(catalogSources)
 	})
 	return providerList, providerErr
+}
+
+// mergeCatalogs loads every source in order and concatenates their
+// providers, keeping only the first definition of each provider ID.
+func mergeCatalogs(sources []catalogSource) ([]catwalk.Provider, error) {
+	var (
+		merged []catwalk.Provider
+		errs   []error
+		seen   = make(map[catwalk.InferenceProvider]string)
+	)
+	for _, src := range sources {
+		providers, err := src.load()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s provider catalog: %w", src.name, err))
+		}
+		for _, p := range providers {
+			if owner, ok := seen[p.ID]; ok {
+				slog.Debug("Ignoring duplicate catalog provider", "provider", p.ID, "source", src.name, "kept_from", owner)
+				continue
+			}
+			seen[p.ID] = src.name
+			merged = append(merged, p)
+		}
+	}
+	return merged, errors.Join(errs...)
 }
 
 type cache[T any] struct {
@@ -130,18 +150,18 @@ func newCache[T any](path string) cache[T] {
 	return cache[T]{path: path}
 }
 
-func (c cache[T]) Get() (T, string, error) {
+func (c cache[T]) Get() (T, error) {
 	var v T
 	data, err := readFile(c.path)
 	if err != nil {
-		return v, "", fmt.Errorf("failed to read provider cache file: %w", err)
+		return v, fmt.Errorf("failed to read provider cache file: %w", err)
 	}
 
 	if err := json.Unmarshal(data, &v); err != nil {
-		return v, "", fmt.Errorf("failed to unmarshal provider data from cache: %w", err)
+		return v, fmt.Errorf("failed to unmarshal provider data from cache: %w", err)
 	}
 
-	return v, etag.Of(data), nil
+	return v, nil
 }
 
 func (c cache[T]) Store(v T) error {
@@ -155,10 +175,10 @@ func (c cache[T]) Store(v T) error {
 		return fmt.Errorf("failed to marshal provider data: %w", err)
 	}
 
-	// Written through a temporary file and renamed into place. Several Crush
-	// instances start independently and race to refresh this cache, and a
-	// truncating write would let one of them read a half-written catalog and
-	// silently fall back to the bundled copy.
+	// Written through a temporary file and renamed into place. A Crush
+	// instance may be reading the catalog while `crush update-providers`
+	// replaces it, and a truncating write would let that reader see a
+	// half-written catalog and silently fall back to the bundled copy.
 	if err := atomicWriteFile(c.path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write provider data to cache: %w", err)
 	}
