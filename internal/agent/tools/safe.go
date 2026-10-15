@@ -25,7 +25,6 @@ var safeCommands = map[string]argCheck{
 	"cal":      anyArgs,
 	"date":     denyOptions("sf", "set", "file"),
 	"df":       anyArgs,
-	"du":       anyArgs,
 	"echo":     anyArgs,
 	"free":     anyArgs,
 	"groups":   anyArgs,
@@ -45,8 +44,10 @@ var safeCommands = map[string]argCheck{
 	"whoami":   anyArgs,
 
 	// File inspection, confined to the working directory like the view
-	// tool, which asks before reading anything outside it.
+	// tool, which asks before reading anything outside it. (du is here
+	// because --files0-from echoes a file's content in its errors.)
 	"cat":   confined(anyArgs),
+	"du":    confined(anyArgs),
 	"egrep": confined(anyArgs),
 	"fgrep": confined(anyArgs),
 	"find":  confined(denyWords("-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint", "-fprint0", "-fprintf", "-fls")),
@@ -294,8 +295,9 @@ func gitArgs(args []string) bool {
 var gitDiffish = denyOptions("", "output", "ext-diff", "no-index")
 
 var gitSubcommands = map[string]argCheck{
-	// --contents shows an arbitrary file.
-	"blame": denyOptions("", "contents"),
+	// --contents shows an arbitrary file; -S and --ignore-revs-file read
+	// one and echo its lines in errors.
+	"blame": denyOptions("S", "contents", "ignore-revs-file"),
 	// Listing only: anything else creates, deletes, renames or
 	// reconfigures branches.
 	"branch": listingOnly("dDmMcCfut", "delete", "move", "copy", "force", "set-upstream-to",

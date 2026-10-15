@@ -123,6 +123,9 @@ func TestIsSafeReadOnlyCommand_RequiresPermission(t *testing.T) {
 		{"grep attached file", "grep -f/etc/passwd x"},
 		{"grep file option", "grep --file=/etc/passwd x"},
 		{"head tilde value", "head --lines=5 ~/x"},
+		{"du files0-from", "du --files0-from=/etc/passwd"},
+		{"git blame revs file", "git blame -S /etc/passwd main.go"},
+		{"git blame ignore revs file", "git blame --ignore-revs-file=/etc/passwd main.go"},
 	}
 
 	for _, tt := range tests {
