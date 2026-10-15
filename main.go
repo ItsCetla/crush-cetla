@@ -4,23 +4,33 @@ package main
 import (
 	"log/slog"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"os"
 
 	"github.com/charmbracelet/crush/internal/cmd"
-	_ "github.com/charmbracelet/crush/internal/dns"
-	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
 	if os.Getenv("CRUSH_PROFILE") != "" {
-		go func() {
-			slog.Info("Serving pprof at localhost:6060")
-			if httpErr := http.ListenAndServe("localhost:6060", nil); httpErr != nil {
-				slog.Error("Failed to pprof listen", "error", httpErr)
-			}
-		}()
+		go servePprof()
 	}
 
 	cmd.Execute()
+}
+
+// servePprof serves the pprof handlers on localhost. They are registered on
+// a dedicated mux rather than http.DefaultServeMux, so nothing else in the
+// process can expose them by accident.
+func servePprof() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	slog.Info("Serving pprof at localhost:6060")
+	if err := http.ListenAndServe("localhost:6060", mux); err != nil {
+		slog.Error("Failed to pprof listen", "error", err)
+	}
 }

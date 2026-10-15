@@ -20,8 +20,6 @@ import (
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	_ "github.com/joho/godotenv/autoload"
 )
 
 func TestMain(m *testing.M) {

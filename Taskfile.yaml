@@ -87,6 +87,7 @@ tasks:
   test:record:
     desc: Run tests and record all VCR cassettes again
     aliases: [record]
+    dotenv: ["internal/agent/.env"]
     cmds:
       - rm -r internal/agent/testdata
       - go test -v -count=1 -timeout=1h ./internal/agent
