@@ -70,13 +70,29 @@ func Render(base lipgloss.Style, version string, compact bool, o Opts) string {
 		crushLetterforms = append(hyperLetterforms, crushLetterforms...)
 	}
 
+	// Only some letters can be stretched (see tadaStretchable); the Hyper
+	// prefix letters come first, so offset the Ta-Da indexes past them.
+	stretchable := make([]int, 0, len(hyperLetterforms)+len(tadaStretchable))
+	if !compact {
+		for i := range hyperLetterforms {
+			stretchable = append(stretchable, i)
+		}
+	}
+	offset := 0
+	if o.Hyper && !compact {
+		offset = len(hyperLetterforms)
+	}
+	for _, i := range tadaStretchable {
+		stretchable = append(stretchable, offset+i)
+	}
+
 	stretchIndex := -1 // -1 means no stretching.
 	if !compact && !o.Unstable {
 		// Always stretch the same letterform, which is picked once at random.
-		stretchIndex = cachedRandN(len(crushLetterforms))
+		stretchIndex = stretchable[cachedRandN(len(stretchable))]
 	} else if !compact && o.Unstable {
 		// Stretch a random letterform on every render.
-		stretchIndex = rand.IntN(len(crushLetterforms))
+		stretchIndex = stretchable[rand.IntN(len(stretchable))]
 	}
 	crush := renderWord(spacing, stretchIndex, crushLetterforms...)
 	if o.Hyper && compact {
@@ -118,16 +134,14 @@ func Render(base lipgloss.Style, version string, compact bool, o Opts) string {
 		fmt.Fprintln(leftField, leftFieldRow)
 	}
 
-	// Right field.
+	// Right field. Every row has the same width so the dotted field
+	// ends in a straight edge. (Upstream stepped each row in by one to
+	// slant its ╱ diagonals; with dots that just looks ragged.)
 	rightWidth := max(15, o.Width-crushWidth-leftWidth-2) // 2 for the gap.
-	const stepDownAt = 0
+	rightFieldRow := fg(o.FieldColor, strings.Repeat(diag, rightWidth))
 	rightField := new(strings.Builder)
-	for i := range fieldHeight {
-		width := rightWidth
-		if i >= stepDownAt {
-			width = rightWidth - (i - stepDownAt)
-		}
-		fmt.Fprint(rightField, fg(o.FieldColor, strings.Repeat(diag, width)), "\n")
+	for range fieldHeight {
+		fmt.Fprintln(rightField, rightFieldRow)
 	}
 
 	// Return the wide version.

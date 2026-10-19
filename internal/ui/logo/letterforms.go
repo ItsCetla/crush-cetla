@@ -509,6 +509,11 @@ func stretchLetterformPart(s string, p letterformProps) string {
 // TadaLetterforms spell the app name.
 var TadaLetterforms = []letterform{LetterT, LetterA, LetterD, LetterA}
 
+// tadaStretchable lists the indexes in [TadaLetterforms] that still read
+// correctly when stretched. A wide D looks like a box or an O, so it is
+// never picked.
+var tadaStretchable = []int{0, 1, 3}
+
 // Wordmark returns the plain, unstyled TADA wordmark (no stretching), drawn
 // with half-block characters. The intro scales and animates it.
 func Wordmark() string {
