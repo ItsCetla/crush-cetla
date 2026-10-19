@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/crush/internal/version"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/charmbracelet/x/exp/charmtone"
 )
 
 // FallbackWidth is used when stdout is not a terminal, so the banner still
@@ -53,8 +52,8 @@ func Render(banner config.ExitBanner, sess *session.Session, width int) string {
 
 // logoSection returns the ASCII art logo followed by the parting message.
 func logoSection(contentWidth int) string {
-	t := styles.ThemeForProvider("")
-	crushLogo := logo.Render(t.Logo.GradCanvas, version.Version, true, logo.Opts{
+	t := styles.Default()
+	crushLogo := logo.Render(t.Logo.GradCanvas, version.Display(), true, logo.Opts{
 		FieldColor:   t.Logo.FieldColor,
 		TitleColorA:  t.Logo.TitleColorA,
 		TitleColorB:  t.Logo.TitleColorB,
@@ -80,7 +79,7 @@ func sessionResumeLines(sess *session.Session, contentWidth int) string {
 	}
 
 	hash := session.HashID(sess.ID)[:7]
-	label := lipgloss.NewStyle().Foreground(charmtone.Charple)
+	label := lipgloss.NewStyle().Foreground(styles.Default().Logo.TitleColorB)
 	sessionLine := label.Render("Session  ") + title
 	continueLine := label.Render("Continue ") + "crush -s " + hash
 	return sessionLine + "\n" + continueLine

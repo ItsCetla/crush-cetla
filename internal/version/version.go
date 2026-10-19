@@ -2,6 +2,7 @@ package version
 
 import (
 	"os"
+	"regexp"
 	"runtime/debug"
 	"strconv"
 )
@@ -53,4 +54,28 @@ func deriveBuildID() string {
 		return "unknown"
 	}
 	return strconv.FormatInt(fi.ModTime().UnixNano(), 36)
+}
+
+// pseudoVersion matches Go's VCS pseudo-versions, e.g.
+// v0.1.1-0.20261019163516-ef7bc645ab12 (optionally +dirty).
+var pseudoVersion = regexp.MustCompile(`^v?[0-9.]+-(?:[0-9a-z.]+\.)?0\.[0-9]{14}-([0-9a-f]{12})(\+dirty)?$`)
+
+// Display returns a short, human-friendly version for the UI. Release
+// versions are returned as-is; Go pseudo-versions from plain `go build`
+// become "dev+<short commit>". Use [Version] for anything compared or sent
+// over the wire.
+func Display() string {
+	return display(Version)
+}
+
+func display(v string) string {
+	m := pseudoVersion.FindStringSubmatch(v)
+	if m == nil {
+		return v
+	}
+	s := "dev+" + m[1][:7]
+	if m[2] != "" {
+		s += "-dirty"
+	}
+	return s
 }

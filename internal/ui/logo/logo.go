@@ -16,7 +16,10 @@ import (
 // a given amount via the boolean argument.
 type letterform func(bool) string
 
-const diag = `╱`
+const diag = styles.FieldGlyph
+
+// Maker is the name shown above the wordmark where upstream shows "Charm™".
+const Maker = "cetla"
 
 // Opts are the options for rendering the Crush title art.
 type Opts struct {
@@ -40,7 +43,7 @@ type Opts struct {
 // The compact argument determines whether it renders compact for the sidebar
 // or wider for the main pane.
 func Render(base lipgloss.Style, version string, compact bool, o Opts) string {
-	charm := "Charm™"
+	charm := Maker
 	if !o.Hyper {
 		charm = " " + charm
 	}
@@ -153,12 +156,12 @@ func SmallRender(t *styles.Styles, width int, o Opts) string {
 	if o.Hyper {
 		name = "HYPERCRUSH"
 	}
-	charm := "Charm™"
+	charm := Maker
 	title := t.Logo.SmallCharm.Render(charm)
 	title = fmt.Sprintf("%s %s", title, styles.ApplyBoldForegroundGrad(t.Logo.GradCanvas, name, t.Logo.SmallGradFromColor, t.Logo.SmallGradToColor))
 	remainingWidth := width - lipgloss.Width(title) - 1 // 1 for the space after the name
 	if remainingWidth > 0 {
-		lines := strings.Repeat("╱", remainingWidth)
+		lines := strings.Repeat(diag, remainingWidth)
 		title = fmt.Sprintf("%s %s", title, t.Logo.SmallDiagonals.Render(lines))
 	}
 	return title

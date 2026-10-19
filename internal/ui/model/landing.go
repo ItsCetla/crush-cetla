@@ -42,11 +42,17 @@ func (m *UI) landingView() string {
 		layout.Fill(1),
 	).Split(m.layout.main).Assign(new(image.Rectangle), &remainingHeightArea)
 
+	// LSPs and MCPs get fixed narrow columns; skills take the rest of the
+	// width and flow into as many columns as fit. The heading and blank line
+	// above each list use two rows, and the editor sits right below.
 	mcpLspSectionWidth := min(30, (width-2)/3)
+	skillsWidth := max(mcpLspSectionWidth, width-2*mcpLspSectionWidth-2)
+	listHeight := max(1, remainingHeightArea.Dy()-1)
+	listItems := max(1, listHeight-2)
 
-	lspSection := m.lspInfo(mcpLspSectionWidth, max(1, remainingHeightArea.Dy()), false)
-	mcpSection := m.mcpInfo(mcpLspSectionWidth, max(1, remainingHeightArea.Dy()), false)
-	skillsSection := m.skillsInfo(mcpLspSectionWidth, max(1, remainingHeightArea.Dy()), false)
+	lspSection := m.lspInfo(mcpLspSectionWidth, listItems, false)
+	mcpSection := m.mcpInfo(mcpLspSectionWidth, listItems, false)
+	skillsSection := m.skillsGrid(skillsWidth, listHeight)
 
 	content := lipgloss.JoinHorizontal(lipgloss.Left, lspSection, " ", mcpSection, " ", skillsSection)
 

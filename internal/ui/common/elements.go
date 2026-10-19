@@ -223,7 +223,7 @@ func DialogTitle(t *styles.Styles, title string, width int, fromColor, toColor c
 	if width > 0 && lipgloss.Width(title) > width {
 		return ansi.Truncate(title, width, "…")
 	}
-	char := "╱"
+	char := styles.FieldGlyph
 	length := lipgloss.Width(title) + 1
 	remainingWidth := width - length
 	if remainingWidth > 0 {

@@ -9,13 +9,14 @@ import (
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/ui/common"
+	"github.com/charmbracelet/crush/internal/ui/logo"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 )
 
 const (
-	headerDiag           = "╱"
+	headerDiag           = styles.FieldGlyph
 	minHeaderDiags       = 3
 	leftPadding          = 1
 	rightPadding         = 1
@@ -45,7 +46,7 @@ func newHeader(com *common.Common) *header {
 // after the theme changes.
 func (h *header) refresh() {
 	t := h.com.Styles
-	h.compactLogo = t.Header.Charm.Render(" Charm™") + " " +
+	h.compactLogo = t.Header.Charm.Render(" "+logo.Maker) + " " +
 		styles.ApplyBoldForegroundGrad(t.Header.LogoGradCanvas, "CRUSH", t.Header.LogoGradFromColor, t.Header.LogoGradToColor) + " "
 	// Force drawHeader to re-render the wide logo on the next frame.
 	h.width = 0
