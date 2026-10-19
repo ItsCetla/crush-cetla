@@ -25,8 +25,11 @@ var (
 func init() {
 	info, ok := debug.ReadBuildInfo()
 	if ok {
+		// Newer Go toolchains also stamp a VCS pseudo-version into
+		// plain `go build` binaries, so only fall back to it when no
+		// version was passed through -ldflags.
 		mainVersion := info.Main.Version
-		if mainVersion != "" && mainVersion != "(devel)" {
+		if Version == "devel" && mainVersion != "" && mainVersion != "(devel)" {
 			Version = mainVersion
 		}
 	}

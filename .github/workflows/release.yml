@@ -1,0 +1,97 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (for example v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Resolve tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          tag="${INPUT_TAG:-$REF_NAME}"
+          case "$tag" in v*) ;; *) echo "::error::tag '$tag' must start with v"; exit 1 ;; esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Release notes from CHANGELOG.md
+        id: notes
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          awk -v ver="$VERSION" '
+            /^## \[/ { if (found) exit; found = index($0, "[" ver "]") > 0; next }
+            found { print }
+          ' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for $VERSION"; exit 1
+          fi
+          cat >> notes.md <<EOT
+
+          ## Downloads
+
+          | Platform | File |
+          |---|---|
+          | Windows x64 | \`crush_${VERSION}_Windows_x86_64.zip\` |
+          | Windows ARM64 | \`crush_${VERSION}_Windows_arm64.zip\` |
+          | macOS Apple silicon | \`crush_${VERSION}_Darwin_arm64.tar.gz\` |
+          | macOS Intel | \`crush_${VERSION}_Darwin_x86_64.tar.gz\` |
+          | Linux x64 | \`crush_${VERSION}_Linux_x86_64.tar.gz\` |
+          | Linux ARM64 | \`crush_${VERSION}_Linux_arm64.tar.gz\` |
+
+          Verify a download against \`SHA256SUMS.txt\`:
+          \`shasum -a 256 -c SHA256SUMS.txt --ignore-missing\` (macOS/Linux) or
+          \`Get-FileHash crush_${VERSION}_Windows_x86_64.zip\` (PowerShell).
+          EOT
+          echo "--- notes.md"; cat notes.md
+
+      - name: Build archives and draft the release
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --release-notes notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "## Draft release $TAG"
+            echo
+            echo "Review and publish it at https://github.com/$REPO/releases"
+            echo
+            echo '```'
+            cat dist/SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
