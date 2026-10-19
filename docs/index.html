@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crush (cetla build)</title>
+  <meta name="description" content="A fork of Charm's Crush coding agent that talks to nobody but the model providers and MCP servers you configure. No telemetry, no update checks, web tools off by default, untrusted projects stay inert, and it imports your OpenCode setup. Windows, macOS and Linux.">
+  <link rel="canonical" href="https://itscetla.github.io/crush-cetla/">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#FBFAFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#110E18" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Crush (cetla build)">
+  <meta property="og:title" content="Crush (cetla build) — a coding agent that only talks to your providers">
+  <meta property="og:description" content="Charm's Crush with the phone-home removed: no telemetry or update checks, web tools off by default, per-project trust, and an OpenCode importer. Windows, macOS and Linux.">
+  <meta property="og:url" content="https://itscetla.github.io/crush-cetla/">
+  <meta property="og:image" content="https://itscetla.github.io/crush-cetla/screenshots/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Crush (cetla build) logo on a terminal-dark background">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Crush (cetla build)">
+  <meta name="twitter:description" content="Charm's Crush with the phone-home removed, plus an OpenCode importer. Windows, macOS and Linux.">
+  <meta name="twitter:image" content="https://itscetla.github.io/crush-cetla/screenshots/social-preview.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap">
+  <link rel="stylesheet" href="assets/site.css">
+  <script>document.documentElement.className = 'js';</script>
+  <script src="assets/site.js" defer></script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Crush (cetla build)",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Windows, macOS, Linux",
+    "url": "https://itscetla.github.io/crush-cetla/",
+    "downloadUrl": "https://github.com/ItsCetla/crush-cetla/releases/latest",
+    "license": "https://github.com/ItsCetla/crush-cetla/blob/main/LICENSE.md",
+    "isBasedOn": "https://github.com/charmbracelet/crush",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+</head>
+<body>
+  <a class="visually-hidden" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="#top"><img src="assets/icon.svg" alt="">Crush <small>cetla build</small></a>
+      <button class="nav-toggle" type="button" aria-controls="primary-nav" aria-expanded="false" aria-label="Menu"><span></span><span></span><span></span></button>
+      <nav class="primary-nav" id="primary-nav" aria-label="Primary">
+        <ul>
+          <li><a href="#different">What's different</a></li>
+          <li><a href="#opencode">OpenCode import</a></li>
+          <li><a href="#safety">What it connects to</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="https://github.com/ItsCetla/crush-cetla">GitHub</a></li>
+          <li class="nav-cta"><a href="#download">Download</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top" aria-labelledby="hero-title">
+      <div class="container">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <span class="eyebrow">A fork of Charm's Crush</span>
+            <h1 id="hero-title">The coding agent that <span class="marker">only talks to your</span> providers.</h1>
+            <p class="lead">Crush's agent, TUI, LSP and MCP support, with the phone-home taken out. No telemetry, no update checks, no catalog fetches. Web tools stay off until you say so, cloned repos stay inert until you trust them, and your OpenCode setup comes along.</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" data-hero-dl href="#download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><span data-hero-label>Download</span></a>
+              <a class="btn btn-secondary" href="https://github.com/ItsCetla/crush-cetla">View on GitHub</a>
+            </div>
+            <p class="hero-note">Free, open source, <a href="https://github.com/ItsCetla/crush-cetla/blob/main/LICENSE.md">FSL-1.1-MIT</a>. Version <span data-release-version>—</span><span data-release-info hidden>, released <span data-release-date></span></span>.</p>
+            <ul class="hero-badges">
+              <li>Windows, macOS, Linux</li>
+              <li>Single static binary</li>
+              <li>Local models welcome</li>
+              <li>SHA-256 sums on every release</li>
+            </ul>
+          </div>
+        </div>
+        <div class="hero-shot">
+          <a href="screenshots/hero.svg" data-lightbox="Crush running in a terminal with a local model, the OpenCode import report and a permission prompt"><img src="screenshots/hero.svg" width="1200" height="660" alt="Crush running in a terminal: a session with a local model, a permission prompt before a shell command, the OpenCode import report, and a sidebar showing telemetry, update checks, web tools and catalog fetches all off."></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="different" aria-labelledby="different-title">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">What's different</span>
+          <h2 id="different-title">Same agent. Much shorter list of who it talks to.</h2>
+          <p>Upstream Crush is excellent. This build changes what it does without asking, not how it codes. Every change is listed in the <a href="https://github.com/ItsCetla/crush-cetla/blob/main/CHANGELOG.md">changelog</a>.</p>
+        </div>
+        <div class="cards">
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A9 9 0 0 1 21 12c0 1.2-.2 2.3-.7 3.3M6.3 6.3A9 9 0 0 0 12 21c1.9 0 3.6-.6 5-1.5"/></svg></span>No phone-home</h3>
+            <p>PostHog telemetry, the update check, the Catwalk and Hyper catalog fetches, the Hyper vendor service and the forced Termux DNS resolvers are removed, not just disabled. The provider catalog is a local file you refresh on purpose with <code>crush update-providers</code>.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>Web tools off by default</h3>
+            <p><code>fetch</code>, <code>agentic_fetch</code>, <code>download</code> and <code>sourcegraph</code> are hidden from the model until you run <code>option web-tools true</code>. Even then, every request asks first. Downloads are capped and headers are redacted in logs.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span>Untrusted projects stay inert</h3>
+            <p>A cloned repo's <code>crush.json</code>, <code>crushrc</code> and OpenCode config are ignored until you run <code>crush trust</code>. No MCP servers or LSPs start from a project you have not vouched for. <code>.env</code> files are no longer auto-loaded.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4zM7 9l3 3-3 3M12 15h5"/></svg></span>Stricter bash auto-approval</h3>
+            <p>Only a single, parsed, read-only command runs without a prompt. Wrappers such as <code>env</code> and <code>timeout</code>, redirections, pipes into writes and multi-line commands always ask.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h7"/><path d="m17 15 2 2 4-4"/></svg></span>OpenCode import</h3>
+            <p>MCP servers, providers, model choices, the models.dev cache, rules, skills, custom commands, tool toggles and file-edit permissions come from your OpenCode install. Read from disk only. <a href="#opencode">How it works</a>.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7 12 3 4 7l8 4 8-4zM4 7v10l8 4 8-4V7M12 11v10"/></svg></span>Reviewable releases</h3>
+            <p>Every tag builds six archives in a public GitHub Actions run with pinned actions, ships a <code>SHA256SUMS.txt</code>, and lands as a draft release that is reviewed before it is published.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section band" id="opencode" aria-labelledby="opencode-title">
+      <div class="container">
+        <div class="feature-grid">
+          <div class="feature-copy">
+            <span class="eyebrow">OpenCode import</span>
+            <h2 id="opencode-title">Already set up OpenCode? You're done.</h2>
+            <p>Crush reads <code>~/.config/opencode</code> at startup and brings the useful parts across. Nothing is copied or rewritten, and nothing of OpenCode's runs. Plugins in particular are never executed: they are listed in the report so you know what is being skipped.</p>
+            <ul>
+              <li>MCP servers, providers and your default and small model</li>
+              <li>The cached models.dev catalog, for providers Crush doesn't already know</li>
+              <li>Rules, global <code>AGENTS.md</code>, skills and custom commands (as <code>opencode:&lt;name&gt;</code>)</li>
+              <li>Tool toggles, deny rules, and <code>edit: allow</code> as a no-prompt list inside the project</li>
+              <li>A <code>network:</code> note for MCP commands like <code>npx -y</code> that reach the registry on every start</li>
+            </ul>
+            <p>Each part has an on/off switch under <code>options.opencode</code>, and <code>CRUSH_DISABLE_OPENCODE=1</code> turns the whole thing off. Run <code>crush opencode</code> to see exactly what was read and what was skipped.</p>
+          </div>
+          <div class="term" aria-label="Sample output of crush opencode">
+            <div class="term-bar"><i></i><i></i><i></i><span>crush opencode</span></div>
+<pre><code><span class="t-dim">Config files read</span>
+  ~/.config/opencode/opencode.jsonc
+  <span class="t-dim">project-level config: skipped (not trusted; see `crush trust`)</span>
+
+<span class="t-ok">MCP servers (on)</span>
+  bench       local  bench-mcp --project bench      imported
+  playwright  local  npx -y @playwright/mcp@latest  imported
+  <span class="t-warn">network: playwright: npx contacts the npm registry
+  every time it starts; add --prefer-offline</span>
+
+<span class="t-ok">Model choice (on)</span>
+  large  pc/bonsai-27b        (agent build)  selected
+  small  pc/bonsai-27b-quick  (small_model)  selected
+
+<span class="t-ok">Models catalog (on)</span>
+  cached   232 providers, 9056 models; 219 usable by Crush
+
+<span class="t-acc">Credentials (off)</span>  set options.opencode.credentials to use
+                   API keys from `opencode auth login`
+
+<span class="t-ok">Commands (on)</span>
+  opencode:commit, opencode:review, opencode:simplify
+
+<span class="t-dim">Notes</span>
+  plugins are never run: media-models.js, notify.js</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="safety" aria-labelledby="safety-title">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">What it connects to</span>
+          <h2 id="safety-title">Everything that can open a socket, on one list.</h2>
+          <p>Verified with a process-tree connection watcher during the fork's audit, and again on a Windows PC against a local llama-server. If a line isn't here, Crush doesn't do it.</p>
+        </div>
+        <ul class="checks">
+          <li><strong>Model providers you configure.</strong> Chat completions, plus a <code>GET /models</code> discovery call against the same base URL.</li>
+          <li><strong>MCP servers you configure.</strong> Local processes, HTTP or SSE endpoints, and their OAuth flows if they use one.</li>
+          <li><strong>OAuth refresh</strong> for accounts you signed in with <code>crush login</code>.</li>
+          <li class="still"><strong>Web tools, only once enabled</strong> and only after you approve each request.</li>
+          <li class="still"><strong>Catalog refresh, only on request</strong> with <code>crush update-providers</code>.</li>
+          <li><strong>Nothing else.</strong> No telemetry, no update check, no crash reports, no startup fetches.</li>
+        </ul>
+        <p class="legend"><i style="background:var(--mint)"></i>always, to hosts you chose <i style="background:var(--amber)"></i>opt-in</p>
+      </div>
+    </section>
+
+    <section class="section band" id="download" aria-labelledby="download-title">
+      <div class="container">
+        <div class="dl-head">
+          <div>
+            <span class="eyebrow">Download</span>
+            <h2 id="download-title">Get Crush (cetla build)</h2>
+          </div>
+          <p class="release-info"><span data-release-info hidden>Latest: <a data-release-page href="https://github.com/ItsCetla/crush-cetla/releases/latest">v<span data-release-version></span></a>, <span data-release-date></span>. </span><span data-release-none hidden>No release is published yet; check the <a href="https://github.com/ItsCetla/crush-cetla/releases">releases page</a> or build from source below. </span><a href="https://github.com/ItsCetla/crush-cetla/releases">All releases</a></p>
+        </div>
+
+        <div class="dl-grid">
+          <article class="dl-os" data-os-card="windows">
+            <h3><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 11 4.4v7.1H3zm9-1.3L21 3v8.5h-9zM3 12.5h8v7.1L3 18.5zm9 0h9V21l-9-1.2z"/></svg>Windows <span class="mine">this computer</span></h3>
+            <div class="dl-item">
+              <p class="dl-file"><code data-dl-file="win-x64">crush_&lt;version&gt;_Windows_x86_64.zip</code><span class="dl-size" data-dl-size="win-x64" hidden></span></p>
+              <a class="btn btn-primary btn-block" data-dl="win-x64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">x64 (most PCs)</a>
+            </div>
+            <div class="dl-item">
+              <p class="dl-file"><code data-dl-file="win-arm64">crush_&lt;version&gt;_Windows_arm64.zip</code><span class="dl-size" data-dl-size="win-arm64" hidden></span></p>
+              <a class="btn btn-secondary btn-block" data-dl="win-arm64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">ARM64</a>
+            </div>
+            <p class="dl-note">Unzip, then run <code>crush.exe</code> from PowerShell or Windows Terminal. Not code-signed: if SmartScreen appears, choose <em>More info → Run anyway</em>, or run <code>Unblock-File .\crush.exe</code> first.</p>
+          </article>
+
+          <article class="dl-os" data-os-card="mac">
+            <h3><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.3 1.2 9.7.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.6-1-2.6-3.8zM14 5.4c.7-.8 1.1-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg>macOS <span class="mine">this computer</span></h3>
+            <div class="dl-item">
+              <p class="dl-file"><code data-dl-file="mac-arm64">crush_&lt;version&gt;_Darwin_arm64.tar.gz</code><span class="dl-size" data-dl-size="mac-arm64" hidden></span></p>
+              <a class="btn btn-primary btn-block" data-dl="mac-arm64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">Apple silicon</a>
+            </div>
+            <div class="dl-item">
+              <p class="dl-file"><code data-dl-file="mac-x64">crush_&lt;version&gt;_Darwin_x86_64.tar.gz</code><span class="dl-size" data-dl-size="mac-x64" hidden></span></p>
+              <a class="btn btn-secondary btn-block" data-dl="mac-x64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">Intel</a>
+            </div>
+            <p class="dl-note">Not notarized. If macOS refuses a binary you downloaded with a browser, run <code>xattr -d com.apple.quarantine ./crush</code>.</p>
+          </article>
+
+          <article class="dl-os" data-os-card="linux">
+            <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Linux <span class="mine">this computer</span></h3>
+            <div class="dl-item">
+              <p class="dl-file"><code data-dl-file="linux-x64">crush_&lt;version&gt;_Linux_x86_64.tar.gz</code><span class="dl-size" data-dl-size="linux-x64" hidden></span></p>
+              <a class="btn btn-primary btn-block" data-dl="linux-x64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">x64</a>
+            </div>
+            <div class="dl-item">
+              <p class="dl-file"><code data-dl-file="linux-arm64">crush_&lt;version&gt;_Linux_arm64.tar.gz</code><span class="dl-size" data-dl-size="linux-arm64" hidden></span></p>
+              <a class="btn btn-secondary btn-block" data-dl="linux-arm64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">ARM64</a>
+            </div>
+            <p class="dl-note">A static binary; works on any glibc or musl distro, Raspberry Pi 4/5, Graviton and Ampere.</p>
+          </article>
+        </div>
+
+        <p class="callout">Package managers (Homebrew, npm, AUR, Nix) install <em>upstream</em> Crush, not this build. Get it from the archives above or build from source.</p>
+
+        <div class="verify">
+          <div>
+            <h3>Checking a download</h3>
+            <p class="muted">Every release includes <a data-dl="sums" href="https://github.com/ItsCetla/crush-cetla/releases/latest"><code>SHA256SUMS.txt</code></a>. Put it next to the archive and compare.</p>
+            <div class="codeblock"><button class="copy" type="button" data-copy="sh-verify" hidden>Copy</button>
+<pre><code id="sh-verify"># macOS / Linux
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing
+
+# Windows (PowerShell)
+Get-FileHash crush_&lt;version&gt;_Windows_x86_64.zip
+Select-String Windows_x86_64 SHA256SUMS.txt</code></pre></div>
+          </div>
+          <div>
+            <h3>Build from source</h3>
+            <p class="muted">Go 1.27 or newer, nothing else. Same command on every platform.</p>
+            <div class="codeblock"><button class="copy" type="button" data-copy="sh-build" hidden>Copy</button>
+<pre><code id="sh-build">git clone https://github.com/ItsCetla/crush-cetla.git
+cd crush-cetla
+go build -o crush .
+./crush --version</code></pre></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2 id="faq-title">Questions people ask.</h2>
+        </div>
+        <div class="faq">
+          <details>
+            <summary>Is this an official Charm release?</summary>
+            <p>No. It is an independent fork of <a href="https://github.com/charmbracelet/crush">charmbracelet/crush</a>. Charm is not involved and does not support it. Bugs in code that isn't fork-specific belong upstream.</p>
+          </details>
+          <details>
+            <summary>Does it work with local models?</summary>
+            <p>Yes. Any OpenAI- or Anthropic-compatible endpoint works, including llama-server, LM Studio, Ollama and vLLM. Set a provider with a <code>base_url</code> and an API key (or a <code>{file:…}</code> reference in OpenCode config) and pick the model. Timeouts are long enough for a cold 30k-token prompt on a 27B model.</p>
+          </details>
+          <details>
+            <summary>What does <code>crush trust</code> actually gate?</summary>
+            <p>Project-level config, project OpenCode files, project MCP servers and LSPs, and the no-prompt list for edits inside the project. Until a project is trusted, Crush still works in it but uses only your global config. <code>CRUSH_TRUST_PROJECT=1</code> trusts the current directory for one run, which is handy for scripts.</p>
+          </details>
+          <details>
+            <summary>Why are the binaries unsigned?</summary>
+            <p>Signing and notarizing cost money and tie a release to a person's certificate. Instead, every build runs in a public GitHub Actions workflow with pinned actions, and the checksums file lets you verify what you got. If you'd rather not trust that, <code>go build</code> takes about a minute.</p>
+          </details>
+          <details>
+            <summary>Can I turn the web tools on?</summary>
+            <p>Yes: <code>option web-tools true</code> inside Crush, <code>options.enable_web_tools: true</code> in config, or <code>CRUSH_ENABLE_WEB_TOOLS=1</code>. Each fetch still asks for permission, and downloads are size-capped.</p>
+          </details>
+          <details>
+            <summary>What license is it under?</summary>
+            <p><a href="https://github.com/ItsCetla/crush-cetla/blob/main/LICENSE.md">FSL-1.1-MIT</a>, the same Functional Source License as upstream Crush. You may use, copy, modify and redistribute it for anything except a competing product; each version becomes MIT two years after its release.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Crush is made by <a href="https://charm.land">Charm</a>. This fork is maintained by <a href="https://github.com/ItsCetla">ItsCetla</a> and is not affiliated with Charm. Released under <a href="https://github.com/ItsCetla/crush-cetla/blob/main/LICENSE.md">FSL-1.1-MIT</a>.</p>
+      <ul>
+        <li><a href="https://github.com/ItsCetla/crush-cetla">Source</a></li>
+        <li><a href="https://github.com/ItsCetla/crush-cetla/blob/main/CHANGELOG.md">Changelog</a></li>
+        <li><a href="https://github.com/ItsCetla/crush-cetla/issues">Issues</a></li>
+        <li><a href="https://github.com/ItsCetla/crush-cetla/security/advisories/new">Report a vulnerability</a></li>
+        <li><a href="https://github.com/charmbracelet/crush">Upstream Crush</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

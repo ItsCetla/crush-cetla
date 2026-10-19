@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660" width="1200" height="660" font-family="'JetBrains Mono','Cascadia Code',ui-monospace,'SF Mono',Menlo,Consolas,monospace" font-size="17">
+  <title>Crush running in a terminal with a local model, the OpenCode import report and a permission prompt</title>
+  <defs>
+    <linearGradient id="bar" x1="0" x2="1"><stop offset="0" stop-color="#7D56F4"/><stop offset="1" stop-color="#FF5FAF"/></linearGradient>
+  </defs>
+  <rect width="1200" height="660" rx="18" fill="#17131F"/>
+  <rect width="1200" height="44" rx="18" fill="#201A2C"/>
+  <rect y="22" width="1200" height="22" fill="#201A2C"/>
+  <circle cx="24" cy="22" r="6.5" fill="#FF5F57"/><circle cx="46" cy="22" r="6.5" fill="#FEBC2E"/><circle cx="68" cy="22" r="6.5" fill="#28C840"/>
+  <text x="600" y="28" text-anchor="middle" fill="#8E86A6" font-size="14">crush — ~/proj — pc/bonsai-27b</text>
+
+  <!-- left: conversation -->
+  <text x="36" y="90" fill="#C4B5FD" font-weight="700">Crush</text>
+  <text x="104" y="90" fill="#8E86A6">0.1.0 · ~/proj · trusted</text>
+  <text x="36" y="134" fill="#FF8FC8">you</text>
+  <text x="36" y="160" fill="#ECE8F6">Read hello.txt and run the tests. Fix anything that fails.</text>
+
+  <text x="36" y="206" fill="#C4B5FD">crush</text>
+  <text x="36" y="232" fill="#ECE8F6">hello.txt contains one line: "hello from the PC". Running the suite now.</text>
+
+  <rect x="36" y="256" width="760" height="110" rx="10" fill="#0D0B12" stroke="#2E2740"/>
+  <text x="54" y="285" fill="#FBBF24" font-weight="700">bash</text>
+  <text x="112" y="285" fill="#ECE8F6">go test ./...</text>
+  <text x="54" y="313" fill="#8E86A6">This command is not in the auto-approve list. Run it?</text>
+  <rect x="54" y="326" width="128" height="28" rx="6" fill="#7D56F4"/>
+  <text x="118" y="345" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Allow once</text>
+  <rect x="192" y="326" width="170" height="28" rx="6" fill="#2A2338"/>
+  <text x="277" y="345" text-anchor="middle" fill="#ECE8F6" font-size="14">Allow for session</text>
+  <rect x="372" y="326" width="80" height="28" rx="6" fill="#2A2338"/>
+  <text x="412" y="345" text-anchor="middle" fill="#ECE8F6" font-size="14">Deny</text>
+
+  <text x="36" y="410" fill="#8E86A6" font-size="15">› crush opencode</text>
+  <text x="36" y="438" fill="#4ADE80">MCP servers (on)</text>
+  <text x="56" y="462" fill="#ECE8F6">bench       local  bench-mcp --project bench      imported</text>
+  <text x="56" y="486" fill="#ECE8F6">playwright  local  npx -y @playwright/mcp@latest  imported</text>
+  <text x="56" y="510" fill="#FBBF24">network: playwright: npx contacts the npm registry every start; add --prefer-offline</text>
+  <text x="36" y="538" fill="#4ADE80">Model choice (on)</text>
+  <text x="56" y="562" fill="#ECE8F6">large  pc/bonsai-27b        (agent build)  selected</text>
+  <text x="56" y="586" fill="#ECE8F6">small  pc/bonsai-27b-quick  (small_model)  selected</text>
+  <text x="36" y="614" fill="#8E86A6">plugins are never run: media-models.js, notify.js</text>
+
+  <!-- right: sidebar -->
+  <rect x="836" y="70" width="328" height="560" rx="12" fill="#1C1727" stroke="#2E2740"/>
+  <text x="856" y="100" fill="#C4B5FD" font-weight="700" font-size="15">Session</text>
+  <text x="856" y="124" fill="#ECE8F6" font-size="14">fix failing tests</text>
+  <text x="856" y="146" fill="#8E86A6" font-size="13">12.4k tokens · $0.00 (local)</text>
+  <line x1="856" y1="166" x2="1144" y2="166" stroke="#2E2740"/>
+  <text x="856" y="194" fill="#C4B5FD" font-weight="700" font-size="15">Model</text>
+  <text x="856" y="218" fill="#ECE8F6" font-size="14">pc/bonsai-27b</text>
+  <text x="856" y="240" fill="#8E86A6" font-size="13">http://100.119.214.17:8080/v1</text>
+  <line x1="856" y1="260" x2="1144" y2="260" stroke="#2E2740"/>
+  <text x="856" y="288" fill="#C4B5FD" font-weight="700" font-size="15">MCP</text>
+  <text x="856" y="312" fill="#4ADE80" font-size="14">● bench</text>
+  <text x="856" y="334" fill="#4ADE80" font-size="14">● playwright</text>
+  <text x="856" y="356" fill="#8E86A6" font-size="13">imported from OpenCode</text>
+  <line x1="856" y1="376" x2="1144" y2="376" stroke="#2E2740"/>
+  <text x="856" y="404" fill="#C4B5FD" font-weight="700" font-size="15">Egress</text>
+  <text x="856" y="428" fill="#ECE8F6" font-size="14">telemetry        off</text>
+  <text x="856" y="450" fill="#ECE8F6" font-size="14">update check     off</text>
+  <text x="856" y="472" fill="#ECE8F6" font-size="14">web tools        off</text>
+  <text x="856" y="494" fill="#ECE8F6" font-size="14">catalog fetch    off</text>
+  <line x1="856" y1="514" x2="1144" y2="514" stroke="#2E2740"/>
+  <text x="856" y="542" fill="#C4B5FD" font-weight="700" font-size="15">LSP</text>
+  <text x="856" y="566" fill="#4ADE80" font-size="14">● gopls</text>
+  <text x="856" y="600" fill="#8E86A6" font-size="13">ctrl+p commands · ctrl+c quit</text>
+
+  <rect x="0" y="652" width="1200" height="8" fill="url(#bar)"/>
+</svg>
