@@ -163,11 +163,11 @@ func (c *Config) applyOpenCodeContext(imp *openCodeImport, workingDir string) {
 		c.checkOpenCodeMCPCommands(imp)
 	}
 	if len(imp.config.Plugins) > 0 {
-		imp.note("plugins are never run: %s", strings.Join(imp.config.Plugins, ", "))
+		imp.notef("plugins are never run: %s", strings.Join(imp.config.Plugins, ", "))
 	}
 }
 
-func (imp *openCodeImport) note(format string, args ...any) {
+func (imp *openCodeImport) notef(format string, args ...any) {
 	imp.applied.Notes = append(imp.applied.Notes, fmt.Sprintf(format, args...))
 }
 
@@ -235,7 +235,7 @@ func (c *Config) applyOpenCodeCompaction(imp *openCodeImport) {
 	// A plugin that turns compaction off usually manages the context
 	// itself. Crush doesn't run plugins, so keep summarizing.
 	if len(imp.config.Plugins) > 0 {
-		imp.note("compaction.auto is false, but auto-summarize stays on because OpenCode plugins, which may manage the context instead, are not run")
+		imp.notef("compaction.auto is false, but auto-summarize stays on because OpenCode plugins, which may manage the context instead, are not run")
 		return
 	}
 	c.Options.DisableAutoSummarize = true
@@ -283,7 +283,7 @@ func (c *Config) applyOpenCodeTools(imp *openCodeImport) {
 			continue
 		}
 		if agent := imp.openCodeToolReenabled(pattern); agent != "" {
-			imp.note("tools.%s: false skipped: agent %s turns it back on", pattern, agent)
+			imp.notef("tools.%s: false skipped: agent %s turns it back on", pattern, agent)
 			continue
 		}
 		if server, rest := c.importedMCPFor(imp, pattern); server != "" {
@@ -300,7 +300,7 @@ func (c *Config) applyOpenCodeTools(imp *openCodeImport) {
 					imp.applied.DisabledMCPTools = append(imp.applied.DisabledMCPTools, server+": "+rest)
 				}
 			default:
-				imp.note("tools.%s: false skipped: only <server>_* and single MCP tools are supported", pattern)
+				imp.notef("tools.%s: false skipped: only <server>_* and single MCP tools are supported", pattern)
 				continue
 			}
 			c.MCP[server] = m
@@ -308,7 +308,7 @@ func (c *Config) applyOpenCodeTools(imp *openCodeImport) {
 		}
 		tools, ok := openCodeToolNames[pattern]
 		if !ok {
-			imp.note("tools.%s: false skipped: no matching Crush tool or imported MCP server", pattern)
+			imp.notef("tools.%s: false skipped: no matching Crush tool or imported MCP server", pattern)
 			continue
 		}
 		for _, t := range tools {
@@ -378,16 +378,16 @@ func (c *Config) applyOpenCodePermissions(imp *openCodeImport) {
 	}
 	c.Options.DisabledTools = disabled
 	if askAll {
-		imp.note("permission rule *: ask partly followed: Crush prompts before writes, commands, web access and MCP tools, not before reads inside the project")
+		imp.notef("permission rule *: ask partly followed: Crush prompts before writes, commands, web access and MCP tools, not before reads inside the project")
 	}
 	if len(matched) > 0 {
-		imp.note("permission rules Crush already follows: %s", strings.Join(matched, ", "))
+		imp.notef("permission rules Crush already follows: %s", strings.Join(matched, ", "))
 	}
 	if len(skipped) > 0 {
-		imp.note("permission rules not imported (Crush keeps prompting): %s", strings.Join(skipped, ", "))
+		imp.notef("permission rules not imported (Crush keeps prompting): %s", strings.Join(skipped, ", "))
 	}
 	if len(unprompted) > 0 {
-		imp.note("permission rules not imported (Crush doesn't prompt for these inside the project): %s", strings.Join(unprompted, ", "))
+		imp.notef("permission rules not imported (Crush doesn't prompt for these inside the project): %s", strings.Join(unprompted, ", "))
 	}
 }
 
@@ -409,7 +409,7 @@ func (c *Config) applyOpenCodeCommands(imp *openCodeImport) {
 		}
 	}
 	if len(withOptions) > 0 {
-		imp.note("commands run in the current session; their agent, model and subtask settings are ignored: %s", strings.Join(withOptions, ", "))
+		imp.notef("commands run in the current session; their agent, model and subtask settings are ignored: %s", strings.Join(withOptions, ", "))
 	}
 }
 
@@ -423,7 +423,7 @@ func (c *Config) checkOpenCodeMCPCommands(imp *openCodeImport) {
 			continue
 		}
 		if _, err := exec.LookPath(home.Long(m.Command)); err != nil {
-			imp.note("MCP server %s: command %q not found", name, m.Command)
+			imp.notef("MCP server %s: command %q not found", name, m.Command)
 		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 	"time"
@@ -293,7 +294,10 @@ func TestReadOnlyDSN(t *testing.T) {
 	db := newOpenCodeDB(t, filepath.Join(plain, "opencode.db"))
 	putCatalog(t, db, catalogJSON("odd"), 1)
 	require.NoError(t, db.Close())
-	dir := filepath.Join(root, "we?ird #dir %20")
+	dir := filepath.Join(root, "we ird #dir %20?")
+	if runtime.GOOS == "windows" {
+		dir = filepath.Join(root, "we ird #dir %20") // "?" is not allowed in Windows paths
+	}
 	require.NoError(t, os.Rename(plain, dir))
 	dbPath := filepath.Join(dir, "opencode.db")
 

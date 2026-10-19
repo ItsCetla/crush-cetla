@@ -769,12 +769,14 @@ func TestPermissionService_ProjectAllowedTools(t *testing.T) {
 
 	root := t.TempDir()
 	outside := t.TempDir()
-	service := NewPermissionService(root, false, nil, []string{"edit"})
 
-	// prompted runs the request and reports whether it reached the
-	// prompt. A prompt is denied so the request returns.
+	// prompted runs the request against a fresh service and reports
+	// whether it reached the prompt. A prompt is denied so the request
+	// returns. Each subtest gets its own service so they can run in
+	// parallel without seeing each other's prompts.
 	prompted := func(t *testing.T, req CreatePermissionRequest) bool {
 		t.Helper()
+		service := NewPermissionService(root, false, nil, []string{"edit"})
 		events := service.Subscribe(t.Context())
 		type outcome struct {
 			granted bool
@@ -812,15 +814,19 @@ func TestPermissionService_ProjectAllowedTools(t *testing.T) {
 	}
 
 	t.Run("inside the project", func(t *testing.T) {
+		t.Parallel()
 		require.False(t, prompted(t, req("edit", fileParams{filepath.Join(root, "a.go")})))
 	})
 	t.Run("outside the project", func(t *testing.T) {
+		t.Parallel()
 		require.True(t, prompted(t, req("edit", fileParams{filepath.Join(outside, "a.go")})))
 	})
 	t.Run("tool not allowed", func(t *testing.T) {
+		t.Parallel()
 		require.True(t, prompted(t, req("write", fileParams{filepath.Join(root, "a.go")})))
 	})
 	t.Run("params without a target", func(t *testing.T) {
+		t.Parallel()
 		require.True(t, prompted(t, req("edit", map[string]string{"file": filepath.Join(root, "a.go")})))
 	})
 }

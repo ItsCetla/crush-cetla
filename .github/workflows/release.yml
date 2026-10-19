@@ -49,11 +49,11 @@ jobs:
           awk -v ver="$VERSION" '
             /^## \[/ { if (found) exit; found = index($0, "[" ver "]") > 0; next }
             found { print }
-          ' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > notes.md
-          if [ ! -s notes.md ]; then
+          ' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$RUNNER_TEMP/notes.md"
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
             echo "::error::CHANGELOG.md has no section for $VERSION"; exit 1
           fi
-          cat >> notes.md <<EOT
+          cat >> "$RUNNER_TEMP/notes.md" <<EOT
 
           ## Downloads
 
@@ -70,14 +70,14 @@ jobs:
           \`shasum -a 256 -c SHA256SUMS.txt --ignore-missing\` (macOS/Linux) or
           \`Get-FileHash crush_${VERSION}_Windows_x86_64.zip\` (PowerShell).
           EOT
-          echo "--- notes.md"; cat notes.md
+          echo "--- notes.md"; cat "$RUNNER_TEMP/notes.md"
 
       - name: Build archives and draft the release
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean --release-notes notes.md
+          args: release --clean --release-notes ${{ runner.temp }}/notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
