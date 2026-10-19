@@ -325,7 +325,7 @@ func (m *UI) staleWorkspaceRefreshCmds() []tea.Cmd {
 	return cmds
 }
 
-// toggleYoloMode flips permission auto-approval and writes the new value
+// toggleYoloMode flips Auto mode (permission auto-approval) and writes the new value
 // through the yolo cache (no re-probe needed) and the editor prompt. Shared
 // by the direct keybinding and the commands-dialog action so both stay
 // write-through. Returns the new mode.
@@ -340,9 +340,6 @@ func (m *UI) toggleYoloMode() bool {
 	// re-dispatches the stale probe.
 	m.busyFetchGen++
 	m.setEditorPrompt(yolo)
-	// Any explicit toggle hands YOLO ownership back to the user; the
-	// Shift+Tab cycle re-claims it right after its own call.
-	m.cycleYolo = false
 	return yolo
 }
 

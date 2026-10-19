@@ -53,25 +53,25 @@ func (s *Status) ClearInfoMsg() {
 	s.msg = util.InfoMsg{}
 }
 
-// SetMode sets the input mode and YOLO state used for the mode badge.
+// SetMode sets the input mode and Auto (skip-permissions) state used for
+// the mode badge.
 func (s *Status) SetMode(mode uiInputMode, yolo bool) {
 	s.inputMode = mode
 	s.yolo = yolo
 }
 
-// modeBadge renders the badge for the current mode, or an empty string in
-// the default coding mode.
+// modeBadge renders the badge for the current permission mode: MANUAL,
+// PLAN or AUTO. One is always shown so the mode is never a guess.
 func (s *Status) modeBadge() string {
 	t := s.com.Styles
-	// Mirror the editor prompt precedence: planning wins over YOLO, which
-	// can be carried into plan mode.
-	if s.inputMode == uiInputModePlan {
+	switch permissionModeOf(s.inputMode, s.yolo) {
+	case permissionModePlan:
 		return t.Status.ModeBadgePlan.String()
-	}
-	if s.yolo {
+	case permissionModeAuto:
 		return t.Status.ModeBadgeYolo.String()
+	default:
+		return t.Status.ModeBadgeManual.String()
 	}
-	return ""
 }
 
 // SetWidth sets the width of the status bar and help view.
@@ -138,6 +138,10 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 	case util.InfoTypeYolo:
 		indStyle = s.com.Styles.Status.ModeBannerYoloBadge
 		msgStyle = s.com.Styles.Status.ModeBannerYolo
+		indInset = badgeLeftInset
+	case util.InfoTypeManual:
+		indStyle = s.com.Styles.Status.ModeBannerManualBadge
+		msgStyle = s.com.Styles.Status.ModeBannerManual
 		indInset = badgeLeftInset
 	case util.InfoTypeError:
 		indStyle = s.com.Styles.Status.ErrorIndicator

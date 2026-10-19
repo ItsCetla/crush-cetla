@@ -59,7 +59,8 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
 	rootCmd.PersistentFlags().StringVarP(&clientHost, "host", "H", server.DefaultHost(), "Connect to a specific tada server host (for advanced users)")
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
-	rootCmd.Flags().BoolP("yolo", "y", false, "Automatically accept all permissions (dangerous mode)")
+	rootCmd.Flags().Bool("auto", false, "Start in Auto mode: skip permission prompts (system level commands stay blocked)")
+	rootCmd.Flags().BoolP("yolo", "y", false, "Same as --auto")
 	rootCmd.PersistentFlags().StringSlice("channels", nil, "MCP servers to enable as channels (repeatable), e.g. --channels server:webhook")
 	_ = rootCmd.PersistentFlags().MarkHidden("channels")
 	rootCmd.Flags().StringP("session", "s", "", "Continue a previous session by ID")
@@ -98,8 +99,8 @@ cat README.md | tada run "make this more glamorous" > GLAMOROUS_README.md
 # Run with debug logging in a specific directory
 tada --debug --cwd /path/to/project
 
-# Run in yolo mode (auto-accept all permissions; use with care)
-tada --yolo
+# Start in Auto mode (skip permission prompts; use with care)
+tada --auto
 
 # Run with custom data directory
 tada --data-dir /path/to/custom/.tada
@@ -289,7 +290,7 @@ func setupWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error) {
 // AppWorkspace.
 func setupLocalWorkspace(cmd *cobra.Command) (workspace.Workspace, func(), error) {
 	debug, _ := cmd.Flags().GetBool("debug")
-	yolo, _ := cmd.Flags().GetBool("yolo")
+	yolo := autoModeFlag(cmd)
 	channels, _ := cmd.Flags().GetStringSlice("channels")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 	ctx := cmd.Context()
@@ -412,7 +413,7 @@ func connectToServer(cmd *cobra.Command) (*client.Client, *proto.Workspace, func
 	}
 
 	debug, _ := cmd.Flags().GetBool("debug")
-	yolo, _ := cmd.Flags().GetBool("yolo")
+	yolo := autoModeFlag(cmd)
 	channels, _ := cmd.Flags().GetStringSlice("channels")
 	dataDir, _ := cmd.Flags().GetString("data-dir")
 
@@ -1004,3 +1005,10 @@ var oldGitIgnore string
 
 //go:embed gitignore/default
 var defaultGitIgnore string
+
+// autoModeFlag reports whether --auto, or its older name --yolo, is set.
+func autoModeFlag(cmd *cobra.Command) bool {
+	auto, _ := cmd.Flags().GetBool("auto")
+	yolo, _ := cmd.Flags().GetBool("yolo")
+	return auto || yolo
+}

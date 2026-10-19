@@ -518,7 +518,7 @@ session is "in progress" on another client and joining it will mirror that
 view live.
 
 The first client to create a workspace fixes its process-wide flags. In
-particular, `--yolo` and `--debug` follow a **first-wins** rule: later
+particular, `--auto` (or `--yolo`) and `--debug` follow a **first-wins** rule: later
 clients that arrive at the same `--cwd` with different values for those
 flags do not change the running workspace. A debug log line is emitted
 recording the mismatch, and the workspace keeps the flags it was created
@@ -598,10 +598,19 @@ permissions deny bash sourcegraph
 
 To disable tools from MCP servers, see the [MCP config section](#mcps).
 
-### You only live once
+### Permission modes
 
-You can also skip all permission prompts completely by running Ta-Da with the
-`--yolo` flag. Be very, very careful with this feature.
+Ta-Da has three modes. Press **Shift+Tab** to cycle through them; the current
+one is always shown at the left of the status bar.
+
+| Mode   | What it does                                                                 |
+| ------ | ---------------------------------------------------------------------------- |
+| Manual | The default. Ta-Da asks before editing files or running commands.           |
+| Plan   | A read-only planner. It can look around but not change anything, and hands you a plan to start coding from. |
+| Auto   | Skips permission prompts. System level commands are still blocked.          |
+
+**Ctrl+Y** turns Auto on or off from any mode, and `tada --auto` starts in it
+(`--yolo` still works too). Be very, very careful with Auto.
 
 ### Disabling Skills
 

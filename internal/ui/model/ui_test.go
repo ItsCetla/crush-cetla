@@ -759,14 +759,51 @@ func TestGeneratedPlanContinuationIsHidden(t *testing.T) {
 	require.Equal(t, []string{"Implement the plan.", "Implement the plan."}, ws.runPrompts)
 }
 
-func TestToggleInputModePreservesExistingYOLOOnEntry(t *testing.T) {
+func TestToggleInputModeFromAutoGoesToManual(t *testing.T) {
 	t.Parallel()
+	// Auto turned on with Ctrl+Y follows the same cycle: the next Shift+Tab
+	// lands on Manual, never on "plan with Auto carried along".
 	u, ws := newPlanUI(t, "sess-1")
 	u.mode = uiInputModeCode
 	ws.yolo = true
-	applyModeSwitchMsg(u, u.toggleInputMode())
-	require.Equal(t, uiInputModePlan, u.mode)
+	msg := u.toggleInputMode()()
+	require.Equal(t, uiInputModeCode, u.mode)
+	require.False(t, ws.yolo)
+	require.Empty(t, ws.setMainCalledWith, "Auto -> Manual keeps the coder agent")
+	info, ok := msg.(util.InfoMsg)
+	require.True(t, ok)
+	require.Equal(t, util.InfoTypeManual, info.Type)
+}
+
+func TestPermissionModeOf(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, permissionModeManual, permissionModeOf(uiInputModeCode, false))
+	require.Equal(t, permissionModeAuto, permissionModeOf(uiInputModeCode, true))
+	require.Equal(t, permissionModePlan, permissionModeOf(uiInputModePlan, false))
+	require.Equal(t, permissionModePlan, permissionModeOf(uiInputModePlan, true), "planning wins over Auto")
+}
+
+func TestToggleAutoMode(t *testing.T) {
+	t.Parallel()
+	u, ws := newPlanUI(t, "sess-1")
+	u.mode = uiInputModeCode
+
+	info := u.toggleAutoMode()().(util.InfoMsg)
 	require.True(t, ws.yolo)
+	require.Equal(t, util.InfoTypeYolo, info.Type)
+
+	info = u.toggleAutoMode()().(util.InfoMsg)
+	require.False(t, ws.yolo)
+	require.Equal(t, util.InfoTypeManual, info.Type)
+}
+
+func TestToggleAutoModeLeavesPlan(t *testing.T) {
+	t.Parallel()
+	u, ws := newPlanUI(t, "sess-1")
+	applyModeSwitchMsg(u, u.toggleAutoMode())
+	require.Equal(t, uiInputModeCode, u.mode)
+	require.True(t, ws.yolo)
+	require.Equal(t, config.AgentCoder, ws.setMainCalledWith)
 }
 
 func TestSwitchPlanToYolo(t *testing.T) {
@@ -774,12 +811,10 @@ func TestSwitchPlanToYolo(t *testing.T) {
 	for _, carriedYolo := range []bool{false, true} {
 		u, ws := newPlanUI(t, "sess-1")
 		ws.yolo = carriedYolo
-		u.cycleYolo = carriedYolo
 
 		applyModeSwitchMsg(u, u.switchPlanToYolo())
 		require.Equal(t, uiInputModeCode, u.mode, "activating YOLO leaves plan mode")
 		require.True(t, ws.yolo, "YOLO ends up enabled regardless of the carried state")
-		require.False(t, u.cycleYolo, "explicit activation must not be undone by the Shift+Tab cycle")
 		require.Equal(t, config.AgentCoder, ws.setMainCalledWith)
 	}
 }

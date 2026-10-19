@@ -34,6 +34,7 @@ const (
 	InfoTypeError
 	InfoTypePlan
 	InfoTypeYolo
+	InfoTypeManual
 )
 
 func NewInfoMsg(info string) InfoMsg {

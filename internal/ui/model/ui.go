@@ -253,10 +253,6 @@ type UI struct {
 	// by setInputMode is still in flight; sending is blocked meanwhile.
 	modeSwitching bool
 
-	// cycleYolo is true while YOLO was enabled by the Shift+Tab input-mode
-	// cycle, which is the only case where the cycle may disable it again.
-	cycleYolo bool
-
 	keyMap KeyMap
 	keyenh tea.KeyboardEnhancementsMsg
 
@@ -2162,14 +2158,8 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 
 	// Command dialog messages.
 	case dialog.ActionToggleYoloMode:
-		if m.mode == uiInputModePlan {
-			// Same as Ctrl+Y in plan mode: YOLO only exists as YOLO
-			// coding, so activating it leaves plan mode.
-			if cmd := m.switchPlanToYolo(); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		} else {
-			m.toggleYoloMode()
+		if cmd := m.toggleAutoMode(); cmd != nil {
+			cmds = append(cmds, cmd)
 		}
 		m.dialog.CloseDialog(dialog.CommandsID)
 	case dialog.ActionSelectNotificationStyle:
@@ -3059,19 +3049,8 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			cmds = append(cmds, tea.Suspend)
 			return true
 		case key.Matches(msg, m.keyMap.ToggleYolo):
-			if m.mode == uiInputModePlan {
-				// YOLO has no meaning while planning; activating it
-				// switches straight to YOLO coding.
-				if cmd := m.switchPlanToYolo(); cmd != nil {
-					cmds = append(cmds, cmd)
-				}
-				return true
-			}
-			yolo := m.toggleYoloMode()
-			if yolo {
-				cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg}))
-			} else {
-				cmds = append(cmds, util.ReportInfo("Yolo mode disabled"))
+			if cmd := m.toggleAutoMode(); cmd != nil {
+				cmds = append(cmds, cmd)
 			}
 			return true
 		}
@@ -4578,7 +4557,7 @@ func editorFileMsg(path string) tea.Msg {
 }
 
 // setEditorPrompt configures the textarea prompt function based on whether
-// plan, yolo, or bang mode is enabled.
+// plan, auto, or bang mode is enabled.
 func (m *UI) setEditorPrompt(yolo bool) {
 	if m.bangMode {
 		m.textarea.SetPromptFunc(4, m.bangPromptFunc)
@@ -4659,33 +4638,71 @@ func (m *UI) bangPromptFunc(info textarea.PromptInfo) string {
 	return t.Editor.PromptBangDotsBlurred.Render()
 }
 
+// permissionMode is the mode the user sees: Manual asks before edits and
+// commands, Plan runs the read-only planner, and Auto skips permission
+// prompts (system level commands stay blocked). Auto is the permission
+// service's skip-requests switch, historically called YOLO.
+type permissionMode int
+
+const (
+	permissionModeManual permissionMode = iota
+	permissionModePlan
+	permissionModeAuto
+)
+
+// permissionModeOf maps the input mode and the skip-requests switch to the
+// mode shown to the user. Planning wins over Auto.
+func permissionModeOf(mode uiInputMode, auto bool) permissionMode {
+	switch {
+	case mode == uiInputModePlan:
+		return permissionModePlan
+	case auto:
+		return permissionModeAuto
+	default:
+		return permissionModeManual
+	}
+}
+
+// permissionMode reports the mode currently shown to the user.
+func (m *UI) permissionMode() permissionMode {
+	return permissionModeOf(m.mode, m.com.Workspace.PermissionSkipRequests())
+}
+
+// toggleInputMode is Shift+Tab: Manual -> Plan -> Auto -> Manual.
 func (m *UI) toggleInputMode() tea.Cmd {
 	if m.isAgentBusy() || m.modeSwitching {
 		return util.ReportWarn("Agent is busy, please wait before switching input mode...")
 	}
-	if m.mode == uiInputModePlan {
-		// Second step of the Shift+Tab cycle: plan -> YOLO. Enabling YOLO
-		// here is the only case where the cycle may disable it again.
+	switch m.permissionMode() {
+	case permissionModePlan:
 		if !m.com.Workspace.PermissionSkipRequests() {
 			m.toggleYoloMode()
-			m.cycleYolo = true
 		}
 		return m.setInputMode(uiInputModeCode)
-	}
-	// Only the cycle may turn YOLO back off: YOLO the user enabled himself
-	// (Ctrl+Y, the command palette) survives entering plan mode.
-	if m.com.Workspace.PermissionSkipRequests() && m.cycleYolo {
+	case permissionModeAuto:
 		m.toggleYoloMode()
-		return util.ReportInfo("input mode: code")
+		return manualModeBanner()
+	default:
+		return m.setInputMode(uiInputModePlan)
 	}
-	return m.setInputMode(uiInputModePlan)
 }
 
-// switchPlanToYolo handles activating YOLO while in plan mode: YOLO is a
-// coding concern, so instead of a "plan + yolo" state the UI switches
-// straight to the coder with YOLO enabled. Activation is idempotent — YOLO
-// carried into plan mode stays on, and the user ends up in full YOLO mode
-// either way.
+// toggleAutoMode is Ctrl+Y and the command palette's "Toggle Auto Mode":
+// Auto on or off. Turning it on while planning leaves plan mode, since Auto
+// only means something to the coder.
+func (m *UI) toggleAutoMode() tea.Cmd {
+	if m.mode == uiInputModePlan {
+		return m.switchPlanToYolo()
+	}
+	if m.toggleYoloMode() {
+		return autoModeBanner()
+	}
+	return manualModeBanner()
+}
+
+// switchPlanToYolo handles activating Auto while in plan mode: instead of a
+// "plan + auto" state the UI switches straight to the coder with Auto on.
+// Activation is idempotent, so Auto already on stays on.
 func (m *UI) switchPlanToYolo() tea.Cmd {
 	if m.isAgentBusy() || m.modeSwitching {
 		return util.ReportWarn("Agent is busy, please wait before switching input mode...")
@@ -4693,17 +4710,23 @@ func (m *UI) switchPlanToYolo() tea.Cmd {
 	if !m.com.Workspace.PermissionSkipRequests() {
 		m.toggleYoloMode()
 	}
-	// Explicit activation pins YOLO: the Shift+Tab cycle must not disable
-	// it on the next pass.
-	m.cycleYolo = false
 	return m.setInputMode(uiInputModeCode)
 }
 
 // Mode banner copy shown in the status bar after switching modes.
 const (
-	planModeBannerMsg = "Plan with Ta-Da before generating any code."
-	yoloModeBannerMsg = "Skip permission prompts. System level commands will be blocked."
+	manualModeBannerMsg = "Ta-Da asks before editing files or running commands."
+	planModeBannerMsg   = "Plan with Ta-Da before generating any code."
+	yoloModeBannerMsg   = "Skip permission prompts. System level commands will be blocked."
 )
+
+func manualModeBanner() tea.Cmd {
+	return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeManual, Msg: manualModeBannerMsg})
+}
+
+func autoModeBanner() tea.Cmd {
+	return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg})
+}
 
 func (m *UI) setInputMode(target uiInputMode) tea.Cmd {
 	agentID := config.AgentPlan
@@ -4711,8 +4734,8 @@ func (m *UI) setInputMode(target uiInputMode) tea.Cmd {
 		agentID = config.AgentCoder
 	}
 
-	// YOLO is orthogonal to the input mode, so report it alongside the mode
-	// instead of treating a YOLO-enabled coder as plain "code".
+	// Auto is orthogonal to the input mode, so report it alongside the mode
+	// instead of treating an Auto coder as Manual.
 	yolo := target == uiInputModeCode && m.com.Workspace.PermissionSkipRequests()
 
 	// The agent switch is an HTTP round-trip in client/server mode, so it
@@ -4751,9 +4774,9 @@ func (m *UI) applyModeSwitch(msg modeSwitchedMsg) []tea.Cmd {
 	case msg.mode == uiInputModePlan:
 		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypePlan, Msg: planModeBannerMsg}))
 	case msg.yolo:
-		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypeYolo, Msg: yoloModeBannerMsg}))
+		cmds = append(cmds, autoModeBanner())
 	default:
-		cmds = append(cmds, util.ReportInfo("input mode: code"))
+		cmds = append(cmds, manualModeBanner())
 	}
 	return cmds
 }

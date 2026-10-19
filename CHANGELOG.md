@@ -7,6 +7,23 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-19
+
+### Added
+
+- Three named permission modes: **Manual** (asks first), **Plan** (read-only
+  planner) and **Auto** (skips prompts; system level commands stay blocked).
+  Shift+Tab cycles Manual → Plan → Auto, and the status bar always shows the
+  current mode. Auto replaces the old YOLO name; `--auto` joins `--yolo`, and
+  the plan hand-off's "Code in Auto" button also answers to `a`.
+
+### Changed
+
+- The tab bar now shows as soon as a session is open, so its `+` button is
+  there to start a second session.
+- Auto turned on with Ctrl+Y no longer gets carried into plan mode; Shift+Tab
+  from Auto always goes back to Manual.
+
 ## [0.3.1] - 2026-10-19
 
 ### Security
@@ -143,7 +160,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/ItsCetla/tada/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ItsCetla/tada/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ItsCetla/tada/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ItsCetla/tada/compare/v0.1.0...v0.2.0

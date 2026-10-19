@@ -74,15 +74,28 @@ func loadedBy(t *testing.T, ws *tabsWorkspace, cmd tea.Cmd) []string {
 	return append([]string(nil), ws.loaded...)
 }
 
-func TestTabBarHiddenWithOneTab(t *testing.T) {
+func TestTabBarShownWithOneTab(t *testing.T) {
 	t.Parallel()
 
 	plain := newTestUI()
 	plain.updateLayoutAndSize()
 
 	u, _ := newTabsTestUI(t, "Alpha")
-	require.Equal(t, 0, u.layout.tabs.Dy(), "one tab must not show the bar")
-	require.Equal(t, plain.layout.main, u.layout.main, "one tab must keep the classic layout")
+	require.Equal(t, 1, u.layout.tabs.Dy(), "one tab still shows the bar")
+	require.Equal(t, plain.layout.main.Min.Y+2, u.layout.main.Min.Y)
+
+	view, hits := u.renderTabBar(u.layout.tabs.Dx())
+	require.Contains(t, ansi.Strip(view), "Alpha")
+	require.Contains(t, ansi.Strip(view), strings.TrimSpace(tabNewButton), "the + button is there with one tab")
+	require.Equal(t, tabHitNew, hits[len(hits)-1].kind)
+}
+
+func TestTabBarHiddenWithoutSession(t *testing.T) {
+	t.Parallel()
+
+	u := newTestUI()
+	u.updateLayoutAndSize()
+	require.Equal(t, 0, u.layout.tabs.Dy(), "a fresh start has nothing to tab")
 }
 
 func TestTabBarShownWithTwoTabs(t *testing.T) {
@@ -247,7 +260,7 @@ func TestMiddleClickClosesTab(t *testing.T) {
 	_ = u.handleTabBarClick(beta.x0, true)
 	require.Len(t, u.tabs, 1)
 	u.updateLayoutAndSize()
-	require.Equal(t, 0, u.layout.tabs.Dy(), "bar hides again at one tab")
+	require.Equal(t, 1, u.layout.tabs.Dy(), "bar stays with one tab so + is reachable")
 }
 
 func TestCloseActiveTabShowsNeighbour(t *testing.T) {

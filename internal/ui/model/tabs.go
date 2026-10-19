@@ -14,8 +14,8 @@ import (
 
 // Session tabs: every session opened during this run gets a tab in a
 // one-row bar above the chat, so switching back and forth does not need
-// the sessions dialog. Tabs live in memory only. The bar is hidden while
-// there is a single tab, which keeps the classic layout unchanged.
+// the sessions dialog. Tabs live in memory only. The bar shows as soon as
+// a session is open, so its "+" button is always there to start another.
 
 const (
 	// tabTitleMax caps a tab title's width in cells.
@@ -67,9 +67,7 @@ func tabTitle(s session.Session) string {
 // tabBarVisible reports whether the current state shows the tab bar.
 func (m *UI) tabBarVisible() bool {
 	switch m.state {
-	case uiChat:
-		return len(m.tabs) >= 2
-	case uiLanding:
+	case uiChat, uiLanding:
 		return len(m.tabs) >= 1
 	}
 	return false

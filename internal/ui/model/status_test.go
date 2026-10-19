@@ -38,7 +38,7 @@ func TestStatusDrawExpandedHelpRowsAlignWithBadge(t *testing.T) {
 	st.SetMode(uiInputModePlan, false)
 
 	lines := drawStatusLines(t, st, 100, 6)
-	require.True(t, strings.HasPrefix(lines[0], strings.Repeat(" ", badgeLeftInset)+" "+"PLAN MODE"),
+	require.True(t, strings.HasPrefix(lines[0], strings.Repeat(" ", badgeLeftInset)+"  PLAN  "),
 		"the badge row must start with the badge inset and its padding: %q", lines[0])
 
 	// Every subsequent help row must start at the same column as the hints
@@ -54,7 +54,7 @@ func TestStatusDrawExpandedHelpRowsAlignWithBadge(t *testing.T) {
 	}
 }
 
-func TestStatusDrawExpandedHelpRowsAlignWithoutBadge(t *testing.T) {
+func TestStatusAlwaysShowsModeBadge(t *testing.T) {
 	t.Parallel()
 
 	u := newPrismTestUI()
@@ -62,16 +62,22 @@ func TestStatusDrawExpandedHelpRowsAlignWithoutBadge(t *testing.T) {
 	st := u.status
 	st.helpKm = u
 	st.SetWidth(100)
-	st.ToggleHelp()
-	st.SetMode(uiInputModeCode, false)
 
-	lines := drawStatusLines(t, st, 100, 6)
-	wantCol := u.com.Styles.Status.Help.GetPaddingLeft()
-	for i, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			break
-		}
-		require.Equal(t, wantCol, leadingSpaces(line),
-			"expanded help row %d must align with the first row", i)
+	var widths []int
+	for _, tc := range []struct {
+		mode uiInputMode
+		auto bool
+		want string
+	}{
+		{uiInputModeCode, false, "MANUAL"},
+		{uiInputModePlan, false, "PLAN"},
+		{uiInputModeCode, true, "AUTO"},
+	} {
+		st.SetMode(tc.mode, tc.auto)
+		lines := drawStatusLines(t, st, 100, 1)
+		require.Equal(t, tc.want, strings.TrimSpace(lines[0][:badgeLeftInset+lipgloss.Width(st.modeBadge())]))
+		widths = append(widths, lipgloss.Width(st.modeBadge()))
 	}
+	require.Equal(t, widths[0], widths[1], "badges share a width so the hints never shift")
+	require.Equal(t, widths[0], widths[2])
 }

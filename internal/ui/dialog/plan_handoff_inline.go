@@ -45,7 +45,7 @@ type PlanHandoffInline struct {
 
 	heightChanged bool
 
-	// OnConfirm receives whether the user chose coding with YOLO.
+	// OnConfirm receives whether the user chose coding in Auto mode.
 	// The returned tea.Cmd is queued by the UI to perform the switch and
 	// start the coder agent.
 	OnConfirm func(yolo bool) tea.Cmd
@@ -119,8 +119,8 @@ func NewPlanHandoffInline(com *common.Common) *PlanHandoffInline {
 			key.WithHelp("c", "start coding"),
 		),
 		keyYolo: key.NewBinding(
-			key.WithKeys("y", "Y"),
-			key.WithHelp("y", "yolo coding"),
+			key.WithKeys("a", "A", "y", "Y"),
+			key.WithHelp("a", "auto coding"),
 		),
 		keyNo: key.NewBinding(
 			key.WithKeys("n", "N"),
@@ -258,12 +258,12 @@ func (p *PlanHandoffInline) choiceLayout(width int) planHandoffChoiceLayout {
 			UnderlineIndex: 6,
 		},
 		{
-			Text:           "Code with YOLO",
+			Text:           "Code in Auto",
 			Selected:       selectedChoice == choiceCodeYOLO,
 			Hovered:        hoveredBtn == choiceCodeYOLO,
 			Inactive:       inactive,
 			Padding:        3,
-			UnderlineIndex: 10,
+			UnderlineIndex: 8,
 		},
 		{
 			Text:           "Revise plan",

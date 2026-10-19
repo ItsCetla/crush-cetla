@@ -281,7 +281,7 @@ func TestPlanHandoffBlurredViewKeepsChoiceLayout(t *testing.T) {
 	plain := ansi.Strip(blurred.Render())
 	require.Contains(t, plain, planHandoffQuestion)
 	require.Contains(t, plain, "Start coding")
-	require.Contains(t, plain, "Code with YOLO")
+	require.Contains(t, plain, "Code in Auto")
 	require.Contains(t, plain, "Revise plan")
 
 	sty := styles.CharmtonePantera()
@@ -365,6 +365,8 @@ func TestPlanHandoffCodingKeys(t *testing.T) {
 		{"coding uppercase", tea.KeyPressMsg{Code: 'C', Text: "C"}, false},
 		{"yolo lowercase", tea.KeyPressMsg{Code: 'y', Text: "y"}, true},
 		{"yolo uppercase", tea.KeyPressMsg{Code: 'Y', Text: "Y"}, true},
+		{"auto lowercase", tea.KeyPressMsg{Code: 'a', Text: "a"}, true},
+		{"auto uppercase", tea.KeyPressMsg{Code: 'A', Text: "A"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -392,7 +394,7 @@ func TestPlanHandoffShortHelpShowsCodingKeys(t *testing.T) {
 	help := p.ShortHelp()
 	require.Len(t, help, 5)
 	require.Contains(t, help[2].Help().Key, "c")
-	require.Contains(t, help[3].Help().Key, "y")
+	require.Contains(t, help[3].Help().Key, "a")
 }
 
 func planHandoffButtonPoint(t *testing.T, p *PlanHandoffInline, index int) (int, int) {
