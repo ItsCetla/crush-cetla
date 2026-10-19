@@ -13,7 +13,7 @@
 [![License](https://img.shields.io/badge/license-FSL--1.1--MIT-ff5faf)](LICENSE.md)
 [![Go](https://img.shields.io/github/go-mod/go-version/ItsCetla/crush-cetla?label=go)](go.mod)
 
-[Download](#download) · [Website](https://itscetla.github.io/crush-cetla/) · [What's different](#whats-different-in-this-fork) · [OpenCode import](#importing-from-opencode) · [Configuration](#configuration) · [Changelog](CHANGELOG.md)
+[Download](#download) · [Website](https://crush.cetla.dev/) · [What's different](#whats-different-in-this-fork) · [OpenCode import](#importing-from-opencode) · [Configuration](#configuration) · [Changelog](CHANGELOG.md)
 
 <img src="docs/screenshots/hero.svg" width="880" alt="Crush running in a terminal: a session with a local model, the OpenCode import report, and a permission prompt before a shell command.">
 
