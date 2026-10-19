@@ -565,6 +565,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		mouseLabel = "Enable Mouse"
 	}
 	commands = append(commands, NewCommandItem(c.com.Styles, "toggle_mouse", mouseLabel, "", ActionToggleMouseSupport{}))
+	commands = append(commands, updateCommandItem(c.com.Styles))
 
 	commands = append(
 		commands,

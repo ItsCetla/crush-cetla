@@ -725,6 +725,11 @@
           "description": "Enable the built-in tools that make outbound network requests for the agent (fetch, agentic_fetch, download, sourcegraph). The CRUSH_ENABLE_WEB_TOOLS environment variable overrides this when set",
           "default": false
         },
+        "update_check": {
+          "type": "boolean",
+          "description": "Check GitHub for a new Ta-Da release in the background (at most every 6 hours) and say so once per version. Only api.github.com is contacted. The TADA_NO_UPDATE_CHECK environment variable turns it off; tada update always works",
+          "default": true
+        },
         "trusted_paths": {
           "items": {
             "type": "string",
