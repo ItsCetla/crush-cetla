@@ -1084,7 +1084,8 @@ func toolOutputDiffContent(sty *styles.Styles, file, oldContent, newContent stri
 	formatter := common.DiffFormatter(sty).
 		Before(file, oldContent).
 		After(file, newContent).
-		Width(bodyWidth)
+		Width(bodyWidth).
+		Wrap(true)
 
 	// Use split view for wide terminals.
 	if width > maxTextWidth {
@@ -1134,7 +1135,8 @@ func toolOutputMultiEditDiffContent(sty *styles.Styles, file string, meta tools.
 	formatter := common.DiffFormatter(sty).
 		Before(file, meta.OldContent).
 		After(file, meta.NewContent).
-		Width(bodyWidth)
+		Width(bodyWidth).
+		Wrap(true)
 
 	// Use split view for wide terminals.
 	if width > maxTextWidth {

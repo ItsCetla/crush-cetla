@@ -46,6 +46,7 @@ type DiffView struct {
 	xOffset         int
 	yOffset         int
 	infiniteYScroll bool
+	wrap            bool
 	style           Style
 	tabWidth        int
 	chromaStyle     *chroma.Style
@@ -174,6 +175,14 @@ func (dv *DiffView) InfiniteYScroll(infiniteYScroll bool) *DiffView {
 	return dv
 }
 
+// Wrap sets whether long code lines wrap onto continuation rows instead of
+// being truncated. When on, XOffset is ignored and YOffset and Height count
+// visual rows.
+func (dv *DiffView) Wrap(on bool) *DiffView {
+	dv.wrap = on
+	return dv
+}
+
 // TabWidth sets the tab width. Only relevant for code that contains tabs, like
 // Go code.
 func (dv *DiffView) TabWidth(tabWidth int) *DiffView {
@@ -211,7 +220,9 @@ func (dv *DiffView) String() string {
 	dv.adjustStyles()
 	dv.detectNumDigits()
 	dv.detectTotalLines()
-	dv.preventInfiniteYScroll()
+	if !dv.wrap {
+		dv.preventInfiniteYScroll()
+	}
 
 	if dv.width <= 0 {
 		dv.detectCodeWidth()
@@ -225,6 +236,10 @@ func (dv *DiffView) String() string {
 	}
 	if dv.height > 0 {
 		style = style.MaxHeight(dv.height)
+	}
+
+	if dv.wrap {
+		return style.Render(dv.renderWrapped())
 	}
 
 	switch dv.layout {
@@ -430,25 +445,13 @@ outer:
 		// Render file name header before the first hunk.
 		if i == 0 && dv.fileName != "" {
 			if shouldWrite() {
-				ls := dv.style.Filename
-				if dv.lineNumbers {
-					b.WriteString(ls.LineNumber.Render(pad("…", dv.beforeNumDigits)))
-					b.WriteString(ls.LineNumber.Render(pad("…", dv.afterNumDigits)))
-				}
-				content := ansi.Truncate("  "+dv.fileName, dv.fullCodeWidth, "…")
-				b.WriteString(ls.Code.Width(dv.fullCodeWidth).Render(content))
+				b.WriteString(dv.unifiedHeaderRow(dv.style.Filename, "  "+dv.fileName))
 				b.WriteString("\n")
 			}
 			printedLines++
 		}
 		if shouldWrite() {
-			ls := dv.style.DividerLine
-			if dv.lineNumbers {
-				b.WriteString(ls.LineNumber.Render(pad("…", dv.beforeNumDigits)))
-				b.WriteString(ls.LineNumber.Render(pad("…", dv.afterNumDigits)))
-			}
-			content := ansi.Truncate(dv.hunkLineFor(h), dv.fullCodeWidth, "…")
-			b.WriteString(ls.Code.Width(dv.fullCodeWidth).Render(content))
+			b.WriteString(dv.unifiedHeaderRow(dv.style.DividerLine, dv.hunkLineFor(h)))
 			b.WriteString("\n")
 		}
 		printedLines++
@@ -554,31 +557,13 @@ outer:
 		// Render file name header before the first hunk.
 		if i == 0 && dv.fileName != "" {
 			if shouldWrite() {
-				ls := dv.style.Filename
-				if dv.lineNumbers {
-					b.WriteString(ls.LineNumber.Render(pad("…", dv.beforeNumDigits)))
-				}
-				content := ansi.Truncate("  "+dv.fileName, dv.fullCodeWidth, "…")
-				b.WriteString(ls.Code.Width(dv.fullCodeWidth).Render(content))
-				if dv.lineNumbers {
-					b.WriteString(ls.LineNumber.Render(pad("…", dv.afterNumDigits)))
-				}
-				b.WriteString(ls.Code.Width(dv.fullCodeWidth + btoi(dv.extraColOnAfter)).Render(" "))
+				b.WriteString(dv.splitHeaderRow(dv.style.Filename, "  "+dv.fileName))
 				b.WriteRune('\n')
 			}
 			printedLines++
 		}
 		if shouldWrite() {
-			ls := dv.style.DividerLine
-			if dv.lineNumbers {
-				b.WriteString(ls.LineNumber.Render(pad("…", dv.beforeNumDigits)))
-			}
-			content := ansi.Truncate(dv.hunkLineFor(dv.unified.Hunks[i]), dv.fullCodeWidth, "…")
-			b.WriteString(ls.Code.Width(dv.fullCodeWidth).Render(content))
-			if dv.lineNumbers {
-				b.WriteString(ls.LineNumber.Render(pad("…", dv.afterNumDigits)))
-			}
-			b.WriteString(ls.Code.Width(dv.fullCodeWidth + btoi(dv.extraColOnAfter)).Render(" "))
+			b.WriteString(dv.splitHeaderRow(dv.style.DividerLine, dv.hunkLineFor(dv.unified.Hunks[i])))
 			b.WriteRune('\n')
 		}
 		printedLines++
@@ -702,6 +687,33 @@ outer:
 		}
 	}
 
+	return b.String()
+}
+
+// unifiedHeaderRow renders a file name or hunk header row in unified layout.
+func (dv *DiffView) unifiedHeaderRow(ls LineStyle, text string) string {
+	var b strings.Builder
+	if dv.lineNumbers {
+		b.WriteString(ls.LineNumber.Render(pad("…", dv.beforeNumDigits)))
+		b.WriteString(ls.LineNumber.Render(pad("…", dv.afterNumDigits)))
+	}
+	content := ansi.Truncate(text, dv.fullCodeWidth, "…")
+	b.WriteString(ls.Code.Width(dv.fullCodeWidth).Render(content))
+	return b.String()
+}
+
+// splitHeaderRow renders a file name or hunk header row in split layout.
+func (dv *DiffView) splitHeaderRow(ls LineStyle, text string) string {
+	var b strings.Builder
+	if dv.lineNumbers {
+		b.WriteString(ls.LineNumber.Render(pad("…", dv.beforeNumDigits)))
+	}
+	content := ansi.Truncate(text, dv.fullCodeWidth, "…")
+	b.WriteString(ls.Code.Width(dv.fullCodeWidth).Render(content))
+	if dv.lineNumbers {
+		b.WriteString(ls.LineNumber.Render(pad("…", dv.afterNumDigits)))
+	}
+	b.WriteString(ls.Code.Width(dv.fullCodeWidth + btoi(dv.extraColOnAfter)).Render(" "))
 	return b.String()
 }
 

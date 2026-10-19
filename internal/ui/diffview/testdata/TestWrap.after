@@ -1,0 +1,11 @@
+function Copy-Tree($t) {
+	$count = 0
+	foreach ($f in (Get-ChildItem $t.s -Recurse -File -Force -EA SilentlyContinue)) {  # plus a long trailing comment that definitely overflows the column
+		Write-Host "copying $f to $($t.d) with a much longer message than before so that both sides are long"
+	}
+	# 日本語のコメントはここにありますがとても長いのでこの行は折り返される必要がありますよね本当に
+	$token = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	$unchanged = "this context line is long enough that it needs to wrap in a narrow split column"
+	$added = "a brand new line that only exists after the change and is long enough to wrap around"
+	return $count
+}

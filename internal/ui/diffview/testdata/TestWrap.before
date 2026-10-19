@@ -1,0 +1,11 @@
+function Copy-Tree($t) {
+	$count = 0
+	Remove-Item $t.tmp -Recurse -Force -ErrorAction SilentlyContinue  # clean up leftover temp files from previous runs
+	foreach ($f in (Get-ChildItem $t.s)) {
+		Write-Host "copying $f to the destination folder using the old message format, which is also long"
+	}
+	# 日本語のコメントはここにありますがとても長いのでこの行は折り返される必要がありますよね
+	$token = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	$unchanged = "this context line is long enough that it needs to wrap in a narrow split column"
+	return $count
+}

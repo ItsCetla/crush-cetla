@@ -142,7 +142,8 @@ func toolOutputDiffContentFromUnified(sty *styles.Styles, content string, width 
 		formatter := common.DiffFormatter(sty).
 			Before(f.path, f.before).
 			After(f.path, f.after).
-			Width(bodyWidth)
+			Width(bodyWidth).
+			Wrap(true)
 		if len(files) > 1 {
 			formatter = formatter.FileName(f.path)
 		}
