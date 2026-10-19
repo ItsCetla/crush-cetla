@@ -280,3 +280,17 @@ func TestOption_RequestTimeoutInvalid(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "expects a number of seconds")
 }
+
+func TestOption_UIIntro(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "crushrc")
+	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(`option ui intro false`))
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &result))
+
+	ui := result["options"].(map[string]any)["tui"].(map[string]any)
+	require.Equal(t, false, ui["intro"])
+}

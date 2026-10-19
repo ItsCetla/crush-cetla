@@ -417,3 +417,9 @@ func stretchLetterformPart(s string, p letterformProps) string {
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 }
+
+// Wordmark returns the plain, unstyled CRUSH wordmark (no stretching), drawn
+// with half-block characters. The intro scales and animates it.
+func Wordmark() string {
+	return renderWord(1, -1, LetterC, LetterR, LetterU, LetterSAlt, LetterH)
+}

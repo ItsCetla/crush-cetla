@@ -28,6 +28,7 @@ import (
 	"github.com/charmbracelet/crush/internal/client"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/db"
+	"github.com/charmbracelet/crush/internal/home"
 	"github.com/charmbracelet/crush/internal/lock"
 	crushlog "github.com/charmbracelet/crush/internal/log"
 	"github.com/charmbracelet/crush/internal/projects"
@@ -37,6 +38,8 @@ import (
 	"github.com/charmbracelet/crush/internal/skills"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/exitbanner"
+	"github.com/charmbracelet/crush/internal/ui/intro"
+	"github.com/charmbracelet/crush/internal/ui/logo"
 	ui "github.com/charmbracelet/crush/internal/ui/model"
 	"github.com/charmbracelet/crush/internal/version"
 	"github.com/charmbracelet/crush/internal/workspace"
@@ -129,8 +132,17 @@ crush --continue
 
 		inputFilter := ui.NewFilter()
 		var env uv.Environ = os.Environ()
+		var top tea.Model = model
+		if introEnabled(com.Config()) {
+			top = intro.New(model, intro.Options{
+				Styles:   com.Styles,
+				Maker:    logo.Maker,
+				Version:  version.Display(),
+				Subtitle: home.Short(ws.WorkingDir()),
+			})
+		}
 		program := tea.NewProgram(
-			model,
+			top,
 			tea.WithEnvironment(env),
 			tea.WithContext(cmd.Context()),
 			tea.WithFilter(inputFilter.Filter),
@@ -149,6 +161,15 @@ crush --continue
 		printSessionResume(model, banner)
 		return nil
 	},
+}
+
+// introEnabled reports whether to play the startup intro: on unless
+// options.tui.intro is false or CRUSH_NO_INTRO is set.
+func introEnabled(cfg *config.Config) bool {
+	if v, ok := os.LookupEnv("CRUSH_NO_INTRO"); ok && v != "" && v != "0" && !strings.EqualFold(v, "false") {
+		return false
+	}
+	return cfg == nil || cfg.Options == nil || cfg.Options.TUI.IntroEnabled()
 }
 
 var heartbit = lipgloss.NewStyle().Foreground(charmtone.Dolly).SetString(`

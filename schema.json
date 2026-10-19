@@ -968,8 +968,9 @@
         "active_theme": {
           "type": "string",
           "description": "Name of the currently active theme",
-          "default": "charmtone-panther",
+          "default": "cetla",
           "examples": [
+            "cetla",
             "charmtone-panther",
             "gruvbox-dark"
           ]
@@ -1007,6 +1008,11 @@
           ],
           "description": "Exit banner style after quitting Crush",
           "default": "default"
+        },
+        "intro": {
+          "type": "boolean",
+          "description": "Play the short animated intro when the TUI starts. Any key skips it. CRUSH_NO_INTRO=1 also turns it off",
+          "default": true
         }
       },
       "additionalProperties": false,
