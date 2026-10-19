@@ -2440,6 +2440,12 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, util.ReportInfo("Deleted theme "+msg.Name))
 		m.dialog.CloseDialog(dialog.ThemeID)
 		m.openThemeDialog()
+	case dialog.ActionCheckForUpdates:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, util.ReportInfo("Checking for updates…"), checkForUpdatesCmd())
+	case dialog.ActionInstallUpdate:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, installUpdateCmd(msg.Version))
 	case dialog.ActionToggleMouseSupport:
 		cfg := m.com.Config()
 		if cfg == nil {

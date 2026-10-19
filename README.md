@@ -29,6 +29,11 @@ talks to and what it does without asking:
   Hyper catalog fetches at startup, the Hyper vendor service and the forced
   Termux DNS resolvers are gone. The provider catalog is local; refresh it
   only by running `tada update-providers`.
+- **One update check, and you can turn it off.** Ta-Da asks GitHub
+  (api.github.com) for its latest release at most every 6 hours and tells you
+  once per new version. It never downloads anything on its own. Turn it off
+  with `"options": { "update_check": false }`, `option update-check false` in
+  `tadarc`, or `TADA_NO_UPDATE_CHECK=1`.
 - **Web tools are off.** `fetch`, `agentic_fetch`, `download` and
   `sourcegraph` are hidden from the agent until you turn them on with
   `option web-tools true` (or `options.enable_web_tools`, or
@@ -1055,10 +1060,23 @@ OpenCode remote server only uses OAuth in Ta-Da when its config has an
 explicit `oauth` block (add `"oauth": true` for it in `tada.json`
 otherwise).
 
+## Updating
+
+```bash
+tada update          # check GitHub, show what's new, ask, then install
+tada update --check  # only check
+tada update -y       # install without asking
+```
+
+The download is checked against the release's `SHA256SUMS.txt` before the
+binary is replaced. If you installed with the Windows installer, quit Ta-Da
+and run `tada update` from a new terminal (Windows can't replace a running
+`.exe`). `tada update` works even when the background check is off.
+
 ## Privacy
 
-This fork collects no telemetry and does not check for updates. The only
-network connections it makes are to the model providers and MCP servers you
+This fork collects no telemetry. Apart from the release check described
+below, the only network connections it makes are to the model providers and MCP servers you
 configure (plus model discovery against those providers' `/models`
 endpoints and OAuth refreshes for accounts you signed in with `tada login`).
 

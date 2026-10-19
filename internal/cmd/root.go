@@ -77,6 +77,7 @@ func init() {
 		loginCmd,
 		statsCmd,
 		sessionCmd,
+		updateCmd,
 	)
 }
 
@@ -149,6 +150,7 @@ tada --continue
 		)
 		go ws.Subscribe(program)
 		sendTrustNotice(program, ws)
+		sendUpdateNotice(program, com.Config())
 
 		if _, err := program.Run(); err != nil {
 			slog.Error("TUI run error", "error", err)

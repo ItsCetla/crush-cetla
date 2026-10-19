@@ -20,6 +20,7 @@ import (
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/oauth"
 	"github.com/charmbracelet/crush/internal/oauth/copilot"
+	"github.com/charmbracelet/crush/internal/update"
 	"github.com/invopop/jsonschema"
 )
 
@@ -513,6 +514,7 @@ type Options struct {
 	RequestTimeout            *int             `json:"request_timeout,omitempty" jsonschema:"description=Timeout in seconds for each LLM API request. Streaming responses are aborted only after this much inactivity\\, so slow but active streams are never killed. 0 disables it\\, negative values are invalid.,default=60,example=120,example=300,example=0"`
 	OpenCode                  *OpenCodeOptions `json:"opencode,omitempty" jsonschema:"description=Import MCP servers\\, providers\\, models\\, rules\\, skills\\, commands\\, tool toggles and file-edit permissions from a local OpenCode install. Read from disk only; never fetched"`
 	EnableWebTools            bool             `json:"enable_web_tools,omitempty" jsonschema:"description=Enable the built-in tools that make outbound network requests for the agent (fetch\\, agentic_fetch\\, download\\, sourcegraph). The TADA_ENABLE_WEB_TOOLS environment variable overrides this when set,default=false"`
+	UpdateCheck               *bool            `json:"update_check,omitempty" jsonschema:"description=Check GitHub for a new Ta-Da release in the background (at most every 6 hours) and say so once per version. Only api.github.com is contacted. The TADA_NO_UPDATE_CHECK environment variable turns it off; tada update always works,default=true"`
 	// TrustedPaths lists directories whose projects are trusted without
 	// `tada trust`. It is only read from system and global config: the
 	// trust decision is made before any project config is loaded.
@@ -534,6 +536,17 @@ func (o *Options) WebToolsEnabled() bool {
 		}
 	}
 	return o != nil && o.EnableWebTools
+}
+
+// UpdateCheckEnabled reports whether the background check for a new Ta-Da
+// release may run: options.update_check (default true), unless
+// TADA_NO_UPDATE_CHECK is set to anything but "", "0" or "false". An
+// explicit `tada update` ignores both.
+func (o *Options) UpdateCheckEnabled() bool {
+	if update.BackgroundCheckDisabledByEnv() {
+		return false
+	}
+	return o == nil || o.UpdateCheck == nil || *o.UpdateCheck
 }
 
 // DefaultRequestTimeout bounds each LLM API request when the user has not

@@ -14,7 +14,8 @@ func TestOption_Bool(t *testing.T) {
 	dir := t.TempDir()
 	script := `option debug true
 option progress false
-option web-tools true`
+option web-tools true
+option update-check false`
 	path := filepath.Join(dir, "tadarc")
 
 	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(script))
@@ -27,6 +28,7 @@ option web-tools true`
 	require.Equal(t, true, opts["debug"])
 	require.Equal(t, false, opts["progress"])
 	require.Equal(t, true, opts["enable_web_tools"])
+	require.Equal(t, false, opts["update_check"])
 }
 
 func TestOption_BoolCaseInsensitive(t *testing.T) {
