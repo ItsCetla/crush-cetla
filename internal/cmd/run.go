@@ -35,33 +35,33 @@ var runCmd = &cobra.Command{
 The prompt can be provided as arguments or piped from stdin.`,
 	Example: `
 # Run a simple prompt
-crush run "Guess my 5 favorite Pokémon"
+tada run "Guess my 5 favorite Pokémon"
 
 # Pipe input from stdin
-curl https://charm.land | crush run "Summarize this website"
+curl https://charm.land | tada run "Summarize this website"
 
 # Read from a file
-crush run "What is this code doing?" <<< prrr.go
+tada run "What is this code doing?" <<< prrr.go
 
 # Redirect output to a file
-crush run "Generate a hot README for this project" > MY_HOT_README.md
+tada run "Generate a hot README for this project" > MY_HOT_README.md
 
 # Run in quiet mode (hide the spinner)
-crush run --quiet "Generate a README for this project"
+tada run --quiet "Generate a README for this project"
 
 # Run in verbose mode (show logs)
-crush run --verbose "Generate a README for this project"
+tada run --verbose "Generate a README for this project"
 
 # Use a specific reasoning effort
 # Levels depend on the model, unsupported values are rejected
 # with the accepted values listed
-crush run --reasoning-effort high "What is the meaning of life?"
+tada run --reasoning-effort high "What is the meaning of life?"
 
 # Continue a previous session
-crush run --session {session-id} "Follow up on your last response"
+tada run --session {session-id} "Follow up on your last response"
 
 # Continue the most recent session
-crush run --continue "Follow up on your last response"
+tada run --continue "Follow up on your last response"
 
   `,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -100,7 +100,7 @@ crush run --continue "Follow up on your last response"
 			defer cleanup()
 
 			if !ws.Config.IsConfigured() {
-				return fmt.Errorf("no providers configured - please run 'crush' to set up a provider interactively")
+				return fmt.Errorf("no providers configured - please run 'tada' to set up a provider interactively")
 			}
 
 			clientWs := workspace.NewClientWorkspace(c, *ws)
@@ -131,7 +131,7 @@ crush run --continue "Follow up on your last response"
 		defer cleanup()
 
 		if !ws.Config().IsConfigured() {
-			return fmt.Errorf("no providers configured - please run 'crush' to set up a provider interactively")
+			return fmt.Errorf("no providers configured - please run 'tada' to set up a provider interactively")
 		}
 
 		if verbose {
@@ -330,7 +330,7 @@ func runNonInteractive(
 
 // runStream tracks the per-message stdout cursor and the
 // reconciliation state used by [runNonInteractive] to translate
-// streaming SSE events into a final, complete stdout for `crush run`.
+// streaming SSE events into a final, complete stdout for `tada run`.
 // It is split out so the state machine can be exercised in unit tests
 // without spinning up the full server/client harness.
 //
@@ -397,7 +397,7 @@ func (s *runStream) handle(ev any, stopSpinner func()) (done bool, err error) {
 		// RunComplete is the authoritative end-of-run signal. We
 		// exit on it instead of guessing from message finish parts,
 		// which fire on every tool-call step too and were the
-		// source of the regression where `crush run` exited
+		// source of the regression where `tada run` exited
 		// mid-turn on finish.reason == tool_use.
 		//
 		// Correlation:
@@ -740,7 +740,7 @@ func resolveSession(ctx context.Context, c *client.Client, wsID, continueSession
 }
 
 // resolveSessionByID resolves a session ID that may be a full UUID or a hash
-// prefix returned by crush session list.
+// prefix returned by tada session list.
 func resolveSessionByID(ctx context.Context, c *client.Client, wsID, id string) (*proto.Session, error) {
 	if sess, err := c.GetSession(ctx, wsID, id); err == nil {
 		return sess, nil

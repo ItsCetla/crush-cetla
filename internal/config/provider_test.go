@@ -28,7 +28,7 @@ func resetProviderState() {
 func isolateCatalog(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("CRUSH_GLOBAL_DATA", dir)
+	t.Setenv("TADA_GLOBAL_DATA", dir)
 	return filepath.Join(dir, "providers.json")
 }
 
@@ -44,8 +44,8 @@ func forbidCatalogRequests(t *testing.T) {
 	t.Cleanup(server.Close)
 	t.Setenv("CATWALK_URL", server.URL)
 
-	t.Setenv("CRUSH_DISABLE_PROVIDER_AUTO_UPDATE", "")
-	require.NoError(t, os.Unsetenv("CRUSH_DISABLE_PROVIDER_AUTO_UPDATE"))
+	t.Setenv("TADA_DISABLE_PROVIDER_AUTO_UPDATE", "")
+	require.NoError(t, os.Unsetenv("TADA_DISABLE_PROVIDER_AUTO_UPDATE"))
 }
 
 func providerIDs(providers []catwalk.Provider) []catwalk.InferenceProvider {
@@ -92,7 +92,7 @@ func TestProviders_UsesSavedCatalog(t *testing.T) {
 }
 
 // TestUpdateProviders_SavesCatalogForProviders covers the explicit refresh
-// path: `crush update-providers` fetches the catalog and saves it, and the
+// path: `tada update-providers` fetches the catalog and saves it, and the
 // next catalog build picks the saved copy up without another request.
 func TestUpdateProviders_SavesCatalogForProviders(t *testing.T) {
 	isolateCatalog(t)
@@ -232,12 +232,12 @@ func TestCachePathFor(t *testing.T) {
 		expected        string
 	}{
 		{
-			name:            "with CRUSH_GLOBAL_DATA",
+			name:            "with TADA_GLOBAL_DATA",
 			crushGlobalData: "/scratch/data",
 			expected:        "/scratch/data/providers.json",
 		},
 		{
-			name:            "CRUSH_GLOBAL_DATA takes priority over XDG_DATA_HOME",
+			name:            "TADA_GLOBAL_DATA takes priority over XDG_DATA_HOME",
 			crushGlobalData: "/scratch/data",
 			xdgDataHome:     "/custom/data",
 			expected:        "/scratch/data/providers.json",
@@ -245,7 +245,7 @@ func TestCachePathFor(t *testing.T) {
 		{
 			name:        "with XDG_DATA_HOME",
 			xdgDataHome: "/custom/data",
-			expected:    "/custom/data/crush/providers.json",
+			expected:    "/custom/data/tada/providers.json",
 		},
 		{
 			name:     "without either",
@@ -255,14 +255,14 @@ func TestCachePathFor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("CRUSH_GLOBAL_DATA", tt.crushGlobalData)
+			t.Setenv("TADA_GLOBAL_DATA", tt.crushGlobalData)
 			t.Setenv("XDG_DATA_HOME", tt.xdgDataHome)
 
 			result := cachePathFor("providers")
 			if tt.expected != "" {
 				require.Equal(t, tt.expected, filepath.ToSlash(result))
 			} else {
-				require.Contains(t, result, "crush")
+				require.Contains(t, result, "tada")
 				require.Contains(t, result, "providers.json")
 			}
 		})
@@ -270,7 +270,7 @@ func TestCachePathFor(t *testing.T) {
 }
 
 // TestCacheStore_ReplacesFileInsteadOfRewritingIt guards the property that
-// a running Crush instance depends on while `crush update-providers`
+// a running Ta-Da instance depends on while `tada update-providers`
 // replaces the catalog: the file is swapped into place as a finished file,
 // never truncated and refilled underneath a reader that is already reading
 // it. A reader that loses that race cannot parse the catalog and silently

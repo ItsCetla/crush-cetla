@@ -1434,7 +1434,7 @@ func TestServer_CreateCancelsPendingIdleShutdown(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	t.Setenv("CRUSH_DISABLE_PROVIDER_AUTO_UPDATE", "1")
+	t.Setenv("TADA_DISABLE_PROVIDER_AUTO_UPDATE", "1")
 
 	b, shutdownCount := newTestBackend(t)
 	b.SetIdleShutdownDelay(10 * time.Second) // long enough not to fire mid-test

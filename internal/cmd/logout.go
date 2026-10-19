@@ -25,20 +25,20 @@ var providerDisplayNames = map[string]string{
 var logoutCmd = &cobra.Command{
 	Aliases: []string{"signout"},
 	Use:     "logout [platform]",
-	Short:   "Logout Crush from a platform",
-	Long: `Logout Crush from a specified platform, removing stored credentials.
+	Short:   "Logout Ta-Da from a platform",
+	Long: `Logout Ta-Da from a specified platform, removing stored credentials.
 The platform should be provided as an argument.
 If no argument is given, a list of logged-in platforms will be shown.
 Available platforms are: copilot, openai (chatgpt), grok (xai).`,
 	Example: `
 # Sign out from GitHub Copilot
-crush logout copilot
+tada logout copilot
 
 # Sign out from your ChatGPT (OpenAI) account
-crush logout openai
+tada logout openai
 
 # Sign out from your Grok (xAI) account
-crush logout grok
+tada logout grok
   `,
 	ValidArgs: []cobra.Completion{
 		"copilot",

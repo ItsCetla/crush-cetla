@@ -35,16 +35,16 @@ const (
 )
 
 // CrushEnvMarkers returns a fresh slice of the environment variables that
-// Crush unconditionally sets on every shell it spawns — both the interactive
+// Ta-Da unconditionally sets on every shell it spawns — both the interactive
 // bash tool's [Shell] and the hook runner's [Run] calls. Tools that want to
 // detect "am I being invoked by an AI agent?" can check any of these.
 // Keeping them in one place guarantees the two shell surfaces cannot drift.
 // A fresh slice is returned on every call so callers may append freely.
 func CrushEnvMarkers() []string {
 	return []string{
-		"CRUSH=1",
-		"AGENT=crush",
-		"AI_AGENT=crush",
+		"TADA=1",
+		"AGENT=tada",
+		"AI_AGENT=tada",
 	}
 }
 
@@ -95,14 +95,14 @@ func NewShell(opts *Options) *Shell {
 	}
 
 	// Strip herdr pane-ownership vars so subprocesses (including test
-	// binaries and nested crush instances) can't attach to or release
+	// binaries and nested tada instances) can't attach to or release
 	// the parent pane's agent authority.
 	env = withoutHerdrEnv(env)
 
 	// Keep LLM provider API keys away from commands the agent runs.
 	env = withoutProviderKeys(env)
 
-	// Allow tools to detect execution by Crush.
+	// Allow tools to detect execution by Ta-Da.
 	env = append(env, CrushEnvMarkers()...)
 
 	logger := opts.Logger

@@ -1,16 +1,16 @@
-/* Crush (cetla build) site: nav menu, download links for this computer and the latest release,
+/* Ta-Da site: nav menu, download links for this computer and the latest release,
    screenshot lightbox, copy buttons. Everything here is progressive enhancement; the page works
    without it. The only network request is to the GitHub releases API. */
 (function () {
   'use strict';
 
-  var API_URL = 'https://api.github.com/repos/ItsCetla/crush-cetla/releases/latest';
-  var RELEASES_PAGE = 'https://github.com/ItsCetla/crush-cetla/releases';
-  var CACHE_KEY = 'crush-cetla:latest-release:v1';
+  var API_URL = 'https://api.github.com/repos/ItsCetla/tada/releases/latest';
+  var RELEASES_PAGE = 'https://github.com/ItsCetla/tada/releases';
+  var CACHE_KEY = 'tada:latest-release:v1';
   var CACHE_OK_MS = 60 * 60 * 1000;    // a found release
   var CACHE_FAIL_MS = 10 * 60 * 1000;  // 404 (nothing published yet) or 403 (rate limited)
 
-  // goreleaser names: crush_<version>_<Os>_<arch>.<ext>
+  // goreleaser names: tada_<version>_<Os>_<arch>.<ext>
   var ASSETS = {
     'win-x64-setup':   /_Windows_x86_64_Setup\.exe$/i,
     'win-arm64-setup': /_Windows_arm64_Setup\.exe$/i,

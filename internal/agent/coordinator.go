@@ -360,7 +360,7 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 	// Coalesce per-attempt RunComplete payloads so only the final
 	// outcome reaches subscribers. Without this, the first attempt's
 	// failed RunComplete (unauthorized) would race ahead of the
-	// retry's success, and `crush run` would exit on the stale error
+	// retry's success, and `tada run` would exit on the stale error
 	// before ever seeing the retry result. Each attempt's
 	// SessionAgentCall.OnComplete hook overwrites latest; we publish
 	// exactly once after retries resolve, via PublishMustDeliver, so
@@ -854,7 +854,7 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 		}
 	}
 
-	logFile := filepath.Join(c.cfg.Config().Options.DataDirectory, "logs", "crush.log")
+	logFile := filepath.Join(c.cfg.Config().Options.DataDirectory, "logs", "tada.log")
 
 	// Build hook runner if PreToolUse hooks are configured.
 	var hookRunner *hooks.Runner
@@ -1311,7 +1311,7 @@ func (c *coordinator) buildProvider(providerCfg config.ProviderConfig, model con
 		if token != nil {
 			baseURL = openaioauth.CodexBaseURL
 			apiKey = token.AccessToken
-			headers["originator"] = "crush"
+			headers["originator"] = "tada"
 			if token.AccountID != "" {
 				headers["chatgpt-account-id"] = token.AccountID
 			}

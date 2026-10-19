@@ -1,36 +1,36 @@
 ---
-name: crush-config
-description: Use when the user needs help configuring Crush — writing crushrc (the Bash config format) or crush.json, setting up providers, models, LSPs, MCP servers, hooks, skills, permissions, or changing Crush behavior.
+name: tada-config
+description: Use when the user needs help configuring Ta-Da — writing tadarc (the Bash config format) or tada.json, setting up providers, models, LSPs, MCP servers, hooks, skills, permissions, or changing Ta-Da behavior.
 ---
 
-# Crush Configuration
+# Ta-Da Configuration
 
-Crush supports two config formats:
+Ta-Da supports two config formats:
 
-- **`crushrc`** — a Bash script that builds config by calling Crush builtins.
+- **`tadarc`** — a Bash script that builds config by calling Ta-Da builtins.
   **Preferred.** Because it is real Bash you get includes, secrets,
   conditionals, and variables for free.
-- **`crush.json`** — static JSON. Fully supported; see
+- **`tada.json`** — static JSON. Fully supported; see
   [Legacy JSON format](#legacy-json-format).
 
 Both are discovered together and deep-merged. Priority (highest to lowest):
 
-1. `.crushrc` / `crushrc` / `.crush.json` / `crush.json` (project-local,
-   closer-to-cwd wins; Windows uses `.\.crushrc` / `.\crushrc`)
-2. `$XDG_CONFIG_HOME/crush/crushrc` or `~/.config/crush/crushrc`
-   (`%XDG_CONFIG_HOME%\crush\crushrc` or
-   `%USERPROFILE%\.config\crush\crushrc` on Windows)
+1. `.tadarc` / `tadarc` / `.tada.json` / `tada.json` (project-local,
+   closer-to-cwd wins; Windows uses `.\.tadarc` / `.\tadarc`)
+2. `$XDG_CONFIG_HOME/tada/tadarc` or `~/.config/tada/tadarc`
+   (`%XDG_CONFIG_HOME%\tada\tadarc` or
+   `%USERPROFILE%\.config\tada\tadarc` on Windows)
 
-Data directories (`~/.local/share/crush` and `%LOCALAPPDATA%\crush`) contain
-machine-owned JSON state only; Crush does not discover or execute a `crushrc`
+Data directories (`~/.local/share/tada` and `%LOCALAPPDATA%\tada`) contain
+machine-owned JSON state only; Ta-Da does not discover or execute a `tadarc`
 from those locations.
 
-If a directory has both `crushrc` and `crush.json`, they merge (`crushrc` wins
-on conflicts) and Crush logs a warning.
+If a directory has both `tadarc` and `tada.json`, they merge (`tadarc` wins
+on conflicts) and Ta-Da logs a warning.
 
-## crushrc at a glance
+## tadarc at a glance
 
-A `crushrc` is a plain Bash script executed at load time with the same embedded
+A `tadarc` is a plain Bash script executed at load time with the same embedded
 shell the `bash` tool uses. It builds config by calling builtins (`provider`,
 `model`, `mcp`, `lsp`, `hook`, `permissions`, `option`). Statements run top to
 bottom; later statements win, and `remove`/`reset` operate on anything defined
@@ -39,7 +39,7 @@ earlier or pulled in via `source`.
 ```bash
 #!/usr/bin/env bash
 # Includes and secrets are just Bash.
-source ~/.config/crush/shared.sh
+source ~/.config/tada/shared.sh
 
 provider add anthropic --api-key "$ANTHROPIC_API_KEY"
 
@@ -53,11 +53,11 @@ permissions allow view ls grep edit
 Values are ordinary Bash — quote and expand normally (`"$VAR"`, `$(cmd)`,
 `${VAR:?required}`). A failing `$(command)` aborts the load.
 
-`CRUSH_VERSION` is exported into the script so you can feature-detect the
-running Crush (it is the literal `devel` for local builds):
+`TADA_VERSION` is exported into the script so you can feature-detect the
+running Ta-Da (it is the literal `devel` for local builds):
 
 ```bash
-[[ "$CRUSH_VERSION" != devel ]] && lsp add gopls --command gopls
+[[ "$TADA_VERSION" != devel ]] && lsp add gopls --command gopls
 ```
 
 ## Commands
@@ -94,7 +94,7 @@ model large [<provider>/<id>] [flags]  # set the large slot; no arg prints it
 model small [<provider>/<id>] [flags]  # set the small slot; no arg prints it
 ```
 
-- `<provider>/<id>` is the same form `crush models` prints. A missing slash is
+- `<provider>/<id>` is the same form `tada models` prints. A missing slash is
   an error. `model add` requires the provider to already exist.
 - `model add` flags: `--name`, `--context-window N`, `--default-max-tokens N`,
   `--can-reason BOOL`, `--supports-images BOOL`, `--price-input F`,
@@ -157,7 +157,7 @@ intend to remove it later. See [Hooks runtime](#hooks-runtime) for how hooks
 execute (stdin payload, env vars, decisions).
 
 ```bash
-hook add PreToolUse --matcher "^bash$" --command ".crush/hooks/no-haskell.sh" --name no-haskell
+hook add PreToolUse --matcher "^bash$" --command ".tada/hooks/no-haskell.sh" --name no-haskell
 ```
 
 ### permissions
@@ -171,7 +171,7 @@ permissions deny <tool> [<tool> ...]    # hide tools from the agent entirely
 `deny` is the inverse of `allow`: it writes `options.disabled_tools`. A denied
 tool is hidden from the agent, not merely prompted for.
 
-`allow-in-project` (`permissions.project_allowed_tools` in crush.json) is
+`allow-in-project` (`permissions.project_allowed_tools` in tada.json) is
 narrower than `allow`: the listed file tools (`edit`, `multiedit`, `write`, `lsp_replace_symbol`)
 skip the prompt only for files inside the project, and still ask for paths
 outside it. It takes effect on the next start.
@@ -187,12 +187,12 @@ option reset <list-key>    # clear a list option back to empty
   `auto-lsp`, `progress`, `web-tools`. `web-tools` turns on the tools that
   reach the internet (`fetch`, `agentic_fetch`, `download`, `sourcegraph`);
   they are hidden until it is set, and still ask before every request.
-  `CRUSH_ENABLE_WEB_TOOLS` overrides it.
+  `TADA_ENABLE_WEB_TOOLS` overrides it.
 - **Boolean keys phrased positively** (stored as the negated field):
   `auto-summarize`, `default-providers`. Example: `option auto-summarize false`
   disables automatic summarization. `provider-auto-update` and `metrics` are
   still accepted but deprecated and have no effect: the provider catalog only
-  changes through `crush update-providers`, and this fork has no telemetry.
+  changes through `tada update-providers`, and this fork has no telemetry.
 - **String keys**: `data-directory`, `initialize-as`, `notifications`.
 - **Attribution keys**: `attribution-trailer-style` (`none`, `co-authored-by`,
   `assisted-by`) and `attribution-generated-with` (boolean).
@@ -209,7 +209,7 @@ option reset <list-key>    # clear a list option back to empty
 ```bash
 option progress false
 option skill-path ./skills
-option disable-skill crush-config
+option disable-skill tada-config
 option attribution-trailer-style assisted-by
 option attribution-generated-with true
 option ui compact true
@@ -218,7 +218,7 @@ option ui exit-banner compact
 ```
 
 > [!IMPORTANT] These skill paths are loaded by default and do NOT need
-> `skill-path`: `.agents/skills`, `.crush/skills`, `.claude/skills`,
+> `skill-path`: `.agents/skills`, `.tada/skills`, `.claude/skills`,
 > `.cursor/skills`.
 
 ## Hooks runtime
@@ -254,13 +254,13 @@ Event names are case-insensitive and accept snake_case: `PreToolUse`,
 
 | Variable                     | Description                                       |
 | ---------------------------- | ------------------------------------------------- |
-| `CRUSH_EVENT`                | Event name (e.g. `PreToolUse`)                    |
-| `CRUSH_TOOL_NAME`            | Name of the tool being called                     |
-| `CRUSH_SESSION_ID`           | Current session ID                                |
-| `CRUSH_CWD`                  | Current working directory                         |
-| `CRUSH_PROJECT_DIR`          | Project root directory                            |
-| `CRUSH_TOOL_INPUT_COMMAND`   | Value of `command` from tool input (if present)   |
-| `CRUSH_TOOL_INPUT_FILE_PATH` | Value of `file_path` from tool input (if present) |
+| `TADA_EVENT`                | Event name (e.g. `PreToolUse`)                    |
+| `TADA_TOOL_NAME`            | Name of the tool being called                     |
+| `TADA_SESSION_ID`           | Current session ID                                |
+| `TADA_CWD`                  | Current working directory                         |
+| `TADA_PROJECT_DIR`          | Project root directory                            |
+| `TADA_TOOL_INPUT_COMMAND`   | Value of `command` from tool input (if present)   |
+| `TADA_TOOL_INPUT_FILE_PATH` | Value of `file_path` from tool input (if present) |
 
 ### Hook output
 
@@ -288,7 +288,7 @@ Event names are case-insensitive and accept snake_case: `PreToolUse`,
 
 ### Claude Code compatibility
 
-Crush also accepts the Claude Code hook output format, so existing hooks work
+Ta-Da also accepts the Claude Code hook output format, so existing hooks work
 unchanged:
 
 ```json
@@ -321,20 +321,20 @@ user-invocable: true
 
 ## Environment variables
 
-- `CRUSH_VERSION` — exported into `crushrc` at load; the running version (or
+- `TADA_VERSION` — exported into `tadarc` at load; the running version (or
   `devel` for local builds).
-- `CRUSH_GLOBAL_CONFIG` — override global config location.
-- `CRUSH_GLOBAL_DATA` — override data directory location.
-- `CRUSH_SKILLS_DIR` — override default skills directory.
+- `TADA_GLOBAL_CONFIG` — override global config location.
+- `TADA_GLOBAL_DATA` — override data directory location.
+- `TADA_SKILLS_DIR` — override default skills directory.
 
 ## Legacy JSON format
 
-`crush.json` is the original static format. It still works and merges with
-`crushrc`. Basic structure:
+`tada.json` is the original static format. It still works and merges with
+`tadarc`. Basic structure:
 
 ```json
 {
-  "$schema": "https://charm.land/crush.json",
+  "$schema": "https://tada.cetla.dev.json",
   "models": {},
   "providers": {},
   "mcp": {},
@@ -347,9 +347,9 @@ user-invocable: true
 
 The `$schema` property enables IDE autocomplete but is optional.
 
-### crushrc ↔ crush.json mapping
+### tadarc ↔ tada.json mapping
 
-| crushrc                             | crush.json                                             |
+| tadarc                             | tada.json                                             |
 | ------------------------------------ | ------------------------------------------------------ |
 | `provider add openai --api-key "$K"` | `providers.openai = {"api_key": "$K"}`                 |
 | `model add openai/gpt-x --name X`    | append to `providers.openai.models[]`                  |
@@ -365,10 +365,10 @@ The `$schema` property enables IDE autocomplete but is optional.
 | `option attribution-trailer-style none` | `options.attribution.trailer_style = "none"`        |
 | `option attribution-generated-with false` | `options.attribution.generated_with = false`       |
 
-### Shell expansion in crush.json
+### Shell expansion in tada.json
 
 In JSON, only selected string fields are run through the embedded shell at load
-time (in `crushrc`, everything is native Bash so this table does not apply):
+time (in `tadarc`, everything is native Bash so this table does not apply):
 
 | Surface                                                         | Expansion                          |
 | --------------------------------------------------------------- | ---------------------------------- |
@@ -385,43 +385,43 @@ the request.
 
 ### Security note
 
-Both formats are trusted code. `crushrc` runs entirely, and any `$(...)` in
-`crush.json` runs at load time, with the invoking user's shell privileges,
+Both formats are trusted code. `tadarc` runs entirely, and any `$(...)` in
+`tada.json` runs at load time, with the invoking user's shell privileges,
 before the UI appears.
 
 So project-local config (including the workspace config
-`.crush/crush.json`) is ignored until the user trusts the project with
-`crush trust` (see `crush trust --help`). Crush stores a fingerprint of those
+`.tada/tada.json`) is ignored until the user trusts the project with
+`tada trust` (see `tada trust --help`). Ta-Da stores a fingerprint of those
 files; any change, new file or removed file makes the project untrusted again
-until the user reviews it and runs `crush trust` once more. Directories in
+until the user reviews it and runs `tada trust` once more. Directories in
 `options.trusted_paths` of the global config, or runs with
-`CRUSH_TRUST_PROJECT=1`, skip the check. If a user's project config seems to
-be ignored, suggest reviewing it and running `crush trust`; never run it on
+`TADA_TRUST_PROJECT=1`, skip the check. If a user's project config seems to
+be ignored, suggest reviewing it and running `tada trust`; never run it on
 their behalf.
 
 ### OpenCode import
 
-Crush also imports from a local OpenCode install
+Ta-Da also imports from a local OpenCode install
 (`~/.config/opencode/opencode.json(c)`, `.opencode/` folders and OpenCode's
 cache/database), reading files only; OpenCode plugins are never run:
 
 - MCP servers, and provider settings (base URLs, API keys, custom models,
   `enabled_providers` / `disabled_providers`).
 - The model choice: the default agent's model, else `model`, and
-  `small_model`, when Crush has no model selected.
+  `small_model`, when Ta-Da has no model selected.
 - OpenCode's cached models.dev catalog (tool-calling chat models only).
 - `instructions` and global `AGENTS.md` as context files, skill folders,
   custom commands (run as `opencode:<name>`), tool toggles and `deny`
   permissions (hide tools), `edit: allow` (as
   `permissions.project_allowed_tools`), and `compaction.auto: false`.
 
-Imported values live in memory only and `crush.json` always wins.
+Imported values live in memory only and `tada.json` always wins.
 Project-level `opencode.json(c)` and `.opencode/` files are covered by the
-same trust check. `crush opencode` shows what was imported and what was
+same trust check. `tada opencode` shows what was imported and what was
 skipped and why. Configure it with `options.opencode`: `mcp`, `providers`
 (also the model choice), `models`, `instructions`, `skills`, `commands`,
 `tools`, `permissions` and `compaction` default to true; `credentials`
 defaults to false and uses `opencode auth login` API keys; `disabled` turns
-it all off, as does `CRUSH_DISABLE_OPENCODE=1`. When a user wants an
-OpenCode setting changed only for Crush, set it in crush.json instead of
+it all off, as does `TADA_DISABLE_OPENCODE=1`. When a user wants an
+OpenCode setting changed only for Ta-Da, set it in tada.json instead of
 editing their OpenCode config.

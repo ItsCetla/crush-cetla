@@ -10,7 +10,7 @@ import (
 )
 
 // TestShellConfigDotCrushrcTakesPrecedence verifies that a project-local
-// .crushrc overrides crushrc in the same directory on conflicting settings.
+// .tadarc overrides tadarc in the same directory on conflicting settings.
 func TestShellConfigDotCrushrcTakesPrecedence(t *testing.T) {
 	isolated := t.TempDir()
 	t.Setenv("HOME", isolated)
@@ -20,16 +20,16 @@ func TestShellConfigDotCrushrcTakesPrecedence(t *testing.T) {
 	workDir := t.TempDir()
 	dataDir := t.TempDir()
 	require.NoError(t, os.WriteFile(
-		filepath.Join(workDir, "crushrc"),
+		filepath.Join(workDir, "tadarc"),
 		[]byte("option notifications bell\n"), 0o644,
 	))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(workDir, ".crushrc"),
+		filepath.Join(workDir, ".tadarc"),
 		[]byte("option notifications osc\n"), 0o644,
 	))
 
 	store, err := config.Load(workDir, dataDir, false)
 	require.NoError(t, err)
 	require.Equal(t, "osc", store.Config().Options.Notifications,
-		".crushrc should win over crushrc")
+		".tadarc should win over tadarc")
 }

@@ -14,8 +14,8 @@ import (
 
 var openCodeCmd = &cobra.Command{
 	Use:   "opencode",
-	Short: "Show what Crush imports from your OpenCode install",
-	Long: `Show what Crush imports from a local OpenCode install: MCP servers,
+	Short: "Show what Ta-Da imports from your OpenCode install",
+	Long: `Show what Ta-Da imports from a local OpenCode install: MCP servers,
 provider settings, model choices, the models catalog, instructions, skills,
 commands, tool toggles and permissions. Everything is read from OpenCode's
 files on disk: its config files, its cached models.dev catalog and, when
@@ -23,12 +23,12 @@ enabled, the API keys saved by "opencode auth login". Nothing is fetched,
 and OpenCode plugins are never run.
 
 Project-level OpenCode config (opencode.json and .opencode/ in the project)
-is only read for projects you have trusted with "crush trust".
+is only read for projects you have trusted with "tada trust".
 
-Imported settings live in memory only; Crush never writes them to its own
-config. Your crush.json always wins over OpenCode's settings.
+Imported settings live in memory only; Ta-Da never writes them to its own
+config. Your tada.json always wins over OpenCode's settings.
 
-Each part can be turned off with options.opencode in crush.json; all are on
+Each part can be turned off with options.opencode in tada.json; all are on
 except credentials:
 
   {"options": {"opencode": {"mcp": true, "providers": true, "models": true,
@@ -36,7 +36,7 @@ except credentials:
     "commands": true, "tools": true, "permissions": true,
     "compaction": true}}}
 
-Set CRUSH_DISABLE_OPENCODE=1 or options.opencode.disabled to turn it off.`,
+Set TADA_DISABLE_OPENCODE=1 or options.opencode.disabled to turn it off.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		cwd, err := ResolveCwd(cmd)
@@ -61,7 +61,7 @@ func init() {
 
 func printOpenCodeStatus(w io.Writer, st config.OpenCodeStatus) {
 	if !st.Enabled {
-		fmt.Fprintln(w, "OpenCode import is off (options.opencode.disabled or CRUSH_DISABLE_OPENCODE).")
+		fmt.Fprintln(w, "OpenCode import is off (options.opencode.disabled or TADA_DISABLE_OPENCODE).")
 		return
 	}
 
@@ -81,7 +81,7 @@ func printOpenCodeStatus(w io.Writer, st config.OpenCodeStatus) {
 	if st.ProjectIncluded {
 		fmt.Fprintln(w, "  project-level OpenCode config: included (project is trusted)")
 	} else {
-		fmt.Fprintln(w, "  project-level OpenCode config: skipped (project not trusted; see `crush trust`)")
+		fmt.Fprintln(w, "  project-level OpenCode config: skipped (project not trusted; see `tada trust`)")
 	}
 
 	fmt.Fprintln(w)
@@ -145,8 +145,8 @@ func printOpenCodeStatus(w io.Writer, st config.OpenCodeStatus) {
 			updated = c.UpdatedAt.Local().Format(time.DateTime)
 		}
 		fmt.Fprintf(w, "  source   %s (%s), updated %s\n", c.Source, home.Short(c.Path), updated)
-		fmt.Fprintf(w, "  cached   %d providers, %d models; %d usable by Crush\n", c.Providers, c.Models, c.Usable)
-		fmt.Fprintf(w, "  in Crush %d extra models for known providers, %d new providers\n", c.AddedModels, c.Listed)
+		fmt.Fprintf(w, "  cached   %d providers, %d models; %d usable by Ta-Da\n", c.Providers, c.Models, c.Usable)
+		fmt.Fprintf(w, "  in Ta-Da %d extra models for known providers, %d new providers\n", c.AddedModels, c.Listed)
 		fmt.Fprintln(w, "           (other providers appear once their API key env var is set)")
 		if st.CatalogErr != nil {
 			fmt.Fprintf(w, "  warning  %v\n", st.CatalogErr)

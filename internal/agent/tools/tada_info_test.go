@@ -36,13 +36,13 @@ func TestCrushInfo_ConfigFiles(t *testing.T) {
 
 	cfg := config.NewTestStore(
 		&config.Config{Providers: csync.NewMap[string, config.ProviderConfig]()},
-		"/home/user/.config/crush/crush.json",
-		"/project/.crush/crush.json",
+		"/home/user/.config/tada/tada.json",
+		"/project/.tada/tada.json",
 	)
 	output := buildCrushInfo(cfg, nil, nil, nil, nil)
 	require.Contains(t, output, "[config_files]")
-	require.Contains(t, output, "/home/user/.config/crush/crush.json")
-	require.Contains(t, output, "/project/.crush/crush.json")
+	require.Contains(t, output, "/home/user/.config/tada/tada.json")
+	require.Contains(t, output, "/project/.tada/tada.json")
 }
 
 func TestCrushInfo_Models(t *testing.T) {
@@ -196,7 +196,7 @@ func TestCrushInfo_Options(t *testing.T) {
 	cfg := config.NewTestStore(&config.Config{
 		Providers: csync.NewMap[string, config.ProviderConfig](),
 		Options: &config.Options{
-			DataDirectory:        "/Users/user/project/.crush",
+			DataDirectory:        "/Users/user/project/.tada",
 			Debug:                true,
 			DisableAutoSummarize: true,
 		},
@@ -206,7 +206,7 @@ func TestCrushInfo_Options(t *testing.T) {
 	require.Contains(t, output, "[options]")
 	require.Contains(t, output, "auto_lsp = true")
 	require.Contains(t, output, "auto_summarize = false")
-	require.Contains(t, output, "data_directory = /Users/user/project/.crush")
+	require.Contains(t, output, "data_directory = /Users/user/project/.tada")
 	require.Contains(t, output, "debug = true")
 }
 
@@ -350,7 +350,7 @@ func TestCrushInfo_ConfigStaleness_Clean(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "crush.json")
+	configPath := filepath.Join(dir, "tada.json")
 	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o600))
 
 	store := config.NewTestStore(&config.Config{
@@ -371,7 +371,7 @@ func TestCrushInfo_ConfigStaleness_Dirty(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "crush.json")
+	configPath := filepath.Join(dir, "tada.json")
 	require.NoError(t, os.WriteFile(configPath, []byte(`{"debug": false}`), 0o600))
 
 	store := config.NewTestStore(&config.Config{
@@ -396,7 +396,7 @@ func TestCrushInfo_ConfigStaleness_MissingPath(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "crush.json")
+	configPath := filepath.Join(dir, "tada.json")
 	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o600))
 
 	store := config.NewTestStore(&config.Config{
@@ -432,13 +432,13 @@ func TestCrushInfo_Skills_MixedLoadedUnloaded(t *testing.T) {
 	allSkills := []*skills.Skill{
 		{Name: "go-doc", Builtin: false},
 		{Name: "bash", Builtin: false},
-		{Name: "crush-config", Builtin: true},
+		{Name: "tada-config", Builtin: true},
 	}
 	activeSkills := allSkills
 
 	tracker := skills.NewTracker(activeSkills)
 	tracker.MarkLoaded("bash")
-	tracker.MarkLoaded("crush-config")
+	tracker.MarkLoaded("tada-config")
 
 	cfg := config.NewTestStore(&config.Config{
 		Providers: csync.NewMap[string, config.ProviderConfig](),
@@ -446,7 +446,7 @@ func TestCrushInfo_Skills_MixedLoadedUnloaded(t *testing.T) {
 	output := buildCrushInfo(cfg, nil, allSkills, activeSkills, tracker)
 	require.Contains(t, output, "[skills]")
 	require.Contains(t, output, "bash = user, loaded")
-	require.Contains(t, output, "crush-config = builtin, loaded")
+	require.Contains(t, output, "tada-config = builtin, loaded")
 	require.Contains(t, output, "go-doc = user, unloaded")
 }
 
@@ -455,12 +455,12 @@ func TestCrushInfo_Skills_DisabledSkills(t *testing.T) {
 
 	allSkills := []*skills.Skill{
 		{Name: "bash", Builtin: false},
-		{Name: "crush-config", Builtin: true},
+		{Name: "tada-config", Builtin: true},
 		{Name: "image-convert", Builtin: false},
 	}
 	activeSkills := []*skills.Skill{
 		{Name: "bash", Builtin: false},
-		{Name: "crush-config", Builtin: true},
+		{Name: "tada-config", Builtin: true},
 	}
 
 	tracker := skills.NewTracker(activeSkills)
@@ -472,7 +472,7 @@ func TestCrushInfo_Skills_DisabledSkills(t *testing.T) {
 	output := buildCrushInfo(cfg, nil, allSkills, activeSkills, tracker)
 	require.Contains(t, output, "[skills]")
 	require.Contains(t, output, "bash = user, unloaded")
-	require.Contains(t, output, "crush-config = builtin, unloaded")
+	require.Contains(t, output, "tada-config = builtin, unloaded")
 	require.Contains(t, output, "image-convert = user, disabled")
 }
 
@@ -503,7 +503,7 @@ func TestCrushInfo_Skills_BuiltinOrigin(t *testing.T) {
 	t.Parallel()
 
 	allSkills := []*skills.Skill{
-		{Name: "crush-config", Builtin: true},
+		{Name: "tada-config", Builtin: true},
 		{Name: "my-skill", Builtin: false},
 	}
 	activeSkills := allSkills
@@ -513,7 +513,7 @@ func TestCrushInfo_Skills_BuiltinOrigin(t *testing.T) {
 		Providers: csync.NewMap[string, config.ProviderConfig](),
 	})
 	output := buildCrushInfo(cfg, nil, allSkills, activeSkills, tracker)
-	require.Contains(t, output, "crush-config = builtin, unloaded")
+	require.Contains(t, output, "tada-config = builtin, unloaded")
 	require.Contains(t, output, "my-skill = user, unloaded")
 }
 

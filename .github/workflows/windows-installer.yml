@@ -1,6 +1,6 @@
 name: windows-installer
 # Wraps the goreleaser Windows zips of a (draft) release in Inno Setup
-# installers (packaging/windows/crush.iss) and uploads them, with an updated
+# installers (packaging/windows/tada.iss) and uploads them, with an updated
 # SHA256SUMS.txt, to the same release. Called by release.yml; can also be run
 # by hand for an existing release.
 on:
@@ -55,11 +55,11 @@ jobs:
           New-Item -ItemType Directory -Force $work | Out-Null
           $built = @()
           foreach ($a in @(@{ arch = 'x64'; label = 'x86_64' }, @{ arch = 'arm64'; label = 'arm64' })) {
-            $name = "crush_${version}_Windows_$($a.label)"
+            $name = "tada_${version}_Windows_$($a.label)"
             gh release download $tag -p "$name.zip" -D $work --clobber
             if ($LASTEXITCODE -ne 0) { throw "download $name.zip failed" }
             Expand-Archive "$work\$name.zip" -DestinationPath "$work\src" -Force
-            & $iscc /Q "/DAppVersion=$version" "/DArch=$($a.arch)" "/DSourceDir=$work\src\$name" "/O$work\out" packaging\windows\crush.iss
+            & $iscc /Q "/DAppVersion=$version" "/DArch=$($a.arch)" "/DSourceDir=$work\src\$name" "/O$work\out" packaging\windows\tada.iss
             if ($LASTEXITCODE -ne 0) { throw "iscc failed for $name" }
             $built += "$work\out\${name}_Setup.exe"
           }

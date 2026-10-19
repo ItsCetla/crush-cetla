@@ -2,40 +2,40 @@
 
 <img src="docs/assets/icon.svg" width="96" height="96" alt="">
 
-# Crush (cetla build)
+# Ta-Da
 
-**Charm's Crush coding agent, rebuilt to talk to nobody but the model providers and MCP servers you configure. Imports your OpenCode setup. Windows, macOS and Linux.**
+**A terminal coding agent, forked from Charm's Crush and rebuilt to talk to nobody but the model providers and MCP servers you configure. Imports your OpenCode setup. Windows, macOS and Linux.**
 
-[![Latest release](https://img.shields.io/github/v/release/ItsCetla/crush-cetla?display_name=tag&include_prereleases&label=release)](https://github.com/ItsCetla/crush-cetla/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/ItsCetla/crush-cetla/total?label=downloads)](https://github.com/ItsCetla/crush-cetla/releases)
-[![Build](https://github.com/ItsCetla/crush-cetla/actions/workflows/build.yml/badge.svg)](https://github.com/ItsCetla/crush-cetla/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/ItsCetla/tada?display_name=tag&include_prereleases&label=release)](https://github.com/ItsCetla/tada/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/ItsCetla/tada/total?label=downloads)](https://github.com/ItsCetla/tada/releases)
+[![Build](https://github.com/ItsCetla/tada/actions/workflows/build.yml/badge.svg)](https://github.com/ItsCetla/tada/actions/workflows/build.yml)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-5b4bff)](#download)
 [![License](https://img.shields.io/badge/license-FSL--1.1--MIT-ff5faf)](LICENSE.md)
-[![Go](https://img.shields.io/github/go-mod/go-version/ItsCetla/crush-cetla?label=go)](go.mod)
+[![Go](https://img.shields.io/github/go-mod/go-version/ItsCetla/tada?label=go)](go.mod)
 
-[Download](#download) · [Website](https://crush.cetla.dev/) · [What's different](#whats-different-in-this-fork) · [OpenCode import](#importing-from-opencode) · [Configuration](#configuration) · [Changelog](CHANGELOG.md)
+[Download](#download) · [Website](https://tada.cetla.dev/) · [What's different](#whats-different-in-this-fork) · [OpenCode import](#importing-from-opencode) · [Configuration](#configuration) · [Changelog](CHANGELOG.md)
 
-<img src="docs/screenshots/hero.svg" width="880" alt="Crush running in a terminal: a session with a local model, the OpenCode import report, and a permission prompt before a shell command.">
+<img src="docs/screenshots/hero.svg" width="880" alt="Ta-Da running in a terminal: a session with a local model, the OpenCode import report, and a permission prompt before a shell command.">
 
 </div>
 
 ## What's different in this fork
 
-This is a fork of [Charm's Crush](https://github.com/charmbracelet/crush).
+Ta-Da started as a fork of [Charm's Crush](https://github.com/charmbracelet/crush).
 The agent, TUI, LSP and MCP support are upstream's. What changed is who it
 talks to and what it does without asking:
 
-- **No phone-home.** Telemetry (PostHog), the update check, the Catwalk and
+- **No phone-home.** Telemetry (PostHog), Charm's update check, the Catwalk and
   Hyper catalog fetches at startup, the Hyper vendor service and the forced
   Termux DNS resolvers are gone. The provider catalog is local; refresh it
-  only by running `crush update-providers`.
+  only by running `tada update-providers`.
 - **Web tools are off.** `fetch`, `agentic_fetch`, `download` and
   `sourcegraph` are hidden from the agent until you turn them on with
   `option web-tools true` (or `options.enable_web_tools`, or
-  `CRUSH_ENABLE_WEB_TOOLS=1`). Even then, every request asks first.
-- **Untrusted projects stay inert.** A cloned repo's `crush.json`, `crushrc`,
-  `.crush/crush.json` and OpenCode config are ignored until you run
-  `crush trust` (see [Project trust](#configuration)). `.env` files are no
+  `TADA_ENABLE_WEB_TOOLS=1`). Even then, every request asks first.
+- **Untrusted projects stay inert.** A cloned repo's `tada.json`, `tadarc`,
+  `.tada/tada.json` and OpenCode config are ignored until you run
+  `tada trust` (see [Project trust](#configuration)). `.env` files are no
   longer auto-loaded.
 - **Stricter bash auto-approval.** Only a single, parsed, read-only command
   runs without a prompt; wrappers like `env`/`timeout`, redirections and
@@ -51,29 +51,29 @@ Every fork change is listed in the [changelog](CHANGELOG.md).
 ## Download
 
 Grab the archive for your machine from the
-[latest release](https://github.com/ItsCetla/crush-cetla/releases/latest),
-unpack it, and put the `crush` binary somewhere on your `PATH`. Each archive
+[latest release](https://github.com/ItsCetla/tada/releases/latest),
+unpack it, and put the `tada` binary somewhere on your `PATH`. Each archive
 also contains the README, the license, a man page and shell completions.
 
 ### Windows
 
 | Build | File | What it does |
 | --- | --- | --- |
-| x64 installer | `crush_<version>_Windows_x86_64_Setup.exe` | Most PCs. Recommended. |
-| ARM64 installer | `crush_<version>_Windows_arm64_Setup.exe` | Snapdragon and other ARM laptops. |
-| x64 / ARM64 zip | `crush_<version>_Windows_x86_64.zip`, `..._arm64.zip` | Portable: nothing is installed. Unzip and run `crush.exe`. |
+| x64 installer | `tada_<version>_Windows_x86_64_Setup.exe` | Most PCs. Recommended. |
+| ARM64 installer | `tada_<version>_Windows_arm64_Setup.exe` | Snapdragon and other ARM laptops. |
+| x64 / ARM64 zip | `tada_<version>_Windows_x86_64.zip`, `..._arm64.zip` | Portable: nothing is installed. Unzip and run `tada.exe`. |
 
 The installer needs no admin rights. It installs to
-`%LOCALAPPDATA%\Programs\Crush`, adds that folder to your user `PATH`, adds a
+`%LOCALAPPDATA%\Programs\Ta-Da`, adds that folder to your user `PATH`, adds a
 Start menu entry, and shows up in **Settings → Apps** for uninstalling (which
 also takes it back off `PATH`). Open a new terminal afterwards:
 
 ```powershell
 cd C:\path\to\your\project
-crush
+tada
 ```
 
-Silent install for scripts: `crush_<version>_Windows_x86_64_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES`.
+Silent install for scripts: `tada_<version>_Windows_x86_64_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES`.
 
 > [!NOTE]
 > The installer and binaries are not code-signed. If SmartScreen appears,
@@ -83,31 +83,31 @@ Silent install for scripts: `crush_<version>_Windows_x86_64_Setup.exe /VERYSILEN
 
 | Build | File | What it does |
 | --- | --- | --- |
-| Apple silicon | `crush_<version>_Darwin_arm64.tar.gz` | M1 and later. |
-| Intel | `crush_<version>_Darwin_x86_64.tar.gz` | Intel Macs. |
+| Apple silicon | `tada_<version>_Darwin_arm64.tar.gz` | M1 and later. |
+| Intel | `tada_<version>_Darwin_x86_64.tar.gz` | Intel Macs. |
 
 > [!NOTE]
 > The binaries are not notarized. If macOS refuses to run a binary you
 > downloaded with a browser, remove the quarantine flag:
-> `xattr -d com.apple.quarantine ./crush`.
+> `xattr -d com.apple.quarantine ./tada`.
 
 ```bash
-tar -xzf crush_<version>_Darwin_arm64.tar.gz
-sudo install crush_<version>_Darwin_arm64/crush /usr/local/bin/crush
-crush --version
+tar -xzf tada_<version>_Darwin_arm64.tar.gz
+sudo install tada_<version>_Darwin_arm64/tada /usr/local/bin/tada
+tada --version
 ```
 
 ### Linux
 
 | Build | File | What it does |
 | --- | --- | --- |
-| x64 | `crush_<version>_Linux_x86_64.tar.gz` | Any glibc or musl distro; the binary is static. |
-| ARM64 | `crush_<version>_Linux_arm64.tar.gz` | Raspberry Pi 4/5, Graviton, Ampere. |
+| x64 | `tada_<version>_Linux_x86_64.tar.gz` | Any glibc or musl distro; the binary is static. |
+| ARM64 | `tada_<version>_Linux_arm64.tar.gz` | Raspberry Pi 4/5, Graviton, Ampere. |
 
 ```bash
-tar -xzf crush_<version>_Linux_x86_64.tar.gz
-sudo install crush_<version>_Linux_x86_64/crush /usr/local/bin/crush
-crush --version
+tar -xzf tada_<version>_Linux_x86_64.tar.gz
+sudo install tada_<version>_Linux_x86_64/tada /usr/local/bin/tada
+tada --version
 ```
 
 ### Checking a download
@@ -121,7 +121,7 @@ shasum -a 256 -c SHA256SUMS.txt --ignore-missing
 
 ```powershell
 # Windows
-Get-FileHash crush_<version>_Windows_x86_64_Setup.exe
+Get-FileHash tada_<version>_Windows_x86_64_Setup.exe
 Select-String Windows_x86_64_Setup SHA256SUMS.txt
 ```
 
@@ -134,17 +134,17 @@ this fork. Building needs Go 1.27+ and no other dependencies on any platform.
 
 | Command | What it does |
 | --- | --- |
-| `go build -o crush .` | Build for the current machine into `./crush`. |
+| `go build -o tada .` | Build for the current machine into `./tada`. |
 | `go install .` | Build into `$(go env GOPATH)/bin`. |
-| `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o crush.exe .` | Cross-compile a Windows binary from macOS or Linux. |
+| `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o tada.exe .` | Cross-compile a Windows binary from macOS or Linux. |
 | `goreleaser release --snapshot --clean` | Every release archive into `dist/` (needs [goreleaser](https://goreleaser.com)). |
 | `go test ./...` | Run the test suite. |
 
 ```bash
-git clone https://github.com/ItsCetla/crush-cetla.git
-cd crush-cetla
-go build -o crush .
-./crush --version
+git clone https://github.com/ItsCetla/tada.git
+cd tada
+go build -o tada .
+./tada --version
 ```
 
 Tagging `vX.Y.Z` runs the `release` workflow, which builds all six archives
@@ -156,7 +156,7 @@ its notes. Nothing is published until the draft is reviewed.
 - **Multi-Model:** choose from a wide range of LLMs or add your own via OpenAI- or Anthropic-compatible APIs
 - **Flexible:** switch LLMs mid-session while preserving context
 - **Session-Based:** maintain multiple work sessions and contexts per project
-- **LSP-Enhanced:** Crush uses LSPs for additional context, just like you do
+- **LSP-Enhanced:** Ta-Da uses LSPs for additional context, just like you do
 - **Extensible:** add capabilities via MCPs (`http`, `stdio`, and `sse`)
 - **Works Everywhere:** first-class support in every terminal on macOS, Linux, Windows (PowerShell and WSL), Android, FreeBSD, OpenBSD, and NetBSD
 - **Industrial Grade:** built on the Charm ecosystem, powering 25k+ applications, from leading open source projects to business-critical infrastructure
@@ -165,11 +165,11 @@ its notes. Nothing is published until the draft is reviewed.
 
 Press <kbd>ctrl+l</kbd> to open the model picker, choose a provider and paste
 its API key, or set one of the environment variables below. GitHub Copilot,
-ChatGPT and Grok accounts can also sign in with `crush login`.
+ChatGPT and Grok accounts can also sign in with `tada login`.
 
 ## API Keys
 
-You can use Crush with many providers such as Anthropic, OpenAI, Gemini,
+You can use Ta-Da with many providers such as Anthropic, OpenAI, Gemini,
 OpenRouter and so on. Press <kbd>ctrl+l</kbd> to open the model picker,
 choose the provider of your choice, and paste your API key.
 
@@ -205,29 +205,29 @@ That said, you can also set environment variables for preferred providers:
 | `AZURE_OPENAI_API_VERSION`  | Azure OpenAI models                                |
 | `MOONSHOT_API_KEY`          | Moonshot                                           |
 
-Also note that Crush can support nearly any provider, including
+Also note that Ta-Da can support nearly any provider, including
 [Local Models](#local-models). For more info see
 [Custom Providers](#custom-providers) below.
 
 ### By the Way
 
-Is there a provider you’d like to see in Crush? Is there an existing model that needs an update?
+Is there a provider you’d like to see in Ta-Da? Is there an existing model that needs an update?
 
-Crush’s default model listing is managed in [Catwalk](https://github.com/charmbracelet/catwalk), a community-supported, open source repository of Crush-compatible models, and you’re welcome to contribute.
+Ta-Da’s default model listing is managed in [Catwalk](https://github.com/charmbracelet/catwalk), a community-supported, open source repository of Crush-compatible models (Ta-Da reads it too), and you’re welcome to contribute.
 
 <a href="https://github.com/charmbracelet/catwalk"><img width="174" height="174" alt="Catwalk Badge" src="https://github.com/user-attachments/assets/95b49515-fe82-4409-b10d-5beb0873787d" /></a>
 
 ## Configuration
 
 > [!TIP]
-> Crush ships with a builtin skill for configuring itself. Most of the time
+> Ta-Da ships with a builtin skill for configuring itself. Most of the time
 > you can just tell what you want it to configure and it will get the job done.
 
-Crush runs great with no configuration. That said, if you do need or want to
-customize Crush, you can, with a `crushrc`.
+Ta-Da runs great with no configuration. That said, if you do need or want to
+customize Ta-Da, you can, with a `tadarc`.
 
-A `crushrc` is just Bash with some Crush-specific builtins. It’s a lot like
-a `.bashrc`, just for your Crush. Because Crush has a native, built-in Bash
+A `tadarc` is just Bash with some Ta-Da-specific builtins. It’s a lot like
+a `.bashrc`, just for your Ta-Da. Because Ta-Da has a native, built-in Bash
 interpreter, Bash-based config works identically across all platforms, including
 Windows.
 
@@ -260,14 +260,14 @@ with the following priority:
 
 | Priority | Unix-like                 | Windows                               |
 | -------- | ------------------------- | ------------------------------------- |
-| 1        | `./.crushrc`              | `.\.crushrc`                          |
-| 2        | `./crushrc`               | `.\crushrc`                           |
-| 3        | `~/.config/crush/crushrc` | `%USERPROFILE%\.config\crush\crushrc` |
+| 1        | `./.tadarc`              | `.\.tadarc`                          |
+| 2        | `./tadarc`               | `.\tadarc`                           |
+| 3        | `~/.config/tada/tadarc` | `%USERPROFILE%\.config\tada\tadarc` |
 
-(Crush respects the [XDG Base Directory Specification][xdg], so your paths
+(Ta-Da respects the [XDG Base Directory Specification][xdg], so your paths
 may differ depending on your `XDG_CONFIG_HOME` value. Data directories such as
-`~/.local/share/crush` and `%LOCALAPPDATA%\crush` contain JSON state only; Crush
-does not execute a `crushrc` from them.)
+`~/.local/share/tada` and `%LOCALAPPDATA%\tada` contain JSON state only; Ta-Da
+does not execute a `tadarc` from them.)
 
 [xdg]: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 
@@ -277,55 +277,55 @@ considered deprecated. See: [the config docs](./docs/config/) for details.
 > [!TIP]
 > You can override the user and data config locations by setting:
 >
-> - `CRUSH_GLOBAL_CONFIG`
-> - `CRUSH_GLOBAL_DATA`
+> - `TADA_GLOBAL_CONFIG`
+> - `TADA_GLOBAL_DATA`
 
-As an additional note, Crush also stores ephemeral data, such as application
+As an additional note, Ta-Da also stores ephemeral data, such as application
 state, in one additional location. This is state and should not be edited by
 hand, nor should it be considered configuration.
 
 ```bash
 # Unix
-$HOME/.local/share/crush/crush.json
+$HOME/.local/share/tada/tada.json
 
 # Windows
-%LOCALAPPDATA%\crush\crush.json
+%LOCALAPPDATA%\tada\tada.json
 ```
 
 #### A note on security
 
-Both `crushrc` and `crush.json` are trusted code; `crushrc` runs in a full
-shell, and any `$(...)` in `crush.json` runs at load time. Don't randomly
+Both `tadarc` and `tada.json` are trusted code; `tadarc` runs in a full
+shell, and any `$(...)` in `tada.json` runs at load time. Don't randomly
 `source` files from the internet into your config.
 
-That's why Crush ignores a project's own config (any `crushrc`, `.crushrc`,
-`crush.json` or `.crush.json` in the project, plus the workspace config
-`.crush/crush.json`) until you trust the project. Review those files, then
+That's why Ta-Da ignores a project's own config (any `tadarc`, `.tadarc`,
+`tada.json` or `.tada.json` in the project, plus the workspace config
+`.tada/tada.json`) until you trust the project. Review those files, then
 run:
 
 ```bash
-crush trust            # trust the project in the current directory
-crush trust --list     # list trusted projects
-crush trust --revoke   # stop trusting it
+tada trust            # trust the project in the current directory
+tada trust --list     # list trusted projects
+tada trust --revoke   # stop trusting it
 ```
 
-Crush remembers a fingerprint of the files: if any of them changes, appears
-or disappears, it ignores them again until you run `crush trust` once more.
-Changes Crush makes to `.crush/crush.json` itself don't count. To trust every
+Ta-Da remembers a fingerprint of the files: if any of them changes, appears
+or disappears, it ignores them again until you run `tada trust` once more.
+Changes Ta-Da makes to `.tada/tada.json` itself don't count. To trust every
 project under a directory you control, add it to `options.trusted_paths` in
 your global config (it's ignored in project config); for a single run, set
-`CRUSH_TRUST_PROJECT=1`.
+`TADA_TRUST_PROJECT=1`.
 
 ### Environment Variables
 
 The top-level `env` field sets environment variables at startup, before
 providers are configured. This is useful for variables that affect provider
 authentication (e.g. the AWS SDK credential chain) without wrapping the
-`crush` command in a shell script or exporting them in your shell profile:
+`tada` command in a shell script or exporting them in your shell profile:
 
 ```json
 {
-  "$schema": "https://charm.land/crush.json",
+  "$schema": "https://tada.cetla.dev.json",
   "env": {
     "AWS_PROFILE": "my-sso-profile"
   }
@@ -338,7 +338,7 @@ a value.
 
 ### Themes
 
-Crush ships with built-in color themes.
+Ta-Da ships with built-in color themes.
 
 #### Switching Themes
 
@@ -350,14 +350,14 @@ confirms the selection. Press `esc` to cancel and revert.
 
 Open **Themes**, highlight the theme to customize, and press `ctrl+e`.
 Changes preview live as you type. Press `enter` or `ctrl+s` to save, or `esc`
-to cancel and revert. User themes are stored globally in the Crush config
+to cancel and revert. User themes are stored globally in the Ta-Da config
 directory under `themes/`.
 
 You can also select a theme directly in your config with `active_theme`:
 
 ```json
 {
-  "$schema": "https://charm.land/crush.json",
+  "$schema": "https://tada.cetla.dev.json",
   "options": {
     "tui": {
       "active_theme": "gruvbox-dark"
@@ -367,7 +367,7 @@ You can also select a theme directly in your config with `active_theme`:
 ```
 
 Custom theme palettes are stored as JSON files in the global theme directory.
-For example, `~/.config/crush/themes/my-theme.json`:
+For example, `~/.config/tada/themes/my-theme.json`:
 
 ```json
 {
@@ -389,11 +389,11 @@ dialog.
 
 ### LSPs
 
-Crush can use LSPs for additional context to help inform its decisions, just
+Ta-Da can use LSPs for additional context to help inform its decisions, just
 like you would. LSPs can be added manually like so:
 
 ```bash
-# crushrc
+# tadarc
 
 lsp add go --command "gopls" --env "GOTOOLCHAIN go1.24.5"
 lsp add typescript --command "typescript-language-server" --args --stdio
@@ -402,12 +402,12 @@ lsp add nix --command "nil"
 
 ### MCPs
 
-Crush also supports Model Context Protocol (MCP) servers through three transport
+Ta-Da also supports Model Context Protocol (MCP) servers through three transport
 types: `stdio` for command-line servers, `http` for HTTP endpoints, and `sse`
 for Server-Sent Events.
 
 ```bash
-# crushrc
+# tadarc
 
 # Add a local MCP server that runs a Node.js script.
 mcp add filesystem --command node --args /path/to/mcp-server.js \
@@ -425,7 +425,7 @@ mcp add streaming-service --type sse --url "https://example.com/mcp/sse" \
 
 #### MCP OAuth
 
-HTTP and SSE MCP servers that require OAuth can use Crush's built-in
+HTTP and SSE MCP servers that require OAuth can use Ta-Da's built-in
 authorization-code flow instead of a static `Authorization` header. Set
 `"oauth": true` to enable it:
 
@@ -462,34 +462,34 @@ credentials directly. All values support shell expansion:
 }
 ```
 
-When `oauth_client_id` is set, Crush skips dynamic client registration
-and authenticates as the specified client. When omitted, Crush attempts
+When `oauth_client_id` is set, Ta-Da skips dynamic client registration
+and authenticates as the specified client. When omitted, Ta-Da attempts
 dynamic registration automatically (works with Linear, Notion, and other
 servers that support RFC 7591).
 
 #### Sessionless servers
 
 Some HTTP MCP servers are sessionless — they never issue a
-`Mcp-Session-Id` and reject the `subscriptions/listen` stream Crush opens
+`Mcp-Session-Id` and reject the `subscriptions/listen` stream Ta-Da opens
 for list-changed notifications, which would otherwise break the
-connection. Crush auto-detects known sessionless servers (GitHub MCP,
+connection. Ta-Da auto-detects known sessionless servers (GitHub MCP,
 `api.githubcopilot.com/mcp`), so those need no extra configuration.
 
 For other sessionless servers, mark them explicitly with
-`"sessionless": true` (or `--sessionless true` in `crushrc`); set it to
+`"sessionless": true` (or `--sessionless true` in `tadarc`); set it to
 `false` to force the default behavior for an auto-detected URL. The
 tradeoff is that a sessionless server won't push live
 tool/prompt/resource list-changed notifications.
 
 ### Hooks
 
-Crush has preliminary support for hooks. For details, see
+Ta-Da has preliminary support for hooks. For details, see
 [the hook guide](./docs/hooks/).
 
 ### Sharing a workspace across clients
 
-When Crush is run against a shared backend (for example two TUIs talking to
-the same `crush serve`), clients are grouped into **workspaces** keyed by
+When Ta-Da is run against a shared backend (for example two TUIs talking to
+the same `tada serve`), clients are grouped into **workspaces** keyed by
 their resolved `--cwd`. Two clients with the same `--cwd` join the same
 underlying workspace, so they share the session list, message history,
 permission queue, LSP, and MCP state.
@@ -522,14 +522,14 @@ does not get reaped before it can attach.
 
 ### Global context files
 
-Crush automatically includes two files for cross-project instructions. Think of
+Ta-Da automatically includes two files for cross-project instructions. Think of
 these are personal additions to the system prompt.
 
-- `~/.config/crush/CRUSH.md`: Crush-specific rules that would confuse other
-  agentic coding tools. If you only use Crush, this is the only one you need to
+- `~/.config/tada/TADA.md`: Ta-Da-specific rules that would confuse other
+  agentic coding tools. If you only use Ta-Da, this is the only one you need to
   edit.
 - `~/.config/AGENTS.md`: generic instructions that other coding tools might
-  read. Avoid referring to Crush-specific features or workflows here. You
+  read. Avoid referring to Ta-Da-specific features or workflows here. You
   probably only care about this if you use multiple agentic coding tools and
   want to share instructions between them.
 
@@ -546,17 +546,17 @@ option global-context-path "/full/path/to/folder/of/files/"
 
 ### Ignoring Files
 
-Crush respects `.gitignore` files by default, but you can also create a
-`.crushignore` file to specify additional files and directories that Crush
+Ta-Da respects `.gitignore` files by default, but you can also create a
+`.tadaignore` file to specify additional files and directories that Ta-Da
 should ignore. This is useful for excluding files that you want in version
-control but don't want Crush to consider when providing context.
+control but don't want Ta-Da to consider when providing context.
 
-The `.crushignore` file uses the same syntax as `.gitignore` and can be placed
+The `.tadaignore` file uses the same syntax as `.gitignore` and can be placed
 in the root of your project or in subdirectories.
 
 ### Allowing Tools
 
-By default, Crush will ask you for permission before running tool calls. If
+By default, Ta-Da will ask you for permission before running tool calls. If
 you'd like, you can allow tools to be executed without prompting you for
 permissions. Use this with care.
 
@@ -571,7 +571,7 @@ permissions allow view ls grep edit mcp_context7_get-library-doc
 
 To skip the prompt for file edits only when the file is inside the project,
 use `allow-in-project` instead (`permissions.project_allowed_tools` in
-`crush.json`). Edits outside the project, including through symlinks, still
+`tada.json`). Edits outside the project, including through symlinks, still
 ask:
 
 ```bash
@@ -590,43 +590,43 @@ To disable tools from MCP servers, see the [MCP config section](#mcps).
 
 ### You only live once
 
-You can also skip all permission prompts completely by running Crush with the
+You can also skip all permission prompts completely by running Ta-Da with the
 `--yolo` flag. Be very, very careful with this feature.
 
 ### Disabling Skills
 
-You can prevent Crush from using certain skills entirely. Disabled skills are
+You can prevent Ta-Da from using certain skills entirely. Disabled skills are
 hidden from the agent, including builtin skills and skills discovered from
 disk.
 
 ```bash
-option disable-skill crush-config
+option disable-skill tada-config
 ```
 
 ### Agent Skills
 
-Crush supports the [Agent Skills](https://agentskills.io) open standard for
+Ta-Da supports the [Agent Skills](https://agentskills.io) open standard for
 extending agent capabilities with reusable skill packages. Skills are folders
-containing a `SKILL.md` file with instructions that Crush can discover and
+containing a `SKILL.md` file with instructions that Ta-Da can discover and
 activate on demand.
 
 The global paths we looks for skills are:
 
-- `$CRUSH_SKILLS_DIR`
+- `$TADA_SKILLS_DIR`
 - `$XDG_CONFIG_HOME/agents/skills` or `~/.config/agents/skills/`
-- `$XDG_CONFIG_HOME/crush/skills` or `~/.config/crush/skills/`
+- `$XDG_CONFIG_HOME/tada/skills` or `~/.config/tada/skills/`
 - `~/.agents/skills/`
 - `~/.claude/skills/`
 - On Windows, we _also_ look at
   - `%LOCALAPPDATA%\agents\skills\` or `%USERPROFILE%\AppData\Local\agents\skills\`
-  - `%LOCALAPPDATA%\crush\skills\` or `%USERPROFILE%\AppData\Local\crush\skills\`
+  - `%LOCALAPPDATA%\tada\skills\` or `%USERPROFILE%\AppData\Local\tada\skills\`
 - Additional paths configured via `options.skills_paths`
 
 On top of that, we _also_ load skills in your project from the following
 relative paths:
 
 - `.agents/skills`
-- `.crush/skills`
+- `.tada/skills`
 - `.claude/skills`
 - `.cursor/skills`
 
@@ -640,16 +640,16 @@ You can get started with example skills from [anthropics/skills](https://github.
 
 ```bash
 # Unix
-mkdir -p ~/.config/crush/skills
-cd ~/.config/crush/skills
+mkdir -p ~/.config/tada/skills
+cd ~/.config/tada/skills
 git clone https://github.com/anthropics/skills.git _temp
 mv _temp/skills/* . && rm -rf _temp
 ```
 
 ```powershell
 # Windows (PowerShell)
-mkdir -Force "$env:LOCALAPPDATA\crush\skills"
-cd "$env:LOCALAPPDATA\crush\skills"
+mkdir -Force "$env:LOCALAPPDATA\tada\skills"
+cd "$env:LOCALAPPDATA\tada\skills"
 git clone https://github.com/anthropics/skills.git _temp
 mv _temp/skills/* . ; rm -r -force _temp
 ```
@@ -690,7 +690,7 @@ Skills with `disable-model-invocation` won't appear in the model's available ski
 
 ### Desktop notifications
 
-Crush sends desktop notifications when a tool call requires permission and when
+Ta-Da sends desktop notifications when a tool call requires permission and when
 the agent finishes its turn. They're only sent when the terminal window isn't
 focused _and_ your terminal supports reporting the focus state.
 
@@ -704,24 +704,24 @@ supported.
 
 ### Initialization
 
-When you initialize a project, Crush analyzes your codebase and creates
+When you initialize a project, Ta-Da analyzes your codebase and creates
 a context file that helps it work more effectively in future sessions. By
 default, this file is named `AGENTS.md`, but you can customize the name and
 location with the `initialize-as` option:
 
 ```bash
-# crushrc
+# tadarc
 option initialize-as AGENTS.md
 ```
 
 This is useful if you prefer a different naming convention or want to place the
-file in a specific directory (e.g., `CRUSH.md` or `docs/LLMs.md`). Crush will
+file in a specific directory (e.g., `TADA.md` or `docs/LLMs.md`). Ta-Da will
 fill the file with project-specific context like build commands, code patterns,
 and conventions it discovered during initialization.
 
 ### Attribution Settings
 
-By default, Crush adds attribution information to Git commits and pull requests
+By default, Ta-Da adds attribution information to Git commits and pull requests
 it creates. You can customize this behavior with `option` commands:
 
 ```bash
@@ -731,15 +731,15 @@ option attribution-generated-with true
 
 - `trailer_style`: Controls the attribution trailer added to commit messages
   (default: `assisted-by`)
-  - `assisted-by`: Adds `Assisted-by: Crush:[ModelID]` as specified in [the convention](https://docs.kernel.org/process/coding-assistants.html#attribution)
-  - `co-authored-by`: Adds `Co-Authored-By: Crush <crush@charm.land>`
+  - `assisted-by`: Adds `Assisted-by: Ta-Da:[ModelID]` as specified in [the convention](https://docs.kernel.org/process/coding-assistants.html#attribution)
+  - `co-authored-by`: Adds `Co-Authored-By: Ta-Da <tada@cetla.dev>`
   - `none`: No attribution trailer
-- `generated_with`: When true (default), adds `💘 Generated with Crush` line to
+- `generated_with`: When true (default), adds `💘 Generated with Ta-Da` line to
   commit messages and PR descriptions
 
 ### Custom Providers
 
-Crush supports custom provider configurations for both OpenAI-compatible and
+Ta-Da supports custom provider configurations for both OpenAI-compatible and
 Anthropic-compatible APIs.
 
 > [!NOTE]
@@ -794,29 +794,29 @@ model add custom-anthropic/claude-sonnet-4-20250514 \
 
 ### Amazon Bedrock
 
-Crush currently supports running Anthropic models through Bedrock, with caching disabled.
+Ta-Da currently supports running Anthropic models through Bedrock, with caching disabled.
 
-A Bedrock provider appears once Crush can find AWS credentials. You can
+A Bedrock provider appears once Ta-Da can find AWS credentials. You can
 authenticate in one of two ways:
 
 **API key.** Set `AWS_BEARER_TOKEN_BEDROCK` to a Bedrock API key. This is the
 simplest option and never expires mid-session.
 
 **AWS credential chain (SSO, profiles, access keys).** Configure AWS the usual
-way with `aws configure` or `aws configure sso`. Crush picks up whatever the
+way with `aws configure` or `aws configure sso`. Ta-Da picks up whatever the
 AWS SDK credential chain resolves, including `AWS_PROFILE`, `AWS_ACCESS_KEY_ID`
 / `AWS_SECRET_ACCESS_KEY`, or an SSO session. To select a specific profile,
-set `AWS_PROFILE` in your shell (`AWS_PROFILE=myprofile crush`) or in the
+set `AWS_PROFILE` in your shell (`AWS_PROFILE=myprofile tada`) or in the
 top-level [`env`](#environment-variables) config.
 
 If you authenticate via AWS SSO, your session expires periodically. Set
 `aws_auth_refresh` to a command that refreshes it. When Bedrock returns a
-credential error, Crush runs the command, then retries the request in place
+credential error, Ta-Da runs the command, then retries the request in place
 (no duplicate messages, no manual restart):
 
 ```json
 {
-  "$schema": "https://charm.land/crush.json",
+  "$schema": "https://tada.cetla.dev.json",
   "env": {
     "AWS_PROFILE": "my-sso-profile"
   },
@@ -844,7 +844,7 @@ $ gcloud auth application-default login
 To add specific models to the configuration, configure as such:
 
 ```bash
-# crushrc — authentication still comes from gcloud and the VERTEXAI_* env vars.
+# tadarc — authentication still comes from gcloud and the VERTEXAI_* env vars.
 provider add vertexai --type google-vertex
 
 model add vertexai/claude-sonnet-4@20250514 \
@@ -861,9 +861,9 @@ model add vertexai/claude-sonnet-4@20250514 \
 
 ### Local Models
 
-Crush can auto-discovers models from local providers. Add a custom provider
+Ta-Da can auto-discovers models from local providers. Add a custom provider
 with `type` set to `llamacpp`, `omlx`, `lmstudio`, `litellm`, or `ollama`
-and leave out the models list. Crush will populate the model list
+and leave out the models list. Ta-Da will populate the model list
 automatically.
 
 ```bash
@@ -892,7 +892,7 @@ by auto-discovery. Auto discovery will run if the model list is empty for any
 the found models with your hand configured ones.
 
 ```bash
-# crushrc
+# tadarc
 provider add ollama \
   --name Ollama \
   --type ollama \
@@ -910,69 +910,69 @@ your explicit model fields win on conflicts.
 
 ## Logging
 
-Sometimes you need to look at logs. Luckily, Crush logs all sorts of
-stuff. Logs are stored in `./.crush/logs/crush.log` relative to the project.
+Sometimes you need to look at logs. Luckily, Ta-Da logs all sorts of
+stuff. Logs are stored in `./.tada/logs/tada.log` relative to the project.
 
 The CLI also contains some helper commands to make perusing recent logs easier:
 
 ```bash
 # Print the last 1000 lines
-crush logs
+tada logs
 
 # Print the last 500 lines
-crush logs --tail 500
+tada logs --tail 500
 
 # Follow logs in real time
-crush logs --follow
+tada logs --follow
 ```
 
-Want more logging? Run `crush` with the `--debug` flag, or enable it in your
-`crushrc`:
+Want more logging? Run `tada` with the `--debug` flag, or enable it in your
+`tadarc`:
 
 ```bash
-# crushrc
+# tadarc
 option debug true
 option debug-lsp true
 ```
 
 ## Provider Catalog
 
-Crush’s list of providers and models comes from
-[Catwalk](https://github.com/charmbracelet/catwalk), the open source Crush
-provider database. Crush never updates it on its own and makes no network
-request to load it: it uses the catalog saved by `crush update-providers` or,
+Ta-Da’s list of providers and models comes from
+[Catwalk](https://github.com/charmbracelet/catwalk), the open source Ta-Da
+provider database. Ta-Da never updates it on its own and makes no network
+request to load it: it uses the catalog saved by `tada update-providers` or,
 if none has been saved, the catalog embedded in the release.
 
-The `provider-auto-update` option and the `CRUSH_DISABLE_PROVIDER_AUTO_UPDATE`
+The `provider-auto-update` option and the `TADA_DISABLE_PROVIDER_AUTO_UPDATE`
 environment variable are deprecated and have no effect.
 
 ### Updating providers
 
-`crush update-providers` is the only way to refresh the catalog. Without an
+`tada update-providers` is the only way to refresh the catalog. Without an
 argument it downloads the catalog from `https://catwalk.charm.land`, or from
 `CATWALK_URL` when set (e.g. `export CATWALK_URL=http://localhost:8000` for a
 fork):
 
 ```bash
 # Update providers remotely from Catwalk.
-crush update-providers
+tada update-providers
 
 # Update providers from a custom Catwalk base URL.
-crush update-providers https://example.com/
+tada update-providers https://example.com/
 
 # Update providers from a local file.
-crush update-providers /path/to/local-providers.json
+tada update-providers /path/to/local-providers.json
 
-# Reset providers to the embedded version, embedded at crush at build time.
-crush update-providers embedded
+# Reset providers to the embedded version, embedded at tada at build time.
+tada update-providers embedded
 
 # For more info:
-crush update-providers --help
+tada update-providers --help
 ```
 
 ## Importing from OpenCode
 
-If you use [OpenCode](https://opencode.ai), Crush picks up its setup
+If you use [OpenCode](https://opencode.ai), Ta-Da picks up its setup
 automatically, reading only OpenCode's files on disk. Nothing is fetched,
 and OpenCode plugins are never run.
 
@@ -980,7 +980,7 @@ and OpenCode plugins are never run.
 | --- | --- | --- |
 | MCP servers | `mcp` in OpenCode config (V1 and V2 shapes) | on |
 | Provider settings | `provider` / `providers`: base URLs, API keys, headers, custom models; `enabled_providers` / `disabled_providers` | on |
-| Model choice | The default agent's `model`, else `model`, and `small_model`; used only when Crush has no selection | on |
+| Model choice | The default agent's `model`, else `model`, and `small_model`; used only when Ta-Da has no selection | on |
 | Models catalog | OpenCode's cached models.dev catalog (`opencode.db`, `~/.cache/opencode/models.json` or `$OPENCODE_MODELS_PATH`) | on |
 | Instructions | `instructions` files, plus the global `AGENTS.md` (or `~/.claude/CLAUDE.md`) | on |
 | Skills | `skill(s)/` in OpenCode config directories and `skills.paths` | on |
@@ -994,15 +994,15 @@ OpenCode config is read from `~/.config/opencode/` (or `$XDG_CONFIG_HOME`,
 `$OPENCODE_CONFIG_DIR`), `$OPENCODE_CONFIG` and `$OPENCODE_CONFIG_CONTENT`,
 with `{env:VAR}` and `{file:path}` substituted the way OpenCode does.
 Project-level `opencode.json(c)` and `.opencode/` files are only read in
-projects you have trusted with `crush trust`, and editing them requires
-trusting the project again. Imported settings live in memory only; Crush
+projects you have trusted with `tada trust`, and editing them requires
+trusting the project again. Imported settings live in memory only; Ta-Da
 never writes them to its own config.
 
-Crush's own config always wins: an MCP server, provider field or model
-selection set in Crush overrides the imported one. The models catalog adds
-the models Catwalk lacks to the providers Crush already knows, and lists
+Ta-Da's own config always wins: an MCP server, provider field or model
+selection set in Ta-Da overrides the imported one. The models catalog adds
+the models Catwalk lacks to the providers Ta-Da already knows, and lists
 OpenCode-only providers once their API key variable is set or they are
-configured. Only chat models that can call tools, from providers Crush can
+configured. Only chat models that can call tools, from providers Ta-Da can
 talk to, are added.
 
 Some settings can't be carried over exactly, and the import never loosens
@@ -1011,22 +1011,22 @@ anything else:
 - `"edit": "allow"` lets `edit`, `multiedit`, `write` and
   `lsp_replace_symbol` run without a prompt, but only for files inside the
   project (see `project_allowed_tools` under [Allowing Tools](#allowing-tools)).
-  Other `allow` rules are not imported, so Crush keeps prompting for
+  Other `allow` rules are not imported, so Ta-Da keeps prompting for
   commands, web access and MCP tools.
 - A whole-tool `"deny"` rule or a `false` tools toggle hides the matching
   tools. A toggle that an OpenCode agent turns back on is skipped.
 - Commands run in the current session; their `agent`, `model` and `subtask`
-  settings are ignored. `$1`, `$2`, … and `$ARGUMENTS` become Crush command
+  settings are ignored. `$1`, `$2`, … and `$ARGUMENTS` become Ta-Da command
   arguments.
 - Remote instructions (URLs) are never fetched.
 
 See what was imported, and what was skipped and why, with:
 
 ```bash
-crush opencode
+tada opencode
 ```
 
-Tune or turn it off in `crush.json`:
+Tune or turn it off in `tada.json`:
 
 ```json
 {
@@ -1047,12 +1047,12 @@ Tune or turn it off in `crush.json`:
 }
 ```
 
-Set `"disabled": true` there, or `CRUSH_DISABLE_OPENCODE=1`, to turn the import
+Set `"disabled": true` there, or `TADA_DISABLE_OPENCODE=1`, to turn the import
 off entirely. `"providers": false` also turns off the model choice and
 OpenCode's `enabled_providers` / `disabled_providers` filter. Imported remote
 MCP servers connect to their URLs like any other configured server; an
-OpenCode remote server only uses OAuth in Crush when its config has an
-explicit `oauth` block (add `"oauth": true` for it in `crush.json`
+OpenCode remote server only uses OAuth in Ta-Da when its config has an
+explicit `oauth` block (add `"oauth": true` for it in `tada.json`
 otherwise).
 
 ## Privacy
@@ -1060,7 +1060,7 @@ otherwise).
 This fork collects no telemetry and does not check for updates. The only
 network connections it makes are to the model providers and MCP servers you
 configure (plus model discovery against those providers' `/models`
-endpoints and OAuth refreshes for accounts you signed in with `crush login`).
+endpoints and OAuth refreshes for accounts you signed in with `tada login`).
 
 ## Q&A
 
@@ -1079,7 +1079,7 @@ Installing an extra tool might be needed on Unix-like environments.
 
 Issues and pull requests for fork-specific behaviour (trust gate, egress,
 OpenCode import, releases) are welcome at
-[ItsCetla/crush-cetla](https://github.com/ItsCetla/crush-cetla/issues).
+[ItsCetla/tada](https://github.com/ItsCetla/tada/issues).
 Keep new network egress opt-in and ask-before-use, and add a line to
 `CHANGELOG.md` under *Unreleased*.
 
@@ -1089,18 +1089,18 @@ go build ./... && go vet ./internal/opencode/... ./internal/config/... && go tes
 
 ## Security
 
-Found something that lets Crush read, send or run what it shouldn't? Please
-open a [private security advisory](https://github.com/ItsCetla/crush-cetla/security/advisories/new)
+Found something that lets Ta-Da read, send or run what it shouldn't? Please
+open a [private security advisory](https://github.com/ItsCetla/tada/security/advisories/new)
 rather than a public issue. `govulncheck` runs weekly in CI.
 
 ## Upstream
 
-Crush is made by [Charm](https://charm.land). Bug reports for code that isn't
-specific to this fork belong [upstream](https://github.com/charmbracelet/crush).
+Ta-Da is made by [Charm](https://charm.land). Bug reports for code that isn't
+specific to this fork belong [upstream](https://github.com/ItsCetla/tada).
 
 ## License
 
-[FSL-1.1-MIT](LICENSE.md), the same license as upstream Crush.
+[FSL-1.1-MIT](LICENSE.md), the same license as upstream Ta-Da.
 
 ---
 

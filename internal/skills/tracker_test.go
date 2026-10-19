@@ -60,20 +60,20 @@ func TestTracker_NilSafety(t *testing.T) {
 func TestTracker_BuiltinSkillTracking(t *testing.T) {
 	t.Parallel()
 
-	// Simulate active skills including a builtin skill (crush-config).
+	// Simulate active skills including a builtin skill (tada-config).
 	activeSkills := []*Skill{
-		{Name: "crush-config", Description: "Crush config", Builtin: true},
+		{Name: "tada-config", Description: "Ta-Da config", Builtin: true},
 		{Name: "go-doc", Description: "Go docs", Builtin: false},
 	}
 	tracker := NewTracker(activeSkills)
 
 	// Initially not loaded.
-	require.False(t, tracker.IsLoaded("crush-config"))
+	require.False(t, tracker.IsLoaded("tada-config"))
 	require.False(t, tracker.IsLoaded("go-doc"))
 
-	// Mark builtin skill as loaded (simulating read via crush://...).
-	tracker.MarkLoaded("crush-config")
-	require.True(t, tracker.IsLoaded("crush-config"))
+	// Mark builtin skill as loaded (simulating read via tada://...).
+	tracker.MarkLoaded("tada-config")
+	require.True(t, tracker.IsLoaded("tada-config"))
 
 	// Mark user skill as loaded.
 	tracker.MarkLoaded("go-doc")

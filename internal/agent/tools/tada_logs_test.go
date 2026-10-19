@@ -17,7 +17,7 @@ import (
 func createTestLogFile(t *testing.T, entries []map[string]any) string {
 	t.Helper()
 	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "crush.log")
+	logFile := filepath.Join(tempDir, "tada.log")
 
 	file, err := os.Create(logFile)
 	require.NoError(t, err)
@@ -123,14 +123,14 @@ func TestCrushLogs_MaxCap(t *testing.T) {
 
 func TestCrushLogs_MissingFile(t *testing.T) {
 	t.Parallel()
-	result := runCrushLogs("/nonexistent/path/crush.log", CrushLogsParams{Lines: 50})
+	result := runCrushLogs("/nonexistent/path/tada.log", CrushLogsParams{Lines: 50})
 	require.Contains(t, result, "No log file found")
 }
 
 func TestCrushLogs_EmptyFile(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "crush.log")
+	logFile := filepath.Join(tempDir, "tada.log")
 	_, err := os.Create(logFile)
 	require.NoError(t, err)
 
@@ -141,7 +141,7 @@ func TestCrushLogs_EmptyFile(t *testing.T) {
 func TestCrushLogs_MalformedLines(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "crush.log")
+	logFile := filepath.Join(tempDir, "tada.log")
 
 	file, err := os.Create(logFile)
 	require.NoError(t, err)
@@ -301,7 +301,7 @@ func TestCrushLogs_ReservedFields(t *testing.T) {
 func TestCrushLogs_OversizedLines(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "crush.log")
+	logFile := filepath.Join(tempDir, "tada.log")
 
 	file, err := os.Create(logFile)
 	require.NoError(t, err)
@@ -343,7 +343,7 @@ func TestCrushLogs_OversizedLines(t *testing.T) {
 func TestCrushLogs_PartialTrailingLine(t *testing.T) {
 	t.Parallel()
 	tempDir := t.TempDir()
-	logFile := filepath.Join(tempDir, "crush.log")
+	logFile := filepath.Join(tempDir, "tada.log")
 
 	file, err := os.Create(logFile)
 	require.NoError(t, err)

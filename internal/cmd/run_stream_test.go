@@ -13,7 +13,7 @@ import (
 
 // TestRunStream_ToolUseDoesNotTerminate is the regression test for
 // the original bug: a tool-call assistant message has a Finish part
-// with reason=tool_use and used to terminate `crush run` early via
+// with reason=tool_use and used to terminate `tada run` early via
 // the discarded `msg.IsFinished()` exit condition. With the new
 // RunComplete-driven loop, tool_use finishes must keep the stream
 // alive so the post-tool final text still reaches stdout.
@@ -129,7 +129,7 @@ func TestRunStream_ReconcilesPartialStream(t *testing.T) {
 }
 
 // TestRunStream_IgnoresOtherSessions ensures multi-session
-// subscribers (e.g. a TUI watching workspace events while `crush
+// subscribers (e.g. a TUI watching workspace events while `tada
 // run` is in flight against the same workspace) do not cause
 // premature exit on RunComplete for a different session.
 func TestRunStream_IgnoresOtherSessions(t *testing.T) {
@@ -146,7 +146,7 @@ func TestRunStream_IgnoresOtherSessions(t *testing.T) {
 }
 
 // TestRunStream_ErrorRunComplete surfaces a failing run as a
-// non-nil error from `crush run` so shells and CI catch it via
+// non-nil error from `tada run` so shells and CI catch it via
 // exit status.
 func TestRunStream_ErrorRunComplete(t *testing.T) {
 	t.Parallel()
@@ -162,7 +162,7 @@ func TestRunStream_ErrorRunComplete(t *testing.T) {
 }
 
 // TestRunStream_CancelledRunCompleteIsClean ensures a cancelled
-// run (e.g. Ctrl+C while `crush run` waits) exits cleanly rather
+// run (e.g. Ctrl+C while `tada run` waits) exits cleanly rather
 // than reporting the cancellation as a failure.
 func TestRunStream_CancelledRunCompleteIsClean(t *testing.T) {
 	t.Parallel()
@@ -217,7 +217,7 @@ func TestRunStream_StopSpinnerInvokedOnFirstOutput(t *testing.T) {
 }
 
 // TestRunStream_RunIDFiltersForeignTurns covers the busy-session
-// queue scenario: `crush run --continue` attaches to a session
+// queue scenario: `tada run --continue` attaches to a session
 // whose currently running turn finishes first, publishing its
 // RunComplete on the same session ID. Without per-run correlation
 // the stream would exit on that foreign event and drop our own

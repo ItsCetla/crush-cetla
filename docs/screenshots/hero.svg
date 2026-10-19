@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660" width="1200" height="660" font-family="'JetBrains Mono','Cascadia Code',ui-monospace,'SF Mono',Menlo,Consolas,monospace" font-size="17">
-  <title>Crush running in a terminal with a local model, the OpenCode import report and a permission prompt</title>
+  <title>Ta-Da running in a terminal with a local model, the OpenCode import report and a permission prompt</title>
   <defs>
     <linearGradient id="bar" x1="0" x2="1"><stop offset="0" stop-color="#7D56F4"/><stop offset="1" stop-color="#FF5FAF"/></linearGradient>
   </defs>
@@ -7,15 +7,15 @@
   <rect width="1200" height="44" rx="18" fill="#201A2C"/>
   <rect y="22" width="1200" height="22" fill="#201A2C"/>
   <circle cx="24" cy="22" r="6.5" fill="#FF5F57"/><circle cx="46" cy="22" r="6.5" fill="#FEBC2E"/><circle cx="68" cy="22" r="6.5" fill="#28C840"/>
-  <text x="600" y="28" text-anchor="middle" fill="#8E86A6" font-size="14">crush — ~/proj — pc/bonsai-27b</text>
+  <text x="600" y="28" text-anchor="middle" fill="#8E86A6" font-size="14">tada — ~/proj — pc/bonsai-27b</text>
 
   <!-- left: conversation -->
-  <text x="36" y="90" fill="#C4B5FD" font-weight="700">Crush</text>
+  <text x="36" y="90" fill="#C4B5FD" font-weight="700">Ta-Da</text>
   <text x="104" y="90" fill="#8E86A6">0.1.0 · ~/proj · trusted</text>
   <text x="36" y="134" fill="#FF8FC8">you</text>
   <text x="36" y="160" fill="#ECE8F6">Read hello.txt and run the tests. Fix anything that fails.</text>
 
-  <text x="36" y="206" fill="#C4B5FD">crush</text>
+  <text x="36" y="206" fill="#C4B5FD">tada</text>
   <text x="36" y="232" fill="#ECE8F6">hello.txt contains one line: "hello from the PC". Running the suite now.</text>
 
   <rect x="36" y="256" width="760" height="110" rx="10" fill="#0D0B12" stroke="#2E2740"/>
@@ -29,7 +29,7 @@
   <rect x="372" y="326" width="80" height="28" rx="6" fill="#2A2338"/>
   <text x="412" y="345" text-anchor="middle" fill="#ECE8F6" font-size="14">Deny</text>
 
-  <text x="36" y="410" fill="#8E86A6" font-size="15">› crush opencode</text>
+  <text x="36" y="410" fill="#8E86A6" font-size="15">› tada opencode</text>
   <text x="36" y="438" fill="#4ADE80">MCP servers (on)</text>
   <text x="56" y="462" fill="#ECE8F6">bench       local  bench-mcp --project bench      imported</text>
   <text x="56" y="486" fill="#ECE8F6">playwright  local  npx -y @playwright/mcp@latest  imported</text>
@@ -56,7 +56,7 @@
   <line x1="856" y1="376" x2="1144" y2="376" stroke="#2E2740"/>
   <text x="856" y="404" fill="#C4B5FD" font-weight="700" font-size="15">Egress</text>
   <text x="856" y="428" fill="#ECE8F6" font-size="14">telemetry        off</text>
-  <text x="856" y="450" fill="#ECE8F6" font-size="14">update check     off</text>
+  <text x="856" y="450" fill="#ECE8F6" font-size="14">update check     6h</text>
   <text x="856" y="472" fill="#ECE8F6" font-size="14">web tools        off</text>
   <text x="856" y="494" fill="#ECE8F6" font-size="14">catalog fetch    off</text>
   <line x1="856" y1="514" x2="1144" y2="514" stroke="#2E2740"/>

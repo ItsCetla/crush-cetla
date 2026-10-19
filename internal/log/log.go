@@ -88,11 +88,11 @@ func RecoverPanic(name string, cleanup func()) {
 	}
 }
 
-// createPanicLog creates a timestamped panic log file next to the Crush log,
+// createPanicLog creates a timestamped panic log file next to the Ta-Da log,
 // or in the system temp directory when that is not available. CreateTemp
 // makes the file readable only by the user and never reuses an existing path.
 func createPanicLog(name string) (*os.File, error) {
-	pattern := fmt.Sprintf("crush-panic-%s-%s-*.log", name, time.Now().Format("20060102-150405"))
+	pattern := fmt.Sprintf("tada-panic-%s-%s-*.log", name, time.Now().Format("20060102-150405"))
 	if dir := logDir.Load(); dir != nil {
 		if file, err := os.CreateTemp(*dir, pattern); err == nil {
 			return file, nil

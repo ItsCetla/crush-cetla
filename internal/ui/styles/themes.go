@@ -35,7 +35,7 @@ func ThemeForProvider(providerID string) Styles {
 	}
 }
 
-// CharmtonePantera returns the Charmtone dark theme, upstream Crush's default
+// CharmtonePantera returns the Charmtone dark theme, upstream Ta-Da's default
 // style. The fork defaults to [Default] instead.
 func CharmtonePantera() Styles {
 	return charmtoneOverrides(quickStyle(charmtoneOpts()))
@@ -329,7 +329,7 @@ type ThemeSource int
 const (
 	// ThemeSourceBuiltin is a theme compiled into the binary.
 	ThemeSourceBuiltin ThemeSource = iota
-	// ThemeSourceUser is a theme file in ~/.config/crush/themes/.
+	// ThemeSourceUser is a theme file in ~/.config/tada/themes/.
 	ThemeSourceUser
 )
 

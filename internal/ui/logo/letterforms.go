@@ -388,6 +388,94 @@ func LetterYAlt(stretch bool) string {
 	)
 }
 
+// LetterT renders the letter T in a stylized way. When stretched, both arms
+// grow by the same amount.
+func LetterT(stretch bool) string {
+	// Here's what we're making:
+	//
+	// ▀▀█▀▀
+	//   █
+	//   ▀
+
+	arm := "▀"
+	stem := heredoc.Doc(`
+		█
+		█
+		▀
+	`)
+	props := letterformProps{
+		stretch:    stretch,
+		width:      2,
+		minStretch: 3,
+		maxStretch: 6,
+	}
+	return joinLetterform(
+		stretchLetterformPart(arm, props),
+		stem,
+		stretchLetterformPart(arm, props),
+	)
+}
+
+// LetterA renders the letter A in a stylized way. It takes an integer that
+// determines how many cells to stretch the letter. If the stretch is less than
+// 1, it defaults to no stretching.
+func LetterA(stretch bool) string {
+	// Here's what we're making:
+	//
+	// ▄▀▀▀▄
+	// █▀▀▀█
+	// ▀   ▀
+
+	side := heredoc.Doc(`
+		▄
+		█
+		▀
+	`)
+	center := heredoc.Doc(`
+		▀
+		▀
+	`)
+	return joinLetterform(
+		side,
+		stretchLetterformPart(center, letterformProps{
+			stretch:    stretch,
+			width:      3,
+			minStretch: 7,
+			maxStretch: 12,
+		}),
+		side,
+	)
+}
+
+// LetterD renders the letter D in a stylized way. It takes an integer that
+// determines how many cells to stretch the letter. If the stretch is less than
+// 1, it defaults to no stretching.
+func LetterD(stretch bool) string {
+	// Here's what we're making:
+	//
+	// █▀▀▀▄
+	// █   █
+	// ▀▀▀▀
+
+	left := heredoc.Doc(`
+		█
+		█
+		▀
+	`)
+	center := "▀\n \n▀"
+	right := "▄\n█"
+	return joinLetterform(
+		left,
+		stretchLetterformPart(center, letterformProps{
+			stretch:    stretch,
+			width:      3,
+			minStretch: 7,
+			maxStretch: 12,
+		}),
+		right,
+	)
+}
+
 func joinLetterform(letters ...string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, letters...)
 }
@@ -418,8 +506,11 @@ func stretchLetterformPart(s string, p letterformProps) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, parts...)
 }
 
-// Wordmark returns the plain, unstyled CRUSH wordmark (no stretching), drawn
+// TadaLetterforms spell the app name.
+var TadaLetterforms = []letterform{LetterT, LetterA, LetterD, LetterA}
+
+// Wordmark returns the plain, unstyled TADA wordmark (no stretching), drawn
 // with half-block characters. The intro scales and animates it.
 func Wordmark() string {
-	return renderWord(1, -1, LetterC, LetterR, LetterU, LetterSAlt, LetterH)
+	return renderWord(1, -1, TadaLetterforms...)
 }

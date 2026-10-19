@@ -25,10 +25,10 @@ import (
 func TestMain(m *testing.M) {
 	slog.SetLogLoggerLevel(slog.LevelError)
 	// Keep the developer's real OpenCode install out of loaded config.
-	os.Setenv("CRUSH_DISABLE_OPENCODE", "1")
-	// Tests write their own crush.json into fresh, never-trusted working
+	os.Setenv("TADA_DISABLE_OPENCODE", "1")
+	// Tests write their own tada.json into fresh, never-trusted working
 	// directories; let the project trust gate load it.
-	os.Setenv("CRUSH_TRUST_PROJECT", "1")
+	os.Setenv("TADA_TRUST_PROJECT", "1")
 	m.Run()
 }
 

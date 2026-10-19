@@ -12,11 +12,11 @@ import (
 )
 
 // TestTrust_FIFOConfigDoesNotBlock guards the fingerprinting of untrusted
-// files: a project shipping a FIFO as crush.json must not hang startup.
+// files: a project shipping a FIFO as tada.json must not hang startup.
 func TestTrust_FIFOConfigDoesNotBlock(t *testing.T) {
 	isolateTrust(t)
 	project := t.TempDir()
-	require.NoError(t, syscall.Mkfifo(filepath.Join(project, "crush.json"), 0o644))
+	require.NoError(t, syscall.Mkfifo(filepath.Join(project, "tada.json"), 0o644))
 
 	done := make(chan ProjectTrust, 1)
 	go func() {
@@ -30,7 +30,7 @@ func TestTrust_FIFOConfigDoesNotBlock(t *testing.T) {
 	select {
 	case trust := <-done:
 		require.False(t, trust.Trusted)
-		require.Equal(t, []string{"crush.json"}, trust.DisplayFiles())
+		require.Equal(t, []string{"tada.json"}, trust.DisplayFiles())
 	case <-time.After(30 * time.Second):
 		t.Fatal("loading a project with a FIFO config blocked")
 	}

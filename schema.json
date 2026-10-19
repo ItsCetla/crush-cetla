@@ -22,7 +22,7 @@
         },
         "generated_with": {
           "type": "boolean",
-          "description": "Add Generated with Crush line to commit messages and issues and PRs",
+          "description": "Add Generated with Ta-Da line to commit messages and issues and PRs",
           "default": true
         }
       },
@@ -361,7 +361,7 @@
         },
         "sessionless": {
           "type": "boolean",
-          "description": "Mark a sessionless MCP server (no Mcp-Session-Id) so Crush skips the subscriptions/listen stream it would otherwise reject. Leave unset to auto-detect known sessionless servers (e.g. GitHub MCP)",
+          "description": "Mark a sessionless MCP server (no Mcp-Session-Id) so Ta-Da skips the subscriptions/listen stream it would otherwise reject. Leave unset to auto-detect known sessionless servers (e.g. GitHub MCP)",
           "default": false
         },
         "headers": {
@@ -524,12 +524,12 @@
         },
         "mcp": {
           "type": "boolean",
-          "description": "Import MCP servers from OpenCode config. A server with the same name in crush.json wins",
+          "description": "Import MCP servers from OpenCode config. A server with the same name in tada.json wins",
           "default": true
         },
         "providers": {
           "type": "boolean",
-          "description": "Import provider base URLs, API keys, headers and custom models from OpenCode config and honor its enabled_providers and disabled_providers. Values set in crush.json win",
+          "description": "Import provider base URLs, API keys, headers and custom models from OpenCode config and honor its enabled_providers and disabled_providers. Values set in tada.json win",
           "default": true
         },
         "models": {
@@ -583,7 +583,7 @@
             "type": "string",
             "examples": [
               ".cursorrules",
-              "CRUSH.md"
+              "TADA.md"
             ]
           },
           "type": "array",
@@ -596,7 +596,7 @@
           "type": "array",
           "description": "Paths to files containing global context information for the AI",
           "default": [
-            "~/.config/crush/CRUSH.md",
+            "~/.config/tada/TADA.md",
             "~/.config/AGENTS.md"
           ]
         },
@@ -604,7 +604,7 @@
           "items": {
             "type": "string",
             "examples": [
-              "~/.config/crush/skills",
+              "~/.config/tada/skills",
               "./skills"
             ]
           },
@@ -633,9 +633,9 @@
         "data_directory": {
           "type": "string",
           "description": "Directory for storing application data. Relative paths are resolved against the working directory; absolute paths are used as-is.",
-          "default": ".crush",
+          "default": ".tada",
           "examples": [
-            ".crush"
+            ".tada"
           ]
         },
         "disabled_tools": {
@@ -651,7 +651,7 @@
         },
         "disable_provider_auto_update": {
           "type": "boolean",
-          "description": "Deprecated: has no effect. The provider catalog is never updated automatically; run crush update-providers to update it.",
+          "description": "Deprecated: has no effect. The provider catalog is never updated automatically; run tada update-providers to update it.",
           "deprecated": true
         },
         "disable_default_providers": {
@@ -669,7 +669,7 @@
           "default": "AGENTS.md",
           "examples": [
             "AGENTS.md",
-            "CRUSH.md",
+            "TADA.md",
             "CLAUDE.md",
             "docs/LLMs.md"
           ]
@@ -700,7 +700,7 @@
           "items": {
             "type": "string",
             "examples": [
-              "crush-config"
+              "tada-config"
             ]
           },
           "type": "array",
@@ -722,7 +722,7 @@
         },
         "enable_web_tools": {
           "type": "boolean",
-          "description": "Enable the built-in tools that make outbound network requests for the agent (fetch, agentic_fetch, download, sourcegraph). The CRUSH_ENABLE_WEB_TOOLS environment variable overrides this when set",
+          "description": "Enable the built-in tools that make outbound network requests for the agent (fetch, agentic_fetch, download, sourcegraph). The TADA_ENABLE_WEB_TOOLS environment variable overrides this when set",
           "default": false
         },
         "trusted_paths": {
@@ -733,7 +733,7 @@
             ]
           },
           "type": "array",
-          "description": "Directories whose projects (and every project below them) are trusted without running crush trust. Project-level config (crush.json, crushrc, .crush/crush.json) can run commands, so only list directories you control. Read only from the global config; ~ is expanded."
+          "description": "Directories whose projects (and every project below them) are trusted without running tada trust. Project-level config (tada.json, tadarc, .tada/tada.json) can run commands, so only list directories you control. Read only from the global config; ~ is expanded."
         }
       },
       "additionalProperties": false,
@@ -1006,12 +1006,12 @@
             "compact",
             "none"
           ],
-          "description": "Exit banner style after quitting Crush",
+          "description": "Exit banner style after quitting Ta-Da",
           "default": "default"
         },
         "intro": {
           "type": "boolean",
-          "description": "Play the short animated intro when the TUI starts. Any key skips it. CRUSH_NO_INTRO=1 also turns it off",
+          "description": "Play the short animated intro when the TUI starts. Any key skips it. TADA_NO_INTRO=1 also turns it off",
           "default": true
         }
       },

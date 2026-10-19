@@ -1,22 +1,22 @@
 ; Inno Setup script for the Windows installer of this fork.
 ;
-; Per-user install: no admin prompt. Puts crush.exe in
-; %LOCALAPPDATA%\Programs\Crush, adds that folder to the user PATH, adds a
+; Per-user install: no admin prompt. Puts tada.exe in
+; %LOCALAPPDATA%\Programs\Ta-Da, adds that folder to the user PATH, adds a
 ; Start menu entry and registers an uninstaller under Apps > Installed apps.
 ;
 ; Build (from the repo root, after unzipping a release archive):
-;   iscc /DAppVersion=0.1.0 /DArch=x64 /DSourceDir=C:\path\to\crush_0.1.0_Windows_x86_64 ^
-;        /ODist packaging\windows\crush.iss
+;   iscc /DAppVersion=0.1.0 /DArch=x64 /DSourceDir=C:\path\to\tada_0.1.0_Windows_x86_64 ^
+;        /ODist packaging\windows\tada.iss
 ;
 ; Silent install / uninstall:
-;   crush_<ver>_Windows_x86_64_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES
-;   "%LOCALAPPDATA%\Programs\Crush\unins000.exe" /VERYSILENT
+;   tada_<ver>_Windows_x86_64_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES
+;   "%LOCALAPPDATA%\Programs\Ta-Da\unins000.exe" /VERYSILENT
 
 #ifndef AppVersion
   #error Pass /DAppVersion=<version>
 #endif
 #ifndef SourceDir
-  #error Pass /DSourceDir=<folder with crush.exe>
+  #error Pass /DSourceDir=<folder with tada.exe>
 #endif
 #ifndef Arch
   #define Arch "x64"
@@ -32,15 +32,15 @@
 [Setup]
 ; Keep this AppId forever: upgrades and the uninstaller find the install by it.
 AppId={{5C7E2B4A-8D1F-4E36-9A2C-C3E7A1F0B9D4}
-AppName=Crush (cetla build)
+AppName=Ta-Da
 AppVersion={#AppVersion}
-AppVerName=Crush (cetla build) {#AppVersion}
+AppVerName=Ta-Da {#AppVersion}
 AppPublisher=ItsCetla
-AppPublisherURL=https://crush.cetla.dev/
-AppSupportURL=https://github.com/ItsCetla/crush-cetla/issues
-AppUpdatesURL=https://github.com/ItsCetla/crush-cetla/releases
-DefaultDirName={localappdata}\Programs\Crush
-DefaultGroupName=Crush
+AppPublisherURL=https://tada.cetla.dev/
+AppSupportURL=https://github.com/ItsCetla/tada/issues
+AppUpdatesURL=https://github.com/ItsCetla/tada/releases
+DefaultDirName={localappdata}\Programs\Ta-Da
+DefaultGroupName=Ta-Da
 DisableProgramGroupPage=yes
 DisableDirPage=auto
 PrivilegesRequired=lowest
@@ -49,38 +49,45 @@ ArchitecturesAllowed={#ArchAllowed}
 ArchitecturesInstallIn64BitMode={#ArchAllowed}
 ChangesEnvironment=yes
 LicenseFile={#SourceDir}\LICENSE.md
-SetupIconFile=crush.ico
-UninstallDisplayIcon={app}\crush.exe
-UninstallDisplayName=Crush (cetla build)
-OutputBaseFilename=crush_{#AppVersion}_Windows_{#ArchLabel}_Setup
+SetupIconFile=tada.ico
+UninstallDisplayIcon={app}\tada.exe
+UninstallDisplayName=Ta-Da
+OutputBaseFilename=tada_{#AppVersion}_Windows_{#ArchLabel}_Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 VersionInfoVersion=0.0.0.0
 VersionInfoProductTextVersion={#AppVersion}
-VersionInfoDescription=Crush (cetla build) installer
+VersionInfoDescription=Ta-Da installer
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "addtopath"; Description: "Add crush to PATH (run ""crush"" from any terminal)"; GroupDescription: "Command line:"
+Name: "addtopath"; Description: "Add tada to PATH (run ""tada"" from any terminal)"; GroupDescription: "Command line:"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 
 [Files]
-Source: "{#SourceDir}\crush.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\tada.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion isreadme
 Source: "{#SourceDir}\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\completions\*"; DestDir: "{app}\completions"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 
+[InstallDelete]
+; Upgrades from v0.1.0 (named Crush) land in the old folder; drop its binary
+; and shortcuts.
+Type: files; Name: "{app}\crush.exe"
+Type: files; Name: "{autoprograms}\Crush.lnk"
+Type: files; Name: "{autodesktop}\Crush.lnk"
+
 [Icons]
-; Opens Crush in a terminal in your home folder. Use "cd <project>; crush"
+; Opens Ta-Da in a terminal in your home folder. Use "cd <project>; tada"
 ; from a terminal to work on a specific project.
-Name: "{autoprograms}\Crush"; Filename: "{app}\crush.exe"; WorkingDir: "{%USERPROFILE}"; Comment: "Crush coding agent (cetla build)"
-Name: "{autodesktop}\Crush"; Filename: "{app}\crush.exe"; WorkingDir: "{%USERPROFILE}"; Tasks: desktopicon
+Name: "{autoprograms}\Ta-Da"; Filename: "{app}\tada.exe"; WorkingDir: "{%USERPROFILE}"; Comment: "Ta-Da coding agent"
+Name: "{autodesktop}\Ta-Da"; Filename: "{app}\tada.exe"; WorkingDir: "{%USERPROFILE}"; Tasks: desktopicon
 
 [Run]
-Filename: "https://crush.cetla.dev/"; Description: "Open the Crush website"; Flags: postinstall shellexec skipifsilent unchecked
+Filename: "https://tada.cetla.dev/"; Description: "Open the Ta-Da website"; Flags: postinstall shellexec skipifsilent unchecked
 
 [Code]
 const

@@ -18,13 +18,13 @@ import (
 	"github.com/charmbracelet/crush/internal/opencode"
 )
 
-// OpenCodeOptions controls what Crush imports from a local OpenCode
+// OpenCodeOptions controls what Ta-Da imports from a local OpenCode
 // install. Everything comes from OpenCode's files on disk; nothing is
 // fetched.
 type OpenCodeOptions struct {
 	Disabled     bool  `json:"disabled,omitempty" jsonschema:"description=Turn off all importing from OpenCode,default=false"`
-	MCP          *bool `json:"mcp,omitempty" jsonschema:"description=Import MCP servers from OpenCode config. A server with the same name in crush.json wins,default=true"`
-	Providers    *bool `json:"providers,omitempty" jsonschema:"description=Import provider base URLs\\, API keys\\, headers and custom models from OpenCode config and honor its enabled_providers and disabled_providers. Values set in crush.json win,default=true"`
+	MCP          *bool `json:"mcp,omitempty" jsonschema:"description=Import MCP servers from OpenCode config. A server with the same name in tada.json wins,default=true"`
+	Providers    *bool `json:"providers,omitempty" jsonschema:"description=Import provider base URLs\\, API keys\\, headers and custom models from OpenCode config and honor its enabled_providers and disabled_providers. Values set in tada.json win,default=true"`
 	Models       *bool `json:"models,omitempty" jsonschema:"description=Extend the model catalog with OpenCode's locally cached models.dev catalog,default=true"`
 	Credentials  bool  `json:"credentials,omitempty" jsonschema:"description=Use API keys saved by opencode auth login. OAuth logins are never imported,default=false"`
 	Instructions *bool `json:"instructions,omitempty" jsonschema:"description=Add OpenCode's instructions files and global AGENTS.md to the context,default=true"`
@@ -58,7 +58,7 @@ func (s openCodeSettings) readsConfig() bool {
 }
 
 func openCodeSettingsFor(o *Options) openCodeSettings {
-	if v, ok := os.LookupEnv("CRUSH_DISABLE_OPENCODE"); ok {
+	if v, ok := os.LookupEnv("TADA_DISABLE_OPENCODE"); ok {
 		if off, _ := strconv.ParseBool(v); off {
 			return openCodeSettings{}
 		}
@@ -103,9 +103,9 @@ var openCodeProjectFileNames = []string{
 // openCodeProjectFiles reports the project-level OpenCode config files so
 // the project trust fingerprint covers them: an imported local MCP server
 // runs a command, so a repository that ships or changes one must be
-// trusted again before Crush reads it.
+// trusted again before Ta-Da reads it.
 func openCodeProjectFiles(workingDir, root string) []string {
-	if off, _ := strconv.ParseBool(os.Getenv("CRUSH_DISABLE_OPENCODE")); off {
+	if off, _ := strconv.ParseBool(os.Getenv("TADA_DISABLE_OPENCODE")); off {
 		return nil
 	}
 	globalDir := filepath.Clean(openCodePaths().ConfigDir)
@@ -165,7 +165,7 @@ type openCodeImport struct {
 	// creds maps catwalk provider IDs to API keys from OpenCode's auth
 	// store. Only loaded when credentials are enabled.
 	creds map[string]string
-	// ownProviders are the provider IDs Crush's own config defines,
+	// ownProviders are the provider IDs Ta-Da's own config defines,
 	// recorded before anything is imported. They are never disabled.
 	ownProviders map[string]bool
 	// importedMCP names the MCP servers that came from OpenCode.
@@ -232,14 +232,14 @@ func (imp *openCodeImport) files() []string {
 	})
 }
 
-// literalEscaper escapes the characters Crush's value expansion treats
+// literalEscaper escapes the characters Ta-Da's value expansion treats
 // specially (see shell.ExpandValue).
 var literalEscaper = strings.NewReplacer(`\`, `\\`, `$`, `\$`, "`", "\\`")
 
-// literalValue makes s survive Crush's shell-style value expansion
+// literalValue makes s survive Ta-Da's shell-style value expansion
 // unchanged. OpenCode values arrive with {env:...} and {file:...} already
 // substituted; unescaped, a "$" in an API key would be expanded and a
-// "$(...)" in any value would be executed when Crush resolves the config.
+// "$(...)" in any value would be executed when Ta-Da resolves the config.
 func literalValue(s string) string {
 	return literalEscaper.Replace(s)
 }
@@ -268,11 +268,11 @@ func literalMap(in map[string]string) map[string]string {
 
 // importedMCPTimeout is the startup timeout, in seconds, for imported MCP
 // servers that don't set one. It matches OpenCode's default; npx-launched
-// servers often need more than Crush's own 10s default on a cold cache.
+// servers often need more than Ta-Da's own 10s default on a cold cache.
 const importedMCPTimeout = 30
 
-// mcpFromOpenCode converts an OpenCode MCP server to Crush's form.
-// OpenCode remote servers speak Streamable HTTP, Crush's "http" type.
+// mcpFromOpenCode converts an OpenCode MCP server to Ta-Da's form.
+// OpenCode remote servers speak Streamable HTTP, Ta-Da's "http" type.
 func mcpFromOpenCode(s opencode.MCPServer) (MCPConfig, bool) {
 	var m MCPConfig
 	switch s.Type {
@@ -297,9 +297,9 @@ func mcpFromOpenCode(s opencode.MCPServer) (MCPConfig, bool) {
 			Headers: literalMap(s.Headers),
 		}
 		// OpenCode attempts OAuth on any remote server that returns 401,
-		// but Crush's OAuth flag demands a browser login up front. Only an
+		// but Ta-Da's OAuth flag demands a browser login up front. Only an
 		// explicit oauth block opts in; otherwise add "oauth": true for
-		// the server in crush.json.
+		// the server in tada.json.
 		if s.OAuth != nil && !s.OAuthDisabled {
 			m.OAuth = true
 			m.OAuthClientID = literalValue(s.OAuth.ClientID)
@@ -318,13 +318,13 @@ func mcpFromOpenCode(s opencode.MCPServer) (MCPConfig, bool) {
 }
 
 // isPartial reports whether m only carries settings layered onto a server
-// defined elsewhere: Crush writes such entries when a server is toggled
+// defined elsewhere: Ta-Da writes such entries when a server is toggled
 // or an OAuth token is saved.
 func (m MCPConfig) isPartial() bool {
 	return m.Type == "" && m.Command == "" && m.URL == ""
 }
 
-// overlayMCP layers the settings from a partial Crush entry onto an
+// overlayMCP layers the settings from a partial Ta-Da entry onto an
 // imported server.
 func overlayMCP(base, over MCPConfig) MCPConfig {
 	if over.Disabled {
@@ -375,8 +375,8 @@ func overlayMCP(base, over MCPConfig) MCPConfig {
 	return base
 }
 
-// applyOpenCodeMCP adds the imported MCP servers. A server Crush's own
-// config defines in full wins outright; a partial Crush entry (a toggle
+// applyOpenCodeMCP adds the imported MCP servers. A server Ta-Da's own
+// config defines in full wins outright; a partial Ta-Da entry (a toggle
 // or a saved OAuth token) is layered onto the imported server. It must run
 // before setDefaults, which drops token-only entries it can't place.
 func (c *Config) applyOpenCodeMCP(imp *openCodeImport) {
@@ -409,8 +409,8 @@ func (c *Config) applyOpenCodeMCP(imp *openCodeImport) {
 }
 
 // applyOpenCodeProviders fills provider settings from OpenCode config and,
-// when enabled, OpenCode's stored API keys. Only fields Crush's config
-// leaves empty are filled, and custom models are added alongside Crush's.
+// when enabled, OpenCode's stored API keys. Only fields Ta-Da's config
+// leaves empty are filled, and custom models are added alongside Ta-Da's.
 func (c *Config) applyOpenCodeProviders(imp *openCodeImport) {
 	if imp == nil {
 		return
@@ -444,7 +444,7 @@ func (c *Config) applyOpenCodeProviders(imp *openCodeImport) {
 
 // mergeOpenCodeProvider fills the empty fields of pc from an OpenCode
 // provider and reports whether anything changed. The provider's identity
-// (ID, name and API type) is only filled when Crush already has an entry
+// (ID, name and API type) is only filled when Ta-Da already has an entry
 // for it or something else was imported, so an OpenCode block that adds
 // nothing doesn't create a provider.
 func mergeOpenCodeProvider(pc *ProviderConfig, id string, p opencode.Provider, exists bool) bool {
@@ -472,7 +472,7 @@ func mergeOpenCodeProvider(pc *ProviderConfig, id string, p opencode.Provider, e
 		if om.Disabled != nil && *om.Disabled {
 			continue
 		}
-		// Crush's agent can't work without tool calls.
+		// Ta-Da's agent can't work without tool calls.
 		if om.ToolCall != nil && !*om.ToolCall {
 			continue
 		}
@@ -529,7 +529,7 @@ func modelFromOpenCode(key string, m opencode.Model) catwalk.Model {
 	return out
 }
 
-// applyOpenCodeModelPreference selects OpenCode's models when Crush has no
+// applyOpenCodeModelPreference selects OpenCode's models when Ta-Da has no
 // selection of its own and the referenced provider and model are
 // available. The large model is the default agent's model, else "model";
 // the small model is "small_model". It is part of the provider settings,
@@ -566,7 +566,7 @@ func (c *Config) applyOpenCodeModelPreference(imp *openCodeImport) {
 		for _, cand := range pref.candidates {
 			choice := OpenCodeModelChoice{Type: pref.typ, Ref: cand.ref, Source: cand.source}
 			if sel, set := c.Models[pref.typ]; set {
-				choice.Result = "not used: Crush already selects " + sel.Provider + "/" + sel.Model
+				choice.Result = "not used: Ta-Da already selects " + sel.Provider + "/" + sel.Model
 				imp.applied.Models = append(imp.applied.Models, choice)
 				break
 			}
@@ -589,7 +589,7 @@ func (c *Config) applyOpenCodeModelPreference(imp *openCodeImport) {
 }
 
 // resolveOpenCodeModel maps an OpenCode "provider/model" reference to a
-// configured Crush provider and model ID, or says why it can't.
+// configured Ta-Da provider and model ID, or says why it can't.
 func (c *Config) resolveOpenCodeModel(imp *openCodeImport, ref string) (provider, model, reason string) {
 	ocProvider, key, ok := strings.Cut(ref, "/")
 	if !ok || key == "" {
@@ -622,8 +622,8 @@ var envRefRe = regexp.MustCompile(`\$\{?([A-Za-z_][A-Za-z0-9_]*)`)
 
 // openCodeCatalogSource extends the catalog with OpenCode's locally cached
 // models.dev catalog. Providers Catwalk already defines gain the models
-// Catwalk lacks. Providers new to Crush are only listed when usable: their
-// API key variable is set or Crush's config (including what was imported
+// Catwalk lacks. Providers new to Ta-Da are only listed when usable: their
+// API key variable is set or Ta-Da's config (including what was imported
 // from OpenCode) configures them. Listing all ~200 would bury the model
 // picker.
 func openCodeCatalogSource(cfg *Config) catalogSource {

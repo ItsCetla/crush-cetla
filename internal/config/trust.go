@@ -2,25 +2,25 @@ package config
 
 // Project trust gate.
 //
-// Project-level config can run commands on the user's machine: crushrc is
-// executed as a shell script, crush.json values are shell-expanded, and both
+// Project-level config can run commands on the user's machine: tadarc is
+// executed as a shell script, tada.json values are shell-expanded, and both
 // can start MCP and LSP servers, install hooks, auto-approve tools or point a
-// provider at another endpoint. Opening Crush in a directory therefore must
+// provider at another endpoint. Opening Ta-Da in a directory therefore must
 // not apply that directory's config until the user has reviewed it, in the
 // spirit of `direnv allow`.
 //
 // Project-level config is every file the project walk finds between the
-// working directory and the project root (.crushrc, crushrc, .crush.json,
-// crush.json), the workspace config (<data dir>/crush.json, by default
-// .crush/crush.json), and anything a registered ProjectConfigFinder
-// reports. System and global config (/etc/crush, ~/.config/crush, the global
-// data crush.json) is never gated.
+// working directory and the project root (.tadarc, tadarc, .tada.json,
+// tada.json), the workspace config (<data dir>/tada.json, by default
+// .tada/tada.json), and anything a registered ProjectConfigFinder
+// reports. System and global config (/etc/tada, ~/.config/tada, the global
+// data tada.json) is never gated.
 //
 // A project is trusted when any of the following holds; otherwise all of its
-// project-level config is skipped and the user is told to run `crush trust`:
+// project-level config is skipped and the user is told to run `tada trust`:
 //
 //   - It has no project-level config at all (nothing to gate).
-//   - CRUSH_TRUST_PROJECT is set to a true value (one invocation only).
+//   - TADA_TRUST_PROJECT is set to a true value (one invocation only).
 //   - Its root lies under one of the options.trusted_paths entries of the
 //     global or system config. Project files cannot influence this: the
 //     decision is made before any of them is read.
@@ -30,18 +30,18 @@ package config
 //     project-level file; a file that changes, appears or disappears breaks
 //     the match, and the project is untrusted again.
 //
-// Crush keeps its own writes from untrusting a project. When it writes the
+// Ta-Da keeps its own writes from untrusting a project. When it writes the
 // workspace config of a project that was trusted by record just before the
 // write, the record is refreshed to the new content. When the project was not
 // trusted by record and the workspace config did not exist before the write,
-// the file holds nothing but content Crush wrote itself, so it is recorded as
+// the file holds nothing but content Ta-Da wrote itself, so it is recorded as
 // a trust entry covering just that file; any other project-level file (a
-// committed crush.json, or a workspace config that existed before) still
-// makes the project untrusted until the user runs `crush trust`.
+// committed tada.json, or a workspace config that existed before) still
+// makes the project untrusted until the user runs `tada trust`.
 //
 // Integration: loaders of other project-level config formats should register
 // a ProjectConfigFinder so their files are fingerprinted by every trust
-// decision (startup, reload, self-writes and `crush trust`), and should only
+// decision (startup, reload, self-writes and `tada trust`), and should only
 // read those files when ConfigStore.ProjectTrust reports Trusted.
 
 import (
@@ -71,7 +71,7 @@ import (
 
 // TrustProjectEnv names the environment variable that trusts the current
 // project's config for a single invocation when set to a true value.
-const TrustProjectEnv = "CRUSH_TRUST_PROJECT"
+const TrustProjectEnv = "TADA_TRUST_PROJECT"
 
 const (
 	trustStoreFile        = "trusted_projects.json"
@@ -88,7 +88,7 @@ const (
 	TrustSourceUntrusted TrustSource = "untrusted"
 	// TrustSourceNoConfig means the project has no project-level config.
 	TrustSourceNoConfig TrustSource = "no_config"
-	// TrustSourceEnv means CRUSH_TRUST_PROJECT trusted the project.
+	// TrustSourceEnv means TADA_TRUST_PROJECT trusted the project.
 	TrustSourceEnv TrustSource = "env"
 	// TrustSourceAllowlist means options.trusted_paths covers the project.
 	TrustSourceAllowlist TrustSource = "trusted_paths"
@@ -156,7 +156,7 @@ func (t ProjectTrust) Notice() string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"Ignoring untrusted project config (%s) in %s. Review it, then run `crush trust`.",
+		"Ignoring untrusted project config (%s) in %s. Review it, then run `tada trust`.",
 		strings.Join(t.DisplayFiles(), ", "),
 		home.Short(t.Root),
 	)
@@ -174,7 +174,7 @@ var (
 
 // RegisterProjectConfigFinder adds f to the finders consulted by every trust
 // decision. Use it for project-level config formats that are loaded outside
-// the crush.json/crushrc pipeline so their files are gated by the same
+// the tada.json/tadarc pipeline so their files are gated by the same
 // fingerprint.
 func RegisterProjectConfigFinder(f ProjectConfigFinder) {
 	projectConfigFindersMu.Lock()
@@ -653,7 +653,7 @@ func workspaceConfigPath(dataDir string) string {
 
 // resolveDataDirectory returns the absolute data directory: the --data-dir
 // override when set, else the configured options.data_directory, else the
-// closest existing .crush directory within the project, else .crush in the
+// closest existing .tada directory within the project, else .tada in the
 // working directory.
 func resolveDataDirectory(workingDir, override, configured string) string {
 	dir := override

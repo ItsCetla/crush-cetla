@@ -14,7 +14,7 @@ import (
 )
 
 // TestBuildAgentReadinessSurvivesCallerCancellation is a regression test for
-// the CRUSH_CLIENT_SERVER=1 "new session hangs" bug.
+// the TADA_CLIENT_SERVER=1 "new session hangs" bug.
 //
 // buildAgent starts readiness goroutines that build the system prompt and the
 // initial tool list. Several server entry points build an agent from a
@@ -48,7 +48,7 @@ func TestBuildAgentReadinessSurvivesCallerCancellation(t *testing.T) {
   "models": {"large": {"provider": "mock", "model": "mock-model"},
              "small": {"provider": "mock", "model": "mock-model"}}
 }`
-	require.NoError(t, os.WriteFile(filepath.Join(env.workingDir, "crush.json"), []byte(crushJSON), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(env.workingDir, "tada.json"), []byte(crushJSON), 0o644))
 
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)

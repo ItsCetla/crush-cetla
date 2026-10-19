@@ -55,7 +55,7 @@ type CurrentSession struct {
 // RunComplete is the authoritative end-of-run signal for a session,
 // emitted exactly once per top-level agent turn after all message
 // updates for the turn have flushed. Clients that need a reliable
-// completion contract (notably `crush run` in client/server mode)
+// completion contract (notably `tada run` in client/server mode)
 // should listen for this event filtered by RunID (preferred) — or
 // by SessionID when no RunID was supplied — and use Text and
 // MessageID to reconcile any output they have already streamed from
@@ -125,7 +125,7 @@ func (a AgentInfo) IsZero() bool {
 // RunID, when non-empty, is echoed back on the [RunComplete] event
 // emitted for the resulting turn. Callers that need to correlate a
 // specific SendMessage with its terminal event (notably
-// `crush run`, which may attach to a busy session whose currently
+// `tada run`, which may attach to a busy session whose currently
 // running turn finishes first) should set it to a fresh unique
 // value before the request. Server-side propagation flows through
 // agent.WithRunID on the request context into the

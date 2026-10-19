@@ -17,7 +17,7 @@ import (
 	"charm.land/catwalk/pkg/embedded"
 )
 
-// defaultCatwalkURL is where `crush update-providers` fetches the Catwalk
+// defaultCatwalkURL is where `tada update-providers` fetches the Catwalk
 // catalog from when no source is given. Nothing else contacts it.
 const defaultCatwalkURL = "https://catwalk.charm.land"
 
@@ -28,14 +28,14 @@ var (
 )
 
 // file to cache provider data. It resolves through GlobalConfigData so the
-// catalog follows CRUSH_GLOBAL_DATA like the rest of the data directory.
+// catalog follows TADA_GLOBAL_DATA like the rest of the data directory.
 func cachePathFor(name string) string {
 	return filepath.Join(filepath.Dir(GlobalConfigData()), name+".json")
 }
 
 // UpdateProviders updates the Catwalk providers list from a specified source
 // and saves it where [Providers] picks it up. It backs the explicit
-// `crush update-providers` command, which is the only way the catalog is
+// `tada update-providers` command, which is the only way the catalog is
 // ever fetched over the network.
 func UpdateProviders(pathOrURL string) error {
 	var providers []catwalk.Provider
@@ -110,7 +110,7 @@ var catalogSources = []catalogSource{
 // Providers returns the provider catalog: the known providers and their
 // models. It is built once per process, from local data only, by merging
 // [catalogSources]. It never touches the network; the Catwalk part of the
-// catalog is refreshed only by an explicit `crush update-providers`.
+// catalog is refreshed only by an explicit `tada update-providers`.
 //
 // A returned error is advisory: it reports that a source could not be read
 // in full. It never means that no providers are available, so callers
@@ -226,8 +226,8 @@ func (c cache[T]) Store(v T) error {
 		return fmt.Errorf("failed to marshal provider data: %w", err)
 	}
 
-	// Written through a temporary file and renamed into place. A Crush
-	// instance may be reading the catalog while `crush update-providers`
+	// Written through a temporary file and renamed into place. A Ta-Da
+	// instance may be reading the catalog while `tada update-providers`
 	// replaces it, and a truncating write would let that reader see a
 	// half-written catalog and silently fall back to the bundled copy.
 	if err := atomicWriteFile(c.path, data, 0o644); err != nil {

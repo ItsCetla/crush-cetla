@@ -85,9 +85,9 @@ func TestApplyOpenCodeMCP(t *testing.T) {
 
 	token := &oauth.Token{AccessToken: "tok"}
 	cfg := &Config{MCP: MCPs{
-		// Fully defined by Crush: wins outright.
+		// Fully defined by Ta-Da: wins outright.
 		"mine": {Type: MCPStdio, Command: "my-server"},
-		// Partial entries Crush writes itself: layered on top.
+		// Partial entries Ta-Da writes itself: layered on top.
 		"toggled": {Disabled: true},
 		"authed":  {OAuthToken: token},
 	}}
@@ -132,7 +132,7 @@ func TestApplyOpenCodeProviders(t *testing.T) {
 	t.Parallel()
 
 	providers := csync.NewMap[string, ProviderConfig]()
-	providers.Set("anthropic", ProviderConfig{ID: "anthropic", APIKey: "crush-key"})
+	providers.Set("anthropic", ProviderConfig{ID: "anthropic", APIKey: "tada-key"})
 	cfg := &Config{Providers: providers}
 
 	tru := true
@@ -156,7 +156,7 @@ func TestApplyOpenCodeProviders(t *testing.T) {
 	cfg.applyOpenCodeProviders(imp)
 
 	anthropic, _ := cfg.Providers.Get("anthropic")
-	require.Equal(t, "crush-key", anthropic.APIKey, "crush config wins")
+	require.Equal(t, "tada-key", anthropic.APIKey, "tada config wins")
 	require.Equal(t, "https://proxy.example", anthropic.BaseURL, "empty fields are filled")
 
 	gemini, ok := cfg.Providers.Get("gemini")
@@ -195,7 +195,7 @@ func TestApplyOpenCodeModelPreference(t *testing.T) {
 		SelectedModelTypeLarge: {Provider: "anthropic", Model: "claude-small"},
 	}}
 	cfg.applyOpenCodeModelPreference(imp)
-	require.Equal(t, "claude-small", cfg.Models[SelectedModelTypeLarge].Model, "crush's selection wins")
+	require.Equal(t, "claude-small", cfg.Models[SelectedModelTypeLarge].Model, "tada's selection wins")
 }
 
 func TestMergeCatalogsAugment(t *testing.T) {
@@ -246,7 +246,7 @@ func TestOpenCodeCatalogSourceInclude(t *testing.T) {
 }
 
 func TestOpenCodeSettings(t *testing.T) {
-	t.Setenv("CRUSH_DISABLE_OPENCODE", "")
+	t.Setenv("TADA_DISABLE_OPENCODE", "")
 	f := false
 	all := openCodeSettings{
 		enabled: true, mcp: true, providers: true, models: true,
@@ -261,7 +261,7 @@ func TestOpenCodeSettings(t *testing.T) {
 		MCP: &f, Permissions: &f, Credentials: true,
 	}}))
 
-	t.Setenv("CRUSH_DISABLE_OPENCODE", "1")
+	t.Setenv("TADA_DISABLE_OPENCODE", "1")
 	require.Equal(t, openCodeSettings{}, openCodeSettingsFor(nil))
 }
 
@@ -328,7 +328,7 @@ func TestOpenCodeImportEndToEnd(t *testing.T) {
 func isolateOpenCode(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	t.Setenv("CRUSH_DISABLE_OPENCODE", "")
+	t.Setenv("TADA_DISABLE_OPENCODE", "")
 	t.Setenv("HOME", root)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(root, "data"))

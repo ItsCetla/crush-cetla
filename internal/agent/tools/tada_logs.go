@@ -17,9 +17,9 @@ import (
 	"charm.land/fantasy"
 )
 
-const CrushLogsToolName = "crush_logs"
+const CrushLogsToolName = "tada_logs"
 
-//go:embed crush_logs.md.tpl
+//go:embed tada_logs.md.tpl
 var crushLogsDescriptionTmpl []byte
 
 var crushLogsDescriptionTpl = template.Must(

@@ -7,7 +7,7 @@
 #   goreleaser release --snapshot --clean                  # all archives in dist/
 version: 2
 
-project_name: crush
+project_name: tada
 
 snapshot:
   version_template: "0.0.0-{{ .Timestamp }}"
@@ -19,10 +19,10 @@ before:
     - mkdir completions
     - rm -rf manpages
     - mkdir manpages
-    - sh -c 'go run . completion bash >./completions/crush.bash'
-    - sh -c 'go run . completion zsh >./completions/crush.zsh'
-    - sh -c 'go run . completion fish >./completions/crush.fish'
-    - sh -c 'go run . man | gzip -c >./manpages/crush.1.gz'
+    - sh -c 'go run . completion bash >./completions/tada.bash'
+    - sh -c 'go run . completion zsh >./completions/tada.zsh'
+    - sh -c 'go run . completion fish >./completions/tada.fish'
+    - sh -c 'go run . man | gzip -c >./manpages/tada.1.gz'
 
 builds:
   - env:
@@ -45,7 +45,7 @@ builds:
 
 archives:
   - name_template: >-
-      crush_
+      tada_
       {{- .Version }}_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64

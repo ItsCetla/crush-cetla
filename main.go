@@ -1,4 +1,4 @@
-// Package main is the entry point for the Crush CLI.
+// Package main is the entry point for the Ta-Da CLI.
 package main
 
 import (
@@ -8,10 +8,15 @@ import (
 	"os"
 
 	"github.com/charmbracelet/crush/internal/cmd"
+	"github.com/charmbracelet/crush/internal/config"
 )
 
 func main() {
-	if os.Getenv("CRUSH_PROFILE") != "" {
+	// Keep settings from when this app was called Crush.
+	config.ImportLegacyEnv()
+	config.MigrateLegacyDirs()
+
+	if os.Getenv("TADA_PROFILE") != "" {
 		go servePprof()
 	}
 
@@ -20,7 +25,7 @@ func main() {
 
 // servePprof serves the pprof handlers on localhost from a dedicated mux.
 // Importing net/http/pprof still registers them on http.DefaultServeMux in
-// its init, so nothing in crush may ever serve DefaultServeMux.
+// its init, so nothing in tada may ever serve DefaultServeMux.
 func servePprof() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/pprof/", pprof.Index)

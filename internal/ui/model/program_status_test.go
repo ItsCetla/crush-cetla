@@ -38,12 +38,12 @@ func TestProgramStatus(t *testing.T) {
 	}{
 		{
 			name: "idle",
-			want: tea.ProgramStatus{State: tea.ProgramStateIdle, App: "crush"},
+			want: tea.ProgramStatus{State: tea.ProgramStateIdle, App: "tada"},
 		},
 		{
 			name:  "working",
 			setup: func(u *UI) { u.agentBusyCache.set(true) },
-			want:  tea.ProgramStatus{State: tea.ProgramStateWorking, App: "crush"},
+			want:  tea.ProgramStatus{State: tea.ProgramStateWorking, App: "tada"},
 		},
 		{
 			name: "question",
@@ -52,7 +52,7 @@ func TestProgramStatus(t *testing.T) {
 				u.activeInline = dialog.NewQuestionForm(u.com.Styles, question.Request{})
 			},
 			want: tea.ProgramStatus{
-				State: tea.ProgramStateBlocked, App: "crush",
+				State: tea.ProgramStateBlocked, App: "tada",
 				Kind: tea.ProgramStatusKindQuestion, Message: "Questions need your input",
 			},
 		},
@@ -63,7 +63,7 @@ func TestProgramStatus(t *testing.T) {
 				u.dialog.OpenDialogWithGrace(dialog.NewPermissions(u.com, permission.PermissionRequest{ID: "p", ToolName: "bash"}))
 			},
 			want: tea.ProgramStatus{
-				State: tea.ProgramStateBlocked, App: "crush",
+				State: tea.ProgramStateBlocked, App: "tada",
 				Kind: tea.ProgramStatusKindPermission, Message: "Permission required",
 			},
 		},
@@ -74,7 +74,7 @@ func TestProgramStatus(t *testing.T) {
 				u.dialog.OpenDialog(dlg)
 			},
 			want: tea.ProgramStatus{
-				State: tea.ProgramStateBlocked, App: "crush",
+				State: tea.ProgramStateBlocked, App: "tada",
 				Kind: tea.ProgramStatusKindAuth, Message: "AWS sign-in required",
 			},
 		},
@@ -84,12 +84,12 @@ func TestProgramStatus(t *testing.T) {
 				u.turnOutcome = tea.ProgramStateDone
 				u.agentBusyCache.set(true)
 			},
-			want: tea.ProgramStatus{State: tea.ProgramStateWorking, App: "crush"},
+			want: tea.ProgramStatus{State: tea.ProgramStateWorking, App: "tada"},
 		},
 		{
 			name:  "outcome once idle",
 			setup: func(u *UI) { u.turnOutcome = tea.ProgramStateError },
-			want:  tea.ProgramStatus{State: tea.ProgramStateError, App: "crush"},
+			want:  tea.ProgramStatus{State: tea.ProgramStateError, App: "tada"},
 		},
 	}
 	for _, c := range cases {

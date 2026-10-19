@@ -54,7 +54,7 @@ func (r *runtimeServer) newClient(t *testing.T, path string) *client.Client {
 	// claim it holds and tears the workspace down at once, closing the
 	// pooled DB connection. Without this a test that leaves clients
 	// attached (the SSE cache tests never shut theirs down) keeps the
-	// workspace, and its open crush.db, alive past t.TempDir cleanup,
+	// workspace, and its open tada.db, alive past t.TempDir cleanup,
 	// which Windows cannot remove while the file is locked.
 	t.Cleanup(func() { _ = c.RetireClient(context.Background()) })
 	return c

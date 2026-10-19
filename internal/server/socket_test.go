@@ -33,7 +33,7 @@ func (fakeTimeoutErr) Temporary() bool { return true }
 // sun_path limit, so bind fails with EINVAL.
 func shortTempDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "crush")
+	dir, err := os.MkdirTemp("", "tada")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
@@ -86,7 +86,7 @@ func TestDefaultHost_XDGRuntimeDir(t *testing.T) {
 	// to /tmp; only assert containment when it did not. Recompose the
 	// path under dir (rather than checking the returned path length,
 	// which is short again after a /tmp fallback) to decide whether a
-	// fallback happened. The socket is named crush-<uid>.sock.
+	// fallback happened. The socket is named tada-<uid>.sock.
 	composed := filepath.Join(dir, filepath.Base(path))
 	if len(composed) <= maxUnixSocketPathLen {
 		require.True(t, strings.HasPrefix(path, dir),
@@ -94,8 +94,8 @@ func TestDefaultHost_XDGRuntimeDir(t *testing.T) {
 	}
 	require.True(t, strings.HasSuffix(path, ".sock"),
 		"socket path %q should end in .sock", path)
-	require.Contains(t, filepath.Base(path), "crush",
-		"socket filename should contain 'crush'")
+	require.Contains(t, filepath.Base(path), "tada",
+		"socket filename should contain 'tada'")
 }
 
 func TestDefaultHost_FallbackTemp(t *testing.T) {
@@ -109,8 +109,8 @@ func TestDefaultHost_FallbackTemp(t *testing.T) {
 	require.NotEmpty(t, path, "fallback socket path must be non-empty")
 	require.True(t, strings.HasSuffix(path, ".sock"),
 		"socket path %q should end in .sock", path)
-	require.Contains(t, filepath.Base(path), "crush",
-		"socket filename should contain 'crush'")
+	require.Contains(t, filepath.Base(path), "tada",
+		"socket filename should contain 'tada'")
 	require.Equal(t, privateSocketDirName(currentUID()), filepath.Base(filepath.Dir(path)),
 		"without XDG_RUNTIME_DIR the socket must live in a private per-user directory")
 }

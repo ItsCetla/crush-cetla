@@ -16,7 +16,7 @@ import (
 )
 
 // writeTokenToDisk persists token as the xai provider credential in the
-// config file at path, mimicking what another crush instance would leave
+// config file at path, mimicking what another tada instance would leave
 // behind after a successful refresh.
 func writeTokenToDisk(t *testing.T, path string, token *oauth.Token) {
 	t.Helper()
@@ -39,7 +39,7 @@ func writeTokenToDisk(t *testing.T, path string, token *oauth.Token) {
 // newRefreshTestStore builds a ConfigStore whose xai provider holds an
 // expired OAuth token, persisted both in memory and on disk at configPath.
 // Stores that share a configPath also share the per-provider refresh lock,
-// which lets a single test process faithfully simulate two crush instances:
+// which lets a single test process faithfully simulate two tada instances:
 // lock.File opens a fresh descriptor per call, so two stores block each
 // other on the same lock file exactly as two processes would.
 func newRefreshTestStore(t *testing.T, configPath string, exchange func(ctx context.Context, providerID, refreshToken string) (*oauth.Token, error)) *ConfigStore {
@@ -73,7 +73,7 @@ func newRefreshTestStore(t *testing.T, configPath string, exchange func(ctx cont
 // concurrent refresh calls for the same provider collapses into a single
 // token exchange.
 func TestRefreshOAuthToken_InProcessSingleFlight(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "crush.json")
+	configPath := filepath.Join(t.TempDir(), "tada.json")
 
 	var exchanges atomic.Int64
 	store := newRefreshTestStore(t, configPath, func(ctx context.Context, providerID, refreshToken string) (*oauth.Token, error) {
@@ -119,7 +119,7 @@ func TestRefreshOAuthToken_InProcessSingleFlight(t *testing.T) {
 // refresh token it has already rotated returns an error, so a second
 // exchange would be observable as a failure.
 func TestRefreshOAuthToken_CrossProcessAdopt(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "crush.json")
+	configPath := filepath.Join(t.TempDir(), "tada.json")
 
 	var (
 		mu          sync.Mutex
@@ -218,7 +218,7 @@ func rotatingExchange(live string, next int) (exchange func(ctx context.Context,
 // disk rather than presenting its own revoked one, which would revoke the
 // whole token family and force the user to log in again.
 func TestRefreshOAuthToken_StalePeerBorrowsRotatedRefreshToken(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "crush.json")
+	configPath := filepath.Join(t.TempDir(), "tada.json")
 	exchange, exchanges, reuse := rotatingExchange("rt3", 4)
 	store := newRefreshTestStore(t, configPath, exchange)
 
@@ -246,7 +246,7 @@ func TestRefreshOAuthToken_StalePeerBorrowsRotatedRefreshToken(t *testing.T) {
 // whose in-memory credential has aged out adopts a peer's still-valid
 // token from disk without spending an exchange at all.
 func TestRefreshOAuthToken_AdoptsFresherDiskToken(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "crush.json")
+	configPath := filepath.Join(t.TempDir(), "tada.json")
 	exchange, exchanges, _ := rotatingExchange("rt9", 10)
 	store := newRefreshTestStore(t, configPath, exchange)
 
@@ -270,7 +270,7 @@ func TestRefreshOAuthToken_AdoptsFresherDiskToken(t *testing.T) {
 // backwards: a config file holding an older credential than the one we
 // already have must not be adopted or borrowed from.
 func TestRefreshOAuthToken_IgnoresOlderDiskToken(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "crush.json")
+	configPath := filepath.Join(t.TempDir(), "tada.json")
 	exchange, exchanges, reuse := rotatingExchange("rt0", 1)
 	store := newRefreshTestStore(t, configPath, exchange)
 

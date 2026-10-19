@@ -22,7 +22,7 @@ import (
 // use 104 so the resulting path is portable across both platforms.
 const maxUnixSocketPathLen = 104
 
-// socketDir returns the directory used for the Crush Unix socket.
+// socketDir returns the directory used for the Ta-Da Unix socket.
 // It prefers $XDG_RUNTIME_DIR when set (systemd's per-user runtime
 // directory on Linux). Otherwise it uses a private per-user directory
 // (see [privateSocketDir]) inside [os.TempDir], which resolves to the
@@ -45,9 +45,9 @@ func privateSocketDir(base, uid string) string {
 
 func privateSocketDirName(uid string) string {
 	if uid == "" {
-		return "crush"
+		return "tada"
 	}
-	return "crush-" + uid
+	return "tada-" + uid
 }
 
 // currentUID returns the current user id as a string, or "" if unknown.
@@ -89,16 +89,16 @@ func ParseHostURL(host string) (*url.URL, error) {
 //
 // On Windows the address is a named pipe under \\.\pipe\. On Unix
 // platforms the socket lives in the per-user directory returned by
-// [socketDir] and is named crush-<uid>.sock, falling back to
-// crush.sock when the current uid cannot be determined. If the
+// [socketDir] and is named tada-<uid>.sock, falling back to
+// tada.sock when the current uid cannot be determined. If the
 // composed path would exceed [maxUnixSocketPathLen] bytes (the macOS
-// sun_path limit), we fall back to /tmp/crush-<uid>/crush-<uid>.sock
+// sun_path limit), we fall back to /tmp/tada-<uid>/tada-<uid>.sock
 // so the socket remains bindable.
 func DefaultHost() string {
 	uid := currentUID()
-	sock := "crush.sock"
+	sock := "tada.sock"
 	if uid != "" {
-		sock = fmt.Sprintf("crush-%s.sock", uid)
+		sock = fmt.Sprintf("tada-%s.sock", uid)
 	}
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("npipe:////./pipe/%s", sock)
@@ -110,7 +110,7 @@ func DefaultHost() string {
 	return "unix://" + path
 }
 
-// Server represents a Crush server bound to a specific address.
+// Server represents a Ta-Da server bound to a specific address.
 type Server struct {
 	// Addr can be a TCP address, a Unix socket path, or a Windows named pipe.
 	Addr    string
@@ -207,7 +207,7 @@ func (s *Server) ListenAndServe() error {
 		return fmt.Errorf("server already started")
 	}
 	if s.network == "tcp" {
-		slog.Warn("The Crush server listens on TCP without authentication: any local process can connect, drive the agent and read the environment clients send", "address", s.Addr)
+		slog.Warn("The Ta-Da server listens on TCP without authentication: any local process can connect, drive the agent and read the environment clients send", "address", s.Addr)
 	}
 	ln, removedStale, err := listen(s.network, s.Addr)
 	if err != nil {

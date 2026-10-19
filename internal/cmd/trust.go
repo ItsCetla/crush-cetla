@@ -19,34 +19,34 @@ import (
 
 var trustCmd = &cobra.Command{
 	Use:   "trust [path]",
-	Short: "Allow Crush to load a project's config",
-	Long: `Allow Crush to load the project-level config of a project.
+	Short: "Allow Ta-Da to load a project's config",
+	Long: `Allow Ta-Da to load the project-level config of a project.
 
-Project-level config is every crush.json, .crush.json, crushrc and .crushrc
+Project-level config is every tada.json, .tada.json, tadarc and .tadarc
 between the directory and the project root, plus the workspace config
-(.crush/crush.json). It can run commands on your machine: crushrc is a shell
-script, crush.json values are shell-expanded, and both can start MCP and LSP
-servers, add hooks, auto-approve tools or redirect provider requests. Crush
+(.tada/tada.json). It can run commands on your machine: tadarc is a shell
+script, tada.json values are shell-expanded, and both can start MCP and LSP
+servers, add hooks, auto-approve tools or redirect provider requests. Ta-Da
 ignores it until you trust the project.
 
 Trusting records a fingerprint of those files. When any of them changes,
-appears or disappears, Crush ignores the project config again until you
-review it and run crush trust once more.
+appears or disappears, Ta-Da ignores the project config again until you
+review it and run tada trust once more.
 
 Directories listed in options.trusted_paths of your global config, and runs
-with CRUSH_TRUST_PROJECT=1, are trusted without a record.`,
+with TADA_TRUST_PROJECT=1, are trusted without a record.`,
 	Example: `
 # Trust the project in the current directory
-crush trust
+tada trust
 
 # Trust another project
-crush trust ~/code/project
+tada trust ~/code/project
 
 # Stop trusting the current project
-crush trust --revoke
+tada trust --revoke
 
 # List trusted projects
-crush trust --list
+tada trust --list
   `,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -120,8 +120,8 @@ func runTrust(ctx context.Context, out io.Writer, dir, dataDir string, revoke bo
 	for _, f := range trust.DisplayFiles() {
 		fmt.Fprintf(out, "  %s\n", f)
 	}
-	fmt.Fprintln(out, "Review these files: they can run commands on your machine whenever Crush starts here.")
-	fmt.Fprintln(out, "Trusted. Crush ignores them again if any of them changes; run crush trust again after reviewing the change.")
+	fmt.Fprintln(out, "Review these files: they can run commands on your machine whenever Ta-Da starts here.")
+	fmt.Fprintln(out, "Trusted. Ta-Da ignores them again if any of them changes; run tada trust again after reviewing the change.")
 	return nil
 }
 

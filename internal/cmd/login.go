@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// loginPlatforms are the platforms offered when `crush login` runs without
+// loginPlatforms are the platforms offered when `tada login` runs without
 // an argument, in the order they are listed. Keep this list in sync with
 // the switch in RunE and the logout command.
 var loginPlatforms = []struct {
@@ -31,26 +31,26 @@ var loginPlatforms = []struct {
 var loginCmd = &cobra.Command{
 	Aliases: []string{"auth"},
 	Use:     "login [platform]",
-	Short:   "Login Crush to a platform",
-	Long: `Login Crush to a specified platform.
+	Short:   "Login Ta-Da to a platform",
+	Long: `Login Ta-Da to a specified platform.
 	The platform should be provided as an argument. If no argument is given,
 	a list of available platforms will be shown.
 	Available platforms are: copilot, openai (chatgpt), grok (xai).`,
 	Example: `
 	# Choose a platform to authenticate with
-	crush login
+	tada login
 
 	# Authenticate with GitHub Copilot
-	crush login copilot
+	tada login copilot
 
 	# Authenticate with a ChatGPT (OpenAI) account
-	crush login openai
+	tada login openai
 
 	# Authenticate with a Grok (xAI) account
-	crush login grok
+	tada login grok
 
 	# Force re-authentication even if already logged in
-	crush login -f copilot
+	tada login -f copilot
 	`,
 	ValidArgs: []cobra.Completion{
 		"copilot",

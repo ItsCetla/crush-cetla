@@ -10,16 +10,16 @@ import (
 )
 
 func TestSessionSetupFromSubdirectoryUsesProjectDataDir(t *testing.T) {
-	t.Setenv("CRUSH_GLOBAL_CONFIG", t.TempDir())
-	t.Setenv("CRUSH_GLOBAL_DATA", t.TempDir())
-	t.Setenv("CRUSH_DISABLE_PROVIDER_AUTO_UPDATE", "1")
+	t.Setenv("TADA_GLOBAL_CONFIG", t.TempDir())
+	t.Setenv("TADA_GLOBAL_DATA", t.TempDir())
+	t.Setenv("TADA_DISABLE_PROVIDER_AUTO_UPDATE", "1")
 
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	gitInit := exec.CommandContext(t.Context(), "git", "init", "-q")
 	gitInit.Dir = root
 	require.NoError(t, gitInit.Run())
-	require.NoError(t, os.Mkdir(filepath.Join(root, ".crush"), 0o700))
+	require.NoError(t, os.Mkdir(filepath.Join(root, ".tada"), 0o700))
 	sub := filepath.Join(root, "sub")
 	require.NoError(t, os.Mkdir(sub, 0o755))
 	t.Chdir(sub)
@@ -29,6 +29,6 @@ func TestSessionSetupFromSubdirectoryUsesProjectDataDir(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanup()
 
-	require.Equal(t, filepath.Join(root, ".crush"), svc.cfg.Config().Options.DataDirectory)
-	require.NoDirExists(t, filepath.Join(sub, ".crush"))
+	require.Equal(t, filepath.Join(root, ".tada"), svc.cfg.Config().Options.DataDirectory)
+	require.NoDirExists(t, filepath.Join(sub, ".tada"))
 }

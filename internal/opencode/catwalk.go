@@ -13,19 +13,19 @@ import (
 	"charm.land/catwalk/pkg/catwalk"
 )
 
-// wire describes how Crush talks to an AI SDK package: the catwalk
+// wire describes how Ta-Da talks to an AI SDK package: the catwalk
 // provider type and the endpoint used when models.dev has no "api".
 type wire struct {
 	typ      catwalk.Type
 	endpoint string
 }
 
-// npmWires maps the AI SDK packages models.dev names to Crush wire
+// npmWires maps the AI SDK packages models.dev names to Ta-Da wire
 // protocols. Packages that are not listed (Perplexity, GitLab, watsonx,
 // SAP, Cloudflare's gateway, Vertex's Anthropic flavour, Bedrock Mantle,
 // ...) are unsupported.
 //
-// Endpoints follow Crush's client conventions rather than the AI SDK's:
+// Endpoints follow Ta-Da's client conventions rather than the AI SDK's:
 // Anthropic's client appends /v1 itself and Google's appends the API
 // version, so their endpoints stop at the host.
 var npmWires = map[string]wire{
@@ -65,7 +65,7 @@ func resolveWire(npm, api string, env []string) (catwalk.Type, string, bool) {
 	endpoint := strings.TrimRight(api, "/")
 	switch w.typ {
 	case catwalk.TypeOpenRouter, catwalk.TypeVercel:
-		// Crush always talks to the public OpenRouter and Vercel
+		// Ta-Da always talks to the public OpenRouter and Vercel
 		// endpoints, so anything else speaking those protocols is
 		// treated as OpenAI-compatible.
 		if endpoint != "" && endpoint != w.endpoint {
@@ -86,7 +86,7 @@ func resolveWire(npm, api string, env []string) (catwalk.Type, string, bool) {
 			}
 		}
 	case catwalk.TypeBedrock, catwalk.TypeVertexAI:
-		// Crush configures these from the cloud SDK's own settings.
+		// Ta-Da configures these from the cloud SDK's own settings.
 		return w.typ, "", true
 	}
 	if endpoint == "" {
@@ -98,18 +98,18 @@ func resolveWire(npm, api string, env []string) (catwalk.Type, string, bool) {
 	return w.typ, endpoint, true
 }
 
-// WireFor returns the catwalk provider type and endpoint Crush uses for an
+// WireFor returns the catwalk provider type and endpoint Ta-Da uses for an
 // AI SDK package served at baseURL (which may be empty). ok is false when
-// Crush cannot speak the package's protocol or no endpoint is known.
+// Ta-Da cannot speak the package's protocol or no endpoint is known.
 func WireFor(npm, baseURL string) (typ catwalk.Type, endpoint string, ok bool) {
 	return resolveWire(npm, baseURL, nil)
 }
 
-// ToCatwalk converts a models.dev catalog into catwalk providers Crush can
+// ToCatwalk converts a models.dev catalog into catwalk providers Ta-Da can
 // use directly. Provider IDs go through [CatwalkID]; providers and models
 // are sorted by ID.
 //
-// A provider is skipped when its package has no Crush equivalent, its
+// A provider is skipped when its package has no Ta-Da equivalent, its
 // "api" is not a [SafeTemplate], any of its env names is not a plain
 // upper-case variable name, or no model survives the model filters.
 //
@@ -307,7 +307,7 @@ func convertModel(m ModelsDevModel, typ catwalk.Type) catwalk.Model {
 	return cm
 }
 
-// defaultMaxTokens picks the max output tokens Crush requests by default.
+// defaultMaxTokens picks the max output tokens Ta-Da requests by default.
 //
 // Catwalk's hand-maintained providers (Anthropic, OpenAI, and the
 // generated Venice, Vercel and OpenCode data) use the model's full output

@@ -56,7 +56,7 @@ func TestTokenFields(t *testing.T) {
 func TestTokenAccountIDRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	// The account ID is persisted with the token in crush.json; verify
+	// The account ID is persisted with the token in tada.json; verify
 	// it survives the JSON round trip loadTokenFromDisk performs.
 	token := &oauth.Token{
 		AccessToken:  "at",
@@ -119,9 +119,9 @@ func TestSetProviderAPIKeyOpenAIIsEitherOr(t *testing.T) {
 
 	// Point config discovery at the test sandbox: the write below
 	// triggers an auto-reload, which must not pick up the developer's
-	// real crush.json.
-	t.Setenv("CRUSH_GLOBAL_CONFIG", t.TempDir())
-	t.Setenv("CRUSH_GLOBAL_DATA", t.TempDir())
+	// real tada.json.
+	t.Setenv("TADA_GLOBAL_CONFIG", t.TempDir())
+	t.Setenv("TADA_GLOBAL_DATA", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
 	token := &oauth.Token{
@@ -134,7 +134,7 @@ func TestSetProviderAPIKeyOpenAIIsEitherOr(t *testing.T) {
 	newStore := func(t *testing.T, providerID string, initialConfig string) *ConfigStore {
 		t.Helper()
 		dir := t.TempDir()
-		configPath := filepath.Join(dir, "crush.json")
+		configPath := filepath.Join(dir, "tada.json")
 		require.NoError(t, os.WriteFile(configPath, []byte(initialConfig), 0o600))
 
 		// The in-memory config mirrors what a real load would produce.
@@ -229,7 +229,7 @@ func TestSetProviderAPIKeyOpenAIIsEitherOr(t *testing.T) {
 func TestRefetchOpenAIModelsRefreshesExpiredToken(t *testing.T) {
 	// Not parallel: swaps the fetchOpenAIModels package variable.
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "crush.json")
+	configPath := filepath.Join(dir, "tada.json")
 
 	expired := &oauth.Token{
 		AccessToken:  "expired-at",
@@ -320,8 +320,8 @@ func isolateLoadEnv(t *testing.T) (workDir, dataDir string) {
 	t.Setenv("HOME", isolated)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(isolated, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(isolated, ".local", "share"))
-	t.Setenv("CRUSH_GLOBAL_CONFIG", filepath.Join(isolated, ".config", "crush"))
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(isolated, ".local", "share", "crush"))
+	t.Setenv("TADA_GLOBAL_CONFIG", filepath.Join(isolated, ".config", "tada"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(isolated, ".local", "share", "tada"))
 	return t.TempDir(), t.TempDir()
 }
 
@@ -353,7 +353,7 @@ func TestLoadDoesNotRefreshChatGPTModels(t *testing.T) {
 	t.Cleanup(resetProviderState)
 
 	require.NoError(t, os.WriteFile(
-		filepath.Join(workDir, "crush.json"),
+		filepath.Join(workDir, "tada.json"),
 		[]byte(chatGPTLoginConfig(chatGPTLoginToken())),
 		0o600,
 	))

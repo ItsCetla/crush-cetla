@@ -12,12 +12,12 @@ import (
 )
 
 // loadCatwalkCatalog returns the Catwalk provider catalog saved at path by
-// `crush update-providers`, or the catalog embedded in this release when
+// `tada update-providers`, or the catalog embedded in this release when
 // there is no usable saved copy. It never fetches anything.
 //
 // An unreadable saved catalog is logged and replaced by the embedded one
 // rather than reported: the embedded catalog is a sound answer, and the user
-// can rerun `crush update-providers` to fix the file.
+// can rerun `tada update-providers` to fix the file.
 func loadCatwalkCatalog(path string) []catwalk.Provider {
 	saved, err := newCache[[]catwalk.Provider](path).Get()
 	switch {
@@ -34,7 +34,7 @@ func loadCatwalkCatalog(path string) []catwalk.Provider {
 }
 
 // safeCatalog drops providers whose templated values could do more than
-// read environment variables. The saved catalog came from wherever `crush
+// read environment variables. The saved catalog came from wherever `tada
 // update-providers` was pointed, and its API key, endpoint and header
 // values are later run through shell-style expansion, so "$(...)" in one
 // would execute.

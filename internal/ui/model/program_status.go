@@ -8,10 +8,10 @@ import (
 )
 
 // programStatusApp is the stable program name reported to the terminal.
-const programStatusApp = "crush"
+const programStatusApp = "tada"
 
-// programStatus reports what Crush is doing to terminals that support the
-// Program Status Protocol (OSC 7501), so they can show whether Crush is
+// programStatus reports what Ta-Da is doing to terminals that support the
+// Program Status Protocol (OSC 7501), so they can show whether Ta-Da is
 // working, waiting on the user, or finished. Terminals without support
 // ignore it.
 func (m *UI) programStatus() *tea.ProgramStatus {

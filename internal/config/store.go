@@ -91,8 +91,8 @@ type ConfigStore struct {
 	config             *Config
 	workingDir         string
 	resolver           VariableResolver
-	globalDataPath     string   // ~/.local/share/crush/crush.json
-	workspacePath      string   // .crush/crush.json
+	globalDataPath     string   // ~/.local/share/tada/tada.json
+	workspacePath      string   // .tada/tada.json
 	loadedPaths        []string // config files that were successfully loaded
 	knownProviders     []catwalk.Provider
 	openCode           *openCodeImport // what the last load imported from OpenCode
@@ -273,7 +273,7 @@ func (s *ConfigStore) atomicWrite(scope Scope, fn func(current []byte) ([]byte, 
 	}
 
 	if scope == ScopeWorkspace {
-		// Keep the project's trust record in step with Crush's own
+		// Keep the project's trust record in step with Ta-Da's own
 		// workspace writes; see writeWorkspaceConfig.
 		return s.writeWorkspaceConfig(path, func() error {
 			return atomicWriteFile(path, newData, 0o600)
@@ -427,7 +427,7 @@ func (s *ConfigStore) OverridePreferredModel(modelType SelectedModelType, model 
 
 // pinPreferredModelLocked records a model choice made in this instance so
 // that a later config reload cannot replace it with a choice made
-// somewhere else. Several Crush instances share one global config file, so
+// somewhere else. Several Ta-Da instances share one global config file, so
 // a reload triggered by an unrelated write (a token refresh, say) would
 // otherwise import whichever model a sibling instance last selected and
 // switch models out from under the user mid-session.
@@ -773,7 +773,7 @@ func (s *ConfigStore) RefetchGrokModels(ctx context.Context) {
 //
 // Some OAuth providers rotate refresh tokens: each exchange consumes the
 // caller's refresh token, issues a new pair, and revokes the old one. If
-// two crush instances (or two goroutines) refresh concurrently with the
+// two tada instances (or two goroutines) refresh concurrently with the
 // same stored refresh token, the second exchange reuses an already-revoked
 // token, trips the provider's reuse detection, and revokes the entire
 // token family — leaving both with dead tokens even though each refresh

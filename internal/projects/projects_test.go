@@ -13,10 +13,10 @@ func TestRegisterAndList(t *testing.T) {
 
 	// Override the projects file path for testing
 	t.Setenv("XDG_DATA_HOME", tmpDir)
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(tmpDir, "crush"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(tmpDir, "tada"))
 
 	// Test registering a project
-	err := Register("/home/user/project1", "/home/user/project1/.crush")
+	err := Register("/home/user/project1", "/home/user/project1/.tada")
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -35,12 +35,12 @@ func TestRegisterAndList(t *testing.T) {
 		t.Errorf("Expected path /home/user/project1, got %s", projects[0].Path)
 	}
 
-	if projects[0].DataDir != "/home/user/project1/.crush" {
-		t.Errorf("Expected data_dir /home/user/project1/.crush, got %s", projects[0].DataDir)
+	if projects[0].DataDir != "/home/user/project1/.tada" {
+		t.Errorf("Expected data_dir /home/user/project1/.tada, got %s", projects[0].DataDir)
 	}
 
 	// Register another project
-	err = Register("/home/user/project2", "/home/user/project2/.crush")
+	err = Register("/home/user/project2", "/home/user/project2/.tada")
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -63,10 +63,10 @@ func TestRegisterAndList(t *testing.T) {
 func TestRegisterUpdatesExisting(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmpDir)
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(tmpDir, "crush"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(tmpDir, "tada"))
 
 	// Register a project
-	err := Register("/home/user/project1", "/home/user/project1/.crush")
+	err := Register("/home/user/project1", "/home/user/project1/.tada")
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestRegisterUpdatesExisting(t *testing.T) {
 	// Wait a bit and re-register
 	time.Sleep(10 * time.Millisecond)
 
-	err = Register("/home/user/project1", "/home/user/project1/.crush-new")
+	err = Register("/home/user/project1", "/home/user/project1/.tada-new")
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestRegisterUpdatesExisting(t *testing.T) {
 		t.Fatalf("Expected 1 project after update, got %d", len(projects))
 	}
 
-	if projects[0].DataDir != "/home/user/project1/.crush-new" {
+	if projects[0].DataDir != "/home/user/project1/.tada-new" {
 		t.Errorf("Expected updated data_dir, got %s", projects[0].DataDir)
 	}
 
@@ -100,7 +100,7 @@ func TestRegisterUpdatesExisting(t *testing.T) {
 func TestLoadEmptyFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmpDir)
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(tmpDir, "crush"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(tmpDir, "tada"))
 
 	// List before any projects exist
 	projects, err := List()
@@ -116,9 +116,9 @@ func TestLoadEmptyFile(t *testing.T) {
 func TestProjectsFilePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmpDir)
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(tmpDir, "crush"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(tmpDir, "tada"))
 
-	expected := filepath.Join(tmpDir, "crush", "projects.json")
+	expected := filepath.Join(tmpDir, "tada", "projects.json")
 	actual := projectsFilePath()
 
 	if actual != expected {
@@ -129,11 +129,11 @@ func TestProjectsFilePath(t *testing.T) {
 func TestRegisterWithParentDataDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmpDir)
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(tmpDir, "crush"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(tmpDir, "tada"))
 
-	// Register a project where .crush is in a parent directory.
-	// e.g., working in /home/user/monorepo/packages/app but .crush is at /home/user/monorepo/.crush
-	err := Register("/home/user/monorepo/packages/app", "/home/user/monorepo/.crush")
+	// Register a project where .tada is in a parent directory.
+	// e.g., working in /home/user/monorepo/packages/app but .tada is at /home/user/monorepo/.tada
+	err := Register("/home/user/monorepo/packages/app", "/home/user/monorepo/.tada")
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -151,19 +151,19 @@ func TestRegisterWithParentDataDir(t *testing.T) {
 		t.Errorf("Expected path /home/user/monorepo/packages/app, got %s", projects[0].Path)
 	}
 
-	if projects[0].DataDir != "/home/user/monorepo/.crush" {
-		t.Errorf("Expected data_dir /home/user/monorepo/.crush, got %s", projects[0].DataDir)
+	if projects[0].DataDir != "/home/user/monorepo/.tada" {
+		t.Errorf("Expected data_dir /home/user/monorepo/.tada, got %s", projects[0].DataDir)
 	}
 }
 
 func TestRegisterWithExternalDataDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmpDir)
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(tmpDir, "crush"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(tmpDir, "tada"))
 
-	// Register a project where .crush is in a completely different location.
-	// e.g., project at /home/user/project but data stored at /var/data/crush/myproject
-	err := Register("/home/user/project", "/var/data/crush/myproject")
+	// Register a project where .tada is in a completely different location.
+	// e.g., project at /home/user/project but data stored at /var/data/tada/myproject
+	err := Register("/home/user/project", "/var/data/tada/myproject")
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -181,18 +181,18 @@ func TestRegisterWithExternalDataDir(t *testing.T) {
 		t.Errorf("Expected path /home/user/project, got %s", projects[0].Path)
 	}
 
-	if projects[0].DataDir != "/var/data/crush/myproject" {
-		t.Errorf("Expected data_dir /var/data/crush/myproject, got %s", projects[0].DataDir)
+	if projects[0].DataDir != "/var/data/tada/myproject" {
+		t.Errorf("Expected data_dir /var/data/tada/myproject, got %s", projects[0].DataDir)
 	}
 }
 
 func TestRegisterOrdersByRecency(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("XDG_DATA_HOME", tmpDir)
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(tmpDir, "crush"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(tmpDir, "tada"))
 
 	for _, path := range []string{"/p1", "/p2", "/p3", "/p1"} {
-		if err := Register(path, path+"/.crush"); err != nil {
+		if err := Register(path, path+"/.tada"); err != nil {
 			t.Fatalf("Register failed: %v", err)
 		}
 	}

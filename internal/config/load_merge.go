@@ -16,7 +16,7 @@ import (
 )
 
 // globalConfigPaths returns the system and user-level config locations, in
-// merge order. Only the user config directory contributes a crushrc; the
+// merge order. Only the user config directory contributes a tadarc; the
 // data directory is writable machine state and must never be executed as
 // Bash. Missing files are skipped when loaded.
 func globalConfigPaths() []string {
@@ -31,8 +31,8 @@ func globalConfigPaths() []string {
 // projectConfigNames lists the project config file names, ordered high-to-low
 // priority within a directory. LookupBounded returns matches in this order,
 // and the later reverse + merge make the earliest listed name win on
-// conflict. So: .crushrc beats crushrc, both beat the JSON configs, and
-// .crush.json beats crush.json.
+// conflict. So: .tadarc beats tadarc, both beat the JSON configs, and
+// .tada.json beats tada.json.
 var projectConfigNames = []string{
 	"." + appName + "rc",
 	appName + "rc",
@@ -54,7 +54,7 @@ func projectWalkConfigs(cwd string) []string {
 
 // projectConfigPaths returns the project-level config files found by the
 // project walk, in merge order, leaving out any that is also a global
-// config location (e.g. when Crush runs inside the global data directory).
+// config location (e.g. when Ta-Da runs inside the global data directory).
 func projectConfigPaths(cwd string) []string {
 	global := make(map[string]bool)
 	for _, p := range globalConfigPaths() {
@@ -71,7 +71,7 @@ func projectConfigPaths(cwd string) []string {
 	return out
 }
 
-// configSource is a config file after reading and, for crushrc, executing.
+// configSource is a config file after reading and, for tadarc, executing.
 type configSource struct {
 	path  string
 	data  []byte
@@ -122,7 +122,7 @@ func readConfigSources(ctx context.Context, paths []string) ([]configSource, err
 // mergeConfigSources merges sources in order (later wins) and returns the
 // paths that contributed.
 func mergeConfigSources(sources []configSource) (*Config, []string, error) {
-	// Track directories that have both crush.json and crushrc to warn
+	// Track directories that have both tada.json and tadarc to warn
 	// about potential confusion, along with the top-level keys each
 	// defines so we can report conflicts.
 	jsonDirKeys := make(map[string]map[string]bool)
@@ -141,7 +141,7 @@ func mergeConfigSources(sources []configSource) (*Config, []string, error) {
 		loaded = append(loaded, src.path)
 	}
 
-	// Warn if both a JSON config and a crushrc exist in the same directory
+	// Warn if both a JSON config and a tadarc exist in the same directory
 	// and define overlapping top-level keys. Disjoint coexistence is
 	// intentional and not worth warning about.
 	for dir, jKeys := range jsonDirKeys {
@@ -157,7 +157,7 @@ func mergeConfigSources(sources []configSource) (*Config, []string, error) {
 		}
 		if len(conflicts) > 0 {
 			slices.Sort(conflicts)
-			slog.Warn("Found both a JSON config and a crushrc in the same directory; merging with crushrc taking precedence",
+			slog.Warn("Found both a JSON config and a tadarc in the same directory; merging with tadarc taking precedence",
 				"dir", dir, "conflicting_keys", strings.Join(conflicts, ", "))
 		}
 	}
@@ -245,7 +245,7 @@ func loadMergedConfig(ctx context.Context, p loadParams) (*mergedConfig, error) 
 		}
 		sources = slices.Concat(globalSources, projectSources)
 	} else {
-		slog.Warn("Ignoring untrusted project config; review it, then run `crush trust`",
+		slog.Warn("Ignoring untrusted project config; review it, then run `tada trust`",
 			"root", trust.Root, "files", trust.DisplayFiles())
 	}
 

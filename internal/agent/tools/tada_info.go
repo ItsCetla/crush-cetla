@@ -15,9 +15,9 @@ import (
 	"github.com/charmbracelet/crush/internal/skills"
 )
 
-const CrushInfoToolName = "crush_info"
+const CrushInfoToolName = "tada_info"
 
-//go:embed crush_info.md
+//go:embed tada_info.md
 var crushInfoDescription string
 
 type CrushInfoParams struct{}
@@ -72,8 +72,8 @@ func writeConfigStaleness(b *strings.Builder, cfg *config.ConfigStore) {
 	b.WriteString("[config]\n")
 	fmt.Fprintf(b, "dirty = %v\n", staleness.Dirty)
 	if trust := cfg.ProjectTrust(); !trust.Trusted && len(trust.Files) > 0 {
-		// Explains config the user expects but Crush skipped.
-		fmt.Fprintf(b, "untrusted_project_config = %s (ignored until the user reviews it and runs `crush trust`)\n",
+		// Explains config the user expects but Ta-Da skipped.
+		fmt.Fprintf(b, "untrusted_project_config = %s (ignored until the user reviews it and runs `tada trust`)\n",
 			strings.Join(trust.DisplayFiles(), ", "))
 	}
 

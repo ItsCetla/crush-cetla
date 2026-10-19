@@ -53,7 +53,7 @@ func TestIsSafeReadOnlyCommand_RequiresPermission(t *testing.T) {
 		{"nohup", "nohup rm -rf x"},
 		{"timeout", "timeout 5 rm -rf x"},
 		{"kill", "kill 1234"},
-		{"killall", "killall crush"},
+		{"killall", "killall tada"},
 		{"set", "set -e"},
 		{"unset", "unset PATH"},
 		{"xargs", "xargs rm"},

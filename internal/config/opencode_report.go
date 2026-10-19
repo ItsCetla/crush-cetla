@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/crush/internal/opencode"
 )
 
-// OpenCodeMCPStatus describes one OpenCode MCP server and what Crush did
+// OpenCodeMCPStatus describes one OpenCode MCP server and what Ta-Da did
 // with it.
 type OpenCodeMCPStatus struct {
 	Name   string
@@ -32,9 +32,9 @@ type OpenCodeCatalogStatus struct {
 	// Providers and Models count what OpenCode cached.
 	Providers int
 	Models    int
-	// Usable counts providers Crush can talk to.
+	// Usable counts providers Ta-Da can talk to.
 	Usable int
-	// Listed counts providers new to Crush that are in its catalog now;
+	// Listed counts providers new to Ta-Da that are in its catalog now;
 	// the rest appear once their API key variable is set.
 	Listed int
 	// AddedModels counts models added to providers Catwalk defines.
@@ -145,7 +145,7 @@ func mcpStatus(name string, srv opencode.MCPServer, current MCPs, enabled bool) 
 		case !exists:
 			st.State = "not loaded"
 		case got.Type != want.Type || got.Command != want.Command || got.URL != want.URL:
-			st.State = "overridden by Crush config"
+			st.State = "overridden by Ta-Da config"
 		case got.Disabled:
 			st.State = "imported (disabled)"
 		default:

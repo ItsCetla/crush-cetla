@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// loadCrushSh writes a crush.sh into an isolated project and loads it through
+// loadCrushSh writes a tada.sh into an isolated project and loads it through
 // the real config pipeline (discovery -> shell execution -> merge -> typed
 // Config). Asserting on the resulting *config.Config is a black-box test of
 // what a shell config command actually produces, and it stays valid across
@@ -31,12 +31,12 @@ func loadCrushShErr(t *testing.T, script string) (*config.ConfigStore, error) {
 	t.Setenv("HOME", isolated)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(isolated, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(isolated, ".local", "share"))
-	t.Setenv("CRUSH_GLOBAL_CONFIG", filepath.Join(isolated, ".config", "crush"))
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(isolated, ".local", "share", "crush"))
+	t.Setenv("TADA_GLOBAL_CONFIG", filepath.Join(isolated, ".config", "tada"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(isolated, ".local", "share", "tada"))
 
 	workDir := t.TempDir()
 	dataDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(workDir, "crushrc"), []byte(script), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(workDir, "tadarc"), []byte(script), 0o644))
 
 	return config.Load(workDir, dataDir, false)
 }

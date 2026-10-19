@@ -162,7 +162,7 @@ func NewSourcegraphTool(permissions permission.Service, workingDir string, clien
 			}
 
 			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("User-Agent", "crush/1.0")
+			req.Header.Set("User-Agent", "tada/1.0")
 
 			resp, err := client.Do(req)
 			if err != nil {

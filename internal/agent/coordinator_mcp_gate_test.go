@@ -30,7 +30,7 @@ func newGateTestCoordinator(t *testing.T, interactive bool) *coordinator {
   "models": {"large": {"provider": "mock", "model": "mock-model"},
              "small": {"provider": "mock", "model": "mock-model"}}
 }`
-	require.NoError(t, os.WriteFile(filepath.Join(env.workingDir, "crush.json"), []byte(crushJSON), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(env.workingDir, "tada.json"), []byte(crushJSON), 0o644))
 
 	cfg, err := config.Init(env.workingDir, "", false)
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func newGateTestCoordinator(t *testing.T, interactive bool) *coordinator {
 // message of a session. Tools from late servers simply miss that run's palette
 // and show up on the next one.
 //
-// Non-interactive runs (`crush run`, both local and client/server) get a single
+// Non-interactive runs (`tada run`, both local and client/server) get a single
 // shot at the palette, so they still wait for initialization to settle.
 func TestRunWaitsForMCPOnlyWhenNonInteractive(t *testing.T) {
 	t.Run("non-interactive waits", func(t *testing.T) {

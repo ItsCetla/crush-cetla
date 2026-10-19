@@ -21,9 +21,9 @@ import (
 )
 
 // DummyHost is used to satisfy the http.Client's requirement for a URL.
-const DummyHost = "api.crush.localhost"
+const DummyHost = "api.tada.localhost"
 
-// Client represents an RPC client connected to a Crush server.
+// Client represents an RPC client connected to a Ta-Da server.
 type Client struct {
 	h        *http.Client
 	path     string
@@ -50,7 +50,7 @@ func NewClient(path, network, address string) (*Client, error) {
 	c.addr = address
 	c.clientID = uuid.New().String()
 	if network == "tcp" {
-		slog.Warn("Connecting to the Crush server over unauthenticated TCP; requests include this process's environment", "address", address)
+		slog.Warn("Connecting to the Ta-Da server over unauthenticated TCP; requests include this process's environment", "address", address)
 	}
 	p := &http.Protocols{}
 	p.SetHTTP1(true)

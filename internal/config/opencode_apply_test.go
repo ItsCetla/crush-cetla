@@ -26,14 +26,14 @@ func TestApplyOpenCodeInstructions(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "team.md")
 	globalRules := filepath.Join(t.TempDir(), "AGENTS.md")
 	imp := &openCodeImport{settings: allOpenCodeContext, config: &opencode.Config{
-		Instructions: []string{inProject, outside, filepath.Join(dir, "CRUSH.md")},
+		Instructions: []string{inProject, outside, filepath.Join(dir, "TADA.md")},
 		GlobalRules:  globalRules,
 	}}
 
-	cfg := &Config{Options: &Options{ContextPaths: []string{"crush.md"}}}
+	cfg := &Config{Options: &Options{ContextPaths: []string{"tada.md"}}}
 	cfg.applyOpenCodeContext(imp, dir)
 
-	require.Equal(t, []string{"crush.md", inProject}, cfg.Options.ContextPaths, "existing paths are not added twice, however spelled")
+	require.Equal(t, []string{"tada.md", inProject}, cfg.Options.ContextPaths, "existing paths are not added twice, however spelled")
 	require.Equal(t, []string{outside, globalRules}, cfg.Options.GlobalContextPaths)
 	require.Equal(t, []string{inProject}, imp.applied.ContextPaths)
 	require.Equal(t, []string{outside, globalRules}, imp.applied.GlobalContextPaths)
@@ -131,8 +131,8 @@ func TestApplyOpenCodeTools(t *testing.T) {
 	require.Equal(t, []string{
 		"tools.bash: false skipped: agent build turns it back on",
 		"tools.git_log*: false skipped: only <server>_* and single MCP tools are supported",
-		"tools.mystery: false skipped: no matching Crush tool or imported MCP server",
-		"tools.playwright_navigate: false skipped: no matching Crush tool or imported MCP server",
+		"tools.mystery: false skipped: no matching Ta-Da tool or imported MCP server",
+		"tools.playwright_navigate: false skipped: no matching Ta-Da tool or imported MCP server",
 	}, imp.applied.Notes)
 }
 
@@ -177,10 +177,10 @@ func TestApplyOpenCodePermissions(t *testing.T) {
 	require.Equal(t, cfg.Permissions.ProjectAllowedTools, imp.applied.ProjectAllowedTools)
 	require.Equal(t, []string{"fetch", "agentic_fetch", "download"}, cfg.Options.DisabledTools)
 	require.Equal(t, []string{
-		"permission rule *: ask partly followed: Crush prompts before writes, commands, web access and MCP tools, not before reads inside the project",
-		"permission rules Crush already follows: lsp, read, todowrite, websearch",
-		"permission rules not imported (Crush keeps prompting): bash, external",
-		"permission rules not imported (Crush doesn't prompt for these inside the project): grep",
+		"permission rule *: ask partly followed: Ta-Da prompts before writes, commands, web access and MCP tools, not before reads inside the project",
+		"permission rules Ta-Da already follows: lsp, read, todowrite, websearch",
+		"permission rules not imported (Ta-Da keeps prompting): bash, external",
+		"permission rules not imported (Ta-Da doesn't prompt for these inside the project): grep",
 	}, imp.applied.Notes)
 }
 
@@ -293,7 +293,7 @@ func TestApplyOpenCodeProviderFilter(t *testing.T) {
 	cfg.applyOpenCodeProviderFilter(imp, nil)
 
 	require.Equal(t, []string{"openai", "openrouter"}, imp.applied.DisabledProviders,
-		"google is gemini in Crush; disabled_providers wins over enabled_providers")
+		"google is gemini in Ta-Da; disabled_providers wins over enabled_providers")
 	for id, want := range map[string]bool{
 		"anthropic": false, "gemini": false, "openai": true, "openrouter": true,
 		"mine": false, "busy": false,
@@ -311,16 +311,16 @@ func TestApplyOpenCodeProviderFilter(t *testing.T) {
 }
 
 func TestApplyOpenCodeProviderFilterKnownProviders(t *testing.T) {
-	t.Setenv("CRUSH_TEST_FILTER_KEY", "set")
-	t.Setenv("CRUSH_TEST_UNSET_KEY", "")
+	t.Setenv("TADA_TEST_FILTER_KEY", "set")
+	t.Setenv("TADA_TEST_UNSET_KEY", "")
 
 	imp := &openCodeImport{
 		settings: openCodeSettings{enabled: true, providers: true},
 		config:   &opencode.Config{EnabledProviders: []string{}},
 	}
 	known := []catwalk.Provider{
-		{ID: "keyed", APIKey: "${CRUSH_TEST_FILTER_KEY}"},
-		{ID: "unkeyed", APIKey: "$CRUSH_TEST_UNSET_KEY"},
+		{ID: "keyed", APIKey: "${TADA_TEST_FILTER_KEY}"},
+		{ID: "unkeyed", APIKey: "$TADA_TEST_UNSET_KEY"},
 	}
 	cfg := &Config{Providers: csync.NewMap[string, ProviderConfig]()}
 	cfg.applyOpenCodeProviderFilter(imp, known)
@@ -401,7 +401,7 @@ func TestApplyOpenCodeModelPreferenceReasons(t *testing.T) {
 		SelectedModelTypeLarge: {Provider: "off", Model: "off-model"},
 	}}
 	cfg.applyOpenCodeModelPreference(imp)
-	require.Equal(t, "not used: Crush already selects off/off-model", imp.applied.Models[0].Result)
+	require.Equal(t, "not used: Ta-Da already selects off/off-model", imp.applied.Models[0].Result)
 }
 
 func TestApplyOpenCodeModelPreferenceProvidersOff(t *testing.T) {

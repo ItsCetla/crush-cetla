@@ -1,4 +1,4 @@
-// Package login authenticates Crush with OAuth-capable platforms from the
+// Package login authenticates Ta-Da with OAuth-capable platforms from the
 // command line. In interactive terminals it runs a small Bubble Tea program
 // that guides the user through opening a browser and waiting for the
 // callback. When stdin is not a terminal, it falls back to a plain,

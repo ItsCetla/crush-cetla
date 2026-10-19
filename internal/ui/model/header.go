@@ -47,7 +47,7 @@ func newHeader(com *common.Common) *header {
 func (h *header) refresh() {
 	t := h.com.Styles
 	h.compactLogo = t.Header.Charm.Render(" "+logo.Maker) + " " +
-		styles.ApplyBoldForegroundGrad(t.Header.LogoGradCanvas, "CRUSH", t.Header.LogoGradFromColor, t.Header.LogoGradToColor) + " "
+		styles.ApplyBoldForegroundGrad(t.Header.LogoGradCanvas, "TADA", t.Header.LogoGradFromColor, t.Header.LogoGradToColor) + " "
 	// Force drawHeader to re-render the wide logo on the next frame.
 	h.width = 0
 	h.logo = ""

@@ -201,7 +201,7 @@ func insertChannelWorkspace(t *testing.T, b *Backend, srvName string, enabled bo
 // insertChannelWorkspaceCfg is insertChannelWorkspace with control over both
 // enablement sources: `enabled` opts the server in via the --channels
 // override, `configEnabled` writes channel_enabled: true into the workspace's
-// crush.json.
+// tada.json.
 func insertChannelWorkspaceCfg(t *testing.T, b *Backend, srvName string, enabled, configEnabled bool, coord agent.Coordinator, sessions session.Service) *Workspace {
 	t.Helper()
 
@@ -214,7 +214,7 @@ func insertChannelWorkspaceCfg(t *testing.T, b *Backend, srvName string, enabled
 		"mcp": map[string]any{srvName: mcpEntry},
 	})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(wd, "crush.json"), cfgJSON, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(wd, "tada.json"), cfgJSON, 0o644))
 
 	// The MCP server comes from project config, which only loads once the
 	// project is trusted.
@@ -314,7 +314,7 @@ func TestRouteChannelMessage_PrefersViewedSession(t *testing.T) {
 }
 
 // TestRouteChannelMessage_ConfigEnabled verifies that a server with
-// channel_enabled: true in crush.json receives channel pushes without
+// channel_enabled: true in tada.json receives channel pushes without
 // needing --channels on the CLI.
 func TestRouteChannelMessage_ConfigEnabled(t *testing.T) {
 	xdgIsolated(t)

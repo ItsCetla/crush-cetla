@@ -468,7 +468,7 @@ func (l *loader) readAgent(name, file, text, mode string) {
 //
 // Relative instructions match in every directory from cwd up to the
 // project boundary; with project config disabled they match in the global
-// config directory instead. URLs are skipped: Crush never fetches them.
+// config directory instead. URLs are skipped: Ta-Da never fetches them.
 func (l *loader) resolveExtras(opts LoadOptions, cwd string, projectDisabled bool) {
 	cfg := l.m.cfg
 	getenv := envOrEmpty(opts.Getenv)

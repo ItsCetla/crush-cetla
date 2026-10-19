@@ -128,12 +128,12 @@ func TestThemePath_UsesGlobalDirectory(t *testing.T) {
 func TestThemeDirs_HasOnlyGlobalUserDirectory(t *testing.T) {
 	dirs := ThemeDirs()
 	require.Len(t, dirs, 1)
-	require.NotEqual(t, filepath.Join(".crush", "themes"), dirs[0])
+	require.NotEqual(t, filepath.Join(".tada", "themes"), dirs[0])
 }
 
 func TestThemeDirs_HonorsGlobalConfigEnv(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("CRUSH_GLOBAL_CONFIG", dir)
+	t.Setenv("TADA_GLOBAL_CONFIG", dir)
 
 	dirs := ThemeDirs()
 	require.Len(t, dirs, 1)

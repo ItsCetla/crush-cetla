@@ -103,10 +103,10 @@ func TestShellConfigOptionAttributionRejectsInvalidStyle(t *testing.T) {
 }
 
 func TestShellConfigOptionListAppends(t *testing.T) {
-	store := loadCrushSh(t, `option disable-skill crush-config
+	store := loadCrushSh(t, `option disable-skill tada-config
 option disable-skill jq`)
 
-	require.Subset(t, store.Config().Options.DisabledSkills, []string{"crush-config", "jq"})
+	require.Subset(t, store.Config().Options.DisabledSkills, []string{"tada-config", "jq"})
 }
 
 // reset wipes values added earlier (or via source) while keeping anything

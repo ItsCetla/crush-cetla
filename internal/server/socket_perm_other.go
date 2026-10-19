@@ -17,7 +17,7 @@ import (
 const socketFileMode = 0o600
 
 // prepareSocketDir readies the directory of a Unix socket before binding.
-// When the socket lives in Crush's private per-user directory, that
+// When the socket lives in Ta-Da's private per-user directory, that
 // directory is created with mode 0700 and verified (see
 // [ensurePrivateSocketDir]). Sockets elsewhere, e.g. in $XDG_RUNTIME_DIR
 // or at a path given with --host, are left to their directory's own
@@ -66,7 +66,7 @@ func VerifySocketOwner(path string) error {
 		return fmt.Errorf("inspect server socket: %w", err)
 	}
 	if st, ok := info.Sys().(*syscall.Stat_t); ok && int(st.Uid) != os.Getuid() {
-		return fmt.Errorf("refusing to connect to Crush server socket %s: owned by uid %d, not the current user (uid %d)", path, st.Uid, os.Getuid())
+		return fmt.Errorf("refusing to connect to Ta-Da server socket %s: owned by uid %d, not the current user (uid %d)", path, st.Uid, os.Getuid())
 	}
 	return nil
 }

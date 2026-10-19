@@ -125,5 +125,5 @@ func TestWordmarkBitmap(t *testing.T) {
 
 	full := wordmarkBitmap(logo.Wordmark())
 	require.Len(t, full, 6)
-	require.Len(t, full[0], 29)
+	require.Len(t, full[0], 23)
 }

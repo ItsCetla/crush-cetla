@@ -16,16 +16,16 @@ func isolateTrustCmd(t *testing.T) {
 	isolated := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(isolated, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(isolated, ".local", "share"))
-	t.Setenv("CRUSH_GLOBAL_CONFIG", filepath.Join(isolated, "config"))
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(isolated, "data"))
+	t.Setenv("TADA_GLOBAL_CONFIG", filepath.Join(isolated, "config"))
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(isolated, "data"))
 	t.Setenv(config.TrustProjectEnv, "")
 }
 
 func TestTrustCommand(t *testing.T) {
 	isolateTrustCmd(t)
 	project := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(project, "crush.json"), []byte(`{}`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(project, ".crushrc"), []byte("option debug\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(project, "tada.json"), []byte(`{}`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(project, ".tadarc"), []byte("option debug\n"), 0o644))
 	ctx := context.Background()
 
 	trust, err := config.EvaluateProjectTrust(ctx, project, "")
@@ -35,8 +35,8 @@ func TestTrustCommand(t *testing.T) {
 	var out bytes.Buffer
 	require.NoError(t, runTrust(ctx, &out, project, "", false))
 	require.Contains(t, out.String(), "Project: "+config.ProjectRoot(project))
-	require.Contains(t, out.String(), "  crush.json\n")
-	require.Contains(t, out.String(), "  .crushrc\n")
+	require.Contains(t, out.String(), "  tada.json\n")
+	require.Contains(t, out.String(), "  .tadarc\n")
 	require.Contains(t, out.String(), "Review these files")
 
 	trust, err = config.EvaluateProjectTrust(ctx, project, "")
@@ -47,7 +47,7 @@ func TestTrustCommand(t *testing.T) {
 	out.Reset()
 	require.NoError(t, listTrustedProjects(&out))
 	require.Contains(t, out.String(), config.ProjectRoot(project))
-	require.Contains(t, out.String(), ".crushrc, crush.json")
+	require.Contains(t, out.String(), ".tadarc, tada.json")
 
 	out.Reset()
 	require.NoError(t, runTrust(ctx, &out, project, "", true))

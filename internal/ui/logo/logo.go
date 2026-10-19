@@ -1,10 +1,11 @@
-// Package logo renders a Crush wordmark in a stylized way.
+// Package logo renders a Ta-Da wordmark in a stylized way.
 package logo
 
 import (
 	"fmt"
 	"image/color"
 	"math/rand/v2"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -21,7 +22,7 @@ const diag = styles.FieldGlyph
 // Maker is the name shown above the wordmark where upstream shows "Charm™".
 const Maker = "cetla"
 
-// Opts are the options for rendering the Crush title art.
+// Opts are the options for rendering the Ta-Da title art.
 type Opts struct {
 	FieldColor   color.Color // diagonal lines
 	TitleColorA  color.Color // left gradient ramp point
@@ -29,7 +30,7 @@ type Opts struct {
 	CharmColor   color.Color // Charm™ text color
 	VersionColor color.Color // version text color
 	Width        int         // width of the rendered logo, used for truncation
-	Hyper        bool        // whether it is Crush or Hypercrush
+	Hyper        bool        // whether it is Ta-Da or Hypercrush
 
 	// When true, stretch a random letterform on each render. Has no effect in
 	// compact mode. Mainly for testing. In production you will want to cache
@@ -37,7 +38,7 @@ type Opts struct {
 	Unstable bool
 }
 
-// Render renders the Crush logo. Set the argument to true to render the narrow
+// Render renders the Ta-Da logo. Set the argument to true to render the narrow
 // version, intended for use in a sidebar.
 //
 // The compact argument determines whether it renders compact for the sidebar
@@ -64,13 +65,7 @@ func Render(base lipgloss.Style, version string, compact bool, o Opts) string {
 			LetterR,
 		}
 	}
-	crushLetterforms := []letterform{
-		LetterC,
-		LetterR,
-		LetterU,
-		LetterSAlt,
-		LetterH,
-	}
+	crushLetterforms := slices.Clone(TadaLetterforms)
 	if o.Hyper && !compact {
 		crushLetterforms = append(hyperLetterforms, crushLetterforms...)
 	}
@@ -104,7 +99,7 @@ func Render(base lipgloss.Style, version string, compact bool, o Opts) string {
 	gap := max(0, crushWidth-lipgloss.Width(charm)-lipgloss.Width(version))
 	metaRow := fg(o.CharmColor, charm) + strings.Repeat(" ", gap) + fg(o.VersionColor, version)
 
-	// Join the meta row and big Crush title.
+	// Join the meta row and big Ta-Da title.
 	crush = strings.TrimSpace(metaRow + "\n" + crush)
 
 	// Narrow version. If this is Hypercrush, this is also a stacked version.
@@ -149,10 +144,10 @@ func Render(base lipgloss.Style, version string, compact bool, o Opts) string {
 	return logo
 }
 
-// SmallRender renders a smaller version of the Crush logo, suitable for
+// SmallRender renders a smaller version of the Ta-Da logo, suitable for
 // smaller windows or sidebar usage.
 func SmallRender(t *styles.Styles, width int, o Opts) string {
-	name := "Crush"
+	name := "Ta-Da"
 	if o.Hyper {
 		name = "HYPERCRUSH"
 	}

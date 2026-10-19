@@ -17,7 +17,7 @@ import (
 )
 
 // isolateTrust points the global config, global data (and with it the trust
-// store) at a throwaway directory and clears CRUSH_TRUST_PROJECT, which
+// store) at a throwaway directory and clears TADA_TRUST_PROJECT, which
 // TestMain sets for the rest of the package. It returns the global config
 // directory. No t.Parallel(): these tests Setenv.
 func isolateTrust(t *testing.T) string {
@@ -26,8 +26,8 @@ func isolateTrust(t *testing.T) string {
 	globalConfig := filepath.Join(isolated, "config")
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(isolated, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(isolated, ".local", "share"))
-	t.Setenv("CRUSH_GLOBAL_CONFIG", globalConfig)
-	t.Setenv("CRUSH_GLOBAL_DATA", filepath.Join(isolated, "data"))
+	t.Setenv("TADA_GLOBAL_CONFIG", globalConfig)
+	t.Setenv("TADA_GLOBAL_DATA", filepath.Join(isolated, "data"))
 	t.Setenv(TrustProjectEnv, "")
 	return globalConfig
 }
@@ -44,7 +44,7 @@ func requireNoFile(t *testing.T, path, msg string) {
 	require.ErrorIs(t, err, fs.ErrNotExist, msg)
 }
 
-// hostileCrushJSON returns a project crush.json that would run `touch
+// hostileCrushJSON returns a project tada.json that would run `touch
 // marker` through every shell-expanded field it can reach, and start an
 // MCP server.
 func hostileCrushJSON(marker string) string {
@@ -75,7 +75,7 @@ func TestTrust_UntrustedProjectJSONIsIgnored(t *testing.T) {
 	isolateTrust(t)
 	project := t.TempDir()
 	marker := filepath.Join(t.TempDir(), "marker")
-	projectConfig := filepath.Join(project, "crush.json")
+	projectConfig := filepath.Join(project, "tada.json")
 	writeFile(t, projectConfig, hostileCrushJSON(marker))
 
 	store, err := Load(project, "", false)
@@ -91,9 +91,9 @@ func TestTrust_UntrustedProjectJSONIsIgnored(t *testing.T) {
 	trust := store.ProjectTrust()
 	require.False(t, trust.Trusted)
 	require.Equal(t, TrustSourceUntrusted, trust.Source)
-	require.Equal(t, []string{"crush.json"}, trust.DisplayFiles())
-	require.Contains(t, trust.Notice(), "Ignoring untrusted project config (crush.json)")
-	require.Contains(t, trust.Notice(), "crush trust")
+	require.Equal(t, []string{"tada.json"}, trust.DisplayFiles())
+	require.Contains(t, trust.Notice(), "Ignoring untrusted project config (tada.json)")
+	require.Contains(t, trust.Notice(), "tada trust")
 
 	// Control: once trusted, the same config does load and does run the
 	// command, so the assertions above are meaningful.
@@ -109,7 +109,7 @@ func TestTrust_UntrustedProjectJSONIsIgnored(t *testing.T) {
 }
 
 func TestTrust_UntrustedCrushrcIsNotExecuted(t *testing.T) {
-	for _, name := range []string{"crushrc", ".crushrc"} {
+	for _, name := range []string{"tadarc", ".tadarc"} {
 		t.Run(name, func(t *testing.T) {
 			isolateTrust(t)
 			project := t.TempDir()
@@ -119,13 +119,13 @@ func TestTrust_UntrustedCrushrcIsNotExecuted(t *testing.T) {
 
 			store, err := Load(project, "", false)
 			require.NoError(t, err)
-			requireNoFile(t, marker, "an untrusted crushrc must not be executed")
+			requireNoFile(t, marker, "an untrusted tadarc must not be executed")
 			require.NotEqual(t, "bell", store.Config().Options.Notifications)
 			require.Contains(t, store.ProjectTrust().Notice(), name)
 
 			// Reloads are gated identically.
 			require.NoError(t, store.ReloadFromDisk(context.Background()))
-			requireNoFile(t, marker, "a reload must not execute an untrusted crushrc")
+			requireNoFile(t, marker, "a reload must not execute an untrusted tadarc")
 
 			_, err = TrustProject(context.Background(), project, "")
 			require.NoError(t, err)
@@ -138,9 +138,9 @@ func TestTrust_UntrustedCrushrcIsNotExecuted(t *testing.T) {
 
 func TestTrust_GlobalConfigStillLoads(t *testing.T) {
 	globalConfig := isolateTrust(t)
-	writeFile(t, filepath.Join(globalConfig, "crush.json"), `{"options":{"notifications":"osc"}}`)
+	writeFile(t, filepath.Join(globalConfig, "tada.json"), `{"options":{"notifications":"osc"}}`)
 	project := t.TempDir()
-	writeFile(t, filepath.Join(project, "crush.json"), `{"options":{"notifications":"bell"}}`)
+	writeFile(t, filepath.Join(project, "tada.json"), `{"options":{"notifications":"bell"}}`)
 
 	store, err := Load(project, "", false)
 	require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestTrust_GlobalConfigStillLoads(t *testing.T) {
 func TestTrust_FingerprintInvalidation(t *testing.T) {
 	isolateTrust(t)
 	project := t.TempDir()
-	projectConfig := filepath.Join(project, "crush.json")
+	projectConfig := filepath.Join(project, "tada.json")
 	writeFile(t, projectConfig, `{"options":{"notifications":"bell"}}`)
 
 	evaluate := func() ProjectTrust {
@@ -176,13 +176,13 @@ func TestTrust_FingerprintInvalidation(t *testing.T) {
 	trust()
 
 	// A new project config file.
-	rc := filepath.Join(project, ".crushrc")
+	rc := filepath.Join(project, ".tadarc")
 	writeFile(t, rc, "option notifications bell\n")
 	require.False(t, evaluate().Trusted, "a new config file must untrust")
 	trust()
 
 	// A new workspace config.
-	ws := filepath.Join(project, ".crush", "crush.json")
+	ws := filepath.Join(project, ".tada", "tada.json")
 	writeFile(t, ws, `{}`)
 	require.False(t, evaluate().Trusted, "a new workspace config must untrust")
 	trust()
@@ -203,8 +203,8 @@ func TestTrust_FingerprintInvalidation(t *testing.T) {
 func TestTrust_FingerprintCoversPathAndContent(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	a := filepath.Join(root, "crush.json")
-	b := filepath.Join(root, "sub", "crush.json")
+	a := filepath.Join(root, "tada.json")
+	b := filepath.Join(root, "sub", "tada.json")
 	writeFile(t, a, `{"a":1}`)
 	writeFile(t, b, `{"a":1}`)
 
@@ -216,7 +216,7 @@ func TestTrust_FingerprintCoversPathAndContent(t *testing.T) {
 		"missing files are skipped")
 
 	// Same content at a different path is a different fingerprint.
-	c := filepath.Join(root, "other", "crush.json")
+	c := filepath.Join(root, "other", "tada.json")
 	writeFile(t, c, `{"a":1}`)
 	require.NotEqual(t, ProjectFingerprint(root, a, b), ProjectFingerprint(root, a, c))
 
@@ -260,7 +260,7 @@ func TestTrust_TrustedPathsFromGlobalConfigOnly(t *testing.T) {
 	parent := t.TempDir()
 	project := filepath.Join(parent, "project")
 	marker := filepath.Join(t.TempDir(), "marker")
-	writeFile(t, filepath.Join(project, "crush.json"),
+	writeFile(t, filepath.Join(project, "tada.json"),
 		fmt.Sprintf(`{"options":{"trusted_paths":[%q, "/"],"notifications":"bell"},"env":{"X":"$(touch %s)"}}`, project, filepath.ToSlash(marker)))
 
 	// A project cannot vouch for itself.
@@ -270,7 +270,7 @@ func TestTrust_TrustedPathsFromGlobalConfigOnly(t *testing.T) {
 	requireNoFile(t, marker, "project trusted_paths must be ignored")
 
 	// The global config can.
-	writeFile(t, filepath.Join(globalConfig, "crush.json"),
+	writeFile(t, filepath.Join(globalConfig, "tada.json"),
 		fmt.Sprintf(`{"options":{"trusted_paths":[%q]}}`, parent))
 	store, err = Load(project, "", false)
 	require.NoError(t, err)
@@ -282,13 +282,13 @@ func TestTrust_TrustedPathsFromGlobalConfigOnly(t *testing.T) {
 func TestTrust_EnvVar(t *testing.T) {
 	isolateTrust(t)
 	project := t.TempDir()
-	writeFile(t, filepath.Join(project, "crush.json"), `{"options":{"notifications":"bell"}}`)
+	writeFile(t, filepath.Join(project, "tada.json"), `{"options":{"notifications":"bell"}}`)
 
 	for _, v := range []string{"", "0", "false", "nope"} {
 		t.Setenv(TrustProjectEnv, v)
 		store, err := Load(project, "", false)
 		require.NoError(t, err)
-		require.False(t, store.ProjectTrust().Trusted, "CRUSH_TRUST_PROJECT=%q", v)
+		require.False(t, store.ProjectTrust().Trusted, "TADA_TRUST_PROJECT=%q", v)
 	}
 
 	t.Setenv(TrustProjectEnv, "1")
@@ -320,7 +320,7 @@ func TestTrust_WorkspaceSelfWrite(t *testing.T) {
 	t.Run("keeps a trusted project trusted", func(t *testing.T) {
 		isolateTrust(t)
 		project := t.TempDir()
-		writeFile(t, filepath.Join(project, "crush.json"), `{"options":{"notifications":"bell"}}`)
+		writeFile(t, filepath.Join(project, "tada.json"), `{"options":{"notifications":"bell"}}`)
 		_, err := TrustProject(context.Background(), project, "")
 		require.NoError(t, err)
 
@@ -329,40 +329,40 @@ func TestTrust_WorkspaceSelfWrite(t *testing.T) {
 		require.True(t, store.ProjectTrust().Trusted)
 
 		// Creating, then changing, the workspace config.
-		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "CRUSH.md"))
+		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "TADA.md"))
 		require.NoError(t, store.SetCompactMode(ScopeWorkspace, true))
-		require.FileExists(t, filepath.Join(project, ".crush", "crush.json"))
+		require.FileExists(t, filepath.Join(project, ".tada", "tada.json"))
 
 		store, err = Load(project, "", false)
 		require.NoError(t, err)
 		require.Equal(t, TrustSourceRecord, store.ProjectTrust().Source)
 		require.Equal(t, "bell", store.Config().Options.Notifications)
-		require.Equal(t, "CRUSH.md", store.Config().Options.InitializeAs)
+		require.Equal(t, "TADA.md", store.Config().Options.InitializeAs)
 		require.True(t, store.Config().Options.TUI.CompactMode)
 	})
 
-	t.Run("records a workspace config crush created", func(t *testing.T) {
+	t.Run("records a workspace config tada created", func(t *testing.T) {
 		isolateTrust(t)
 		project := t.TempDir()
 		store, err := Load(project, "", false)
 		require.NoError(t, err)
 		require.Equal(t, TrustSourceNoConfig, store.ProjectTrust().Source)
 
-		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "CRUSH.md"))
+		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "TADA.md"))
 
 		store, err = Load(project, "", false)
 		require.NoError(t, err)
 		require.Equal(t, TrustSourceRecord, store.ProjectTrust().Source)
-		require.Equal(t, "CRUSH.md", store.Config().Options.InitializeAs)
+		require.Equal(t, "TADA.md", store.Config().Options.InitializeAs)
 
-		// Later edits by crush keep it trusted.
+		// Later edits by tada keep it trusted.
 		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "AGENTS.md"))
 		store, err = Load(project, "", false)
 		require.NoError(t, err)
 		require.Equal(t, "AGENTS.md", store.Config().Options.InitializeAs)
 
 		// An outside edit untrusts it.
-		writeFile(t, filepath.Join(project, ".crush", "crush.json"), `{"options":{"initialize_as":"EVIL.md"}}`)
+		writeFile(t, filepath.Join(project, ".tada", "tada.json"), `{"options":{"initialize_as":"EVIL.md"}}`)
 		store, err = Load(project, "", false)
 		require.NoError(t, err)
 		require.False(t, store.ProjectTrust().Trusted)
@@ -372,32 +372,32 @@ func TestTrust_WorkspaceSelfWrite(t *testing.T) {
 	t.Run("does not trust committed project config", func(t *testing.T) {
 		isolateTrust(t)
 		project := t.TempDir()
-		writeFile(t, filepath.Join(project, "crush.json"), `{"options":{"notifications":"bell"}}`)
+		writeFile(t, filepath.Join(project, "tada.json"), `{"options":{"notifications":"bell"}}`)
 		store, err := Load(project, "", false)
 		require.NoError(t, err)
 		require.False(t, store.ProjectTrust().Trusted)
 
 		// The UI keeps working: the write lands on disk.
-		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "CRUSH.md"))
-		require.FileExists(t, filepath.Join(project, ".crush", "crush.json"))
+		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "TADA.md"))
+		require.FileExists(t, filepath.Join(project, ".tada", "tada.json"))
 
 		store, err = Load(project, "", false)
 		require.NoError(t, err)
 		require.False(t, store.ProjectTrust().Trusted)
 		require.NotEqual(t, "bell", store.Config().Options.Notifications)
-		require.NotEqual(t, "CRUSH.md", store.Config().Options.InitializeAs)
+		require.NotEqual(t, "TADA.md", store.Config().Options.InitializeAs)
 	})
 
 	t.Run("does not trust a pre-existing workspace config", func(t *testing.T) {
 		isolateTrust(t)
 		project := t.TempDir()
-		ws := filepath.Join(project, ".crush", "crush.json")
+		ws := filepath.Join(project, ".tada", "tada.json")
 		writeFile(t, ws, `{"options":{"notifications":"bell"}}`)
 		store, err := Load(project, "", false)
 		require.NoError(t, err)
 		require.False(t, store.ProjectTrust().Trusted)
 
-		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "CRUSH.md"))
+		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "TADA.md"))
 		store, err = Load(project, "", false)
 		require.NoError(t, err)
 		require.False(t, store.ProjectTrust().Trusted)
@@ -407,10 +407,10 @@ func TestTrust_WorkspaceSelfWrite(t *testing.T) {
 	t.Run("follows a data directory moved by trusted config", func(t *testing.T) {
 		isolateTrust(t)
 		project := t.TempDir()
-		writeFile(t, filepath.Join(project, "crush.json"), `{"options":{"data_directory":"state"}}`)
+		writeFile(t, filepath.Join(project, "tada.json"), `{"options":{"data_directory":"state"}}`)
 		// Committed before trust: not covered, because the trust decision
 		// only knows the default workspace config location.
-		moved := filepath.Join(project, "state", "crush.json")
+		moved := filepath.Join(project, "state", "tada.json")
 		writeFile(t, moved, `{"options":{"initialize_as":"EVIL.md"}}`)
 		_, err := TrustProject(context.Background(), project, "")
 		require.NoError(t, err)
@@ -421,19 +421,19 @@ func TestTrust_WorkspaceSelfWrite(t *testing.T) {
 		require.Equal(t, filepath.Join(ProjectRoot(project), "state"), resolvePath(store.Config().Options.DataDirectory))
 		require.NotEqual(t, "EVIL.md", store.Config().Options.InitializeAs)
 
-		// Crush's own write to the moved workspace config is recorded.
+		// Ta-Da's own write to the moved workspace config is recorded.
 		require.NoError(t, os.Remove(moved))
-		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "CRUSH.md"))
+		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "TADA.md"))
 		store, err = Load(project, "", false)
 		require.NoError(t, err)
 		require.True(t, store.ProjectTrust().Trusted)
-		require.Equal(t, "CRUSH.md", store.Config().Options.InitializeAs)
+		require.Equal(t, "TADA.md", store.Config().Options.InitializeAs)
 	})
 
 	t.Run("does not re-trust config changed behind its back", func(t *testing.T) {
 		isolateTrust(t)
 		project := t.TempDir()
-		projectConfig := filepath.Join(project, "crush.json")
+		projectConfig := filepath.Join(project, "tada.json")
 		writeFile(t, projectConfig, `{"options":{"notifications":"bell"}}`)
 		_, err := TrustProject(context.Background(), project, "")
 		require.NoError(t, err)
@@ -442,7 +442,7 @@ func TestTrust_WorkspaceSelfWrite(t *testing.T) {
 		require.True(t, store.ProjectTrust().Trusted)
 
 		writeFile(t, projectConfig, `{"options":{"notifications":"osc"}}`)
-		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "CRUSH.md"))
+		require.NoError(t, store.SetConfigField(ScopeWorkspace, "options.initialize_as", "TADA.md"))
 
 		store, err = Load(project, "", false)
 		require.NoError(t, err)
@@ -457,7 +457,7 @@ func TestTrust_StoreFilePermissions(t *testing.T) {
 	}
 	isolateTrust(t)
 	project := t.TempDir()
-	writeFile(t, filepath.Join(project, "crush.json"), `{}`)
+	writeFile(t, filepath.Join(project, "tada.json"), `{}`)
 	_, err := TrustProject(context.Background(), project, "")
 	require.NoError(t, err)
 
@@ -469,7 +469,7 @@ func TestTrust_StoreFilePermissions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
 	require.Equal(t, ProjectRoot(project), projects[0].Root)
-	require.Equal(t, []string{"crush.json"}, projects[0].Files)
+	require.Equal(t, []string{"tada.json"}, projects[0].Files)
 }
 
 func TestTrust_RecordCoversSubdirectoryConfigs(t *testing.T) {
@@ -482,8 +482,8 @@ func TestTrust_RecordCoversSubdirectoryConfigs(t *testing.T) {
 	gitInit.Dir = repo
 	require.NoError(t, gitInit.Run())
 	sub := filepath.Join(repo, "sub")
-	writeFile(t, filepath.Join(repo, "crush.json"), `{"options":{"notifications":"bell"}}`)
-	writeFile(t, filepath.Join(sub, "crush.json"), `{"options":{"initialize_as":"CRUSH.md"}}`)
+	writeFile(t, filepath.Join(repo, "tada.json"), `{"options":{"notifications":"bell"}}`)
+	writeFile(t, filepath.Join(sub, "tada.json"), `{"options":{"initialize_as":"TADA.md"}}`)
 
 	_, err := TrustProject(context.Background(), sub, "")
 	require.NoError(t, err)
@@ -497,7 +497,7 @@ func TestTrust_RecordCoversSubdirectoryConfigs(t *testing.T) {
 
 	// The subdirectory config is still covered when evaluated from the
 	// root, so changing it untrusts the whole project.
-	writeFile(t, filepath.Join(sub, "crush.json"), `{"options":{"initialize_as":"EVIL.md"}}`)
+	writeFile(t, filepath.Join(sub, "tada.json"), `{"options":{"initialize_as":"EVIL.md"}}`)
 	trust, err := EvaluateProjectTrust(context.Background(), repo, "")
 	require.NoError(t, err)
 	require.False(t, trust.Trusted)
@@ -506,7 +506,7 @@ func TestTrust_RecordCoversSubdirectoryConfigs(t *testing.T) {
 func TestTrust_ExtraFilesAndFinders(t *testing.T) {
 	isolateTrust(t)
 	project := t.TempDir()
-	writeFile(t, filepath.Join(project, "crush.json"), `{}`)
+	writeFile(t, filepath.Join(project, "tada.json"), `{}`)
 	extra := filepath.Join(project, "opencode.json")
 	writeFile(t, extra, `{"a":1}`)
 

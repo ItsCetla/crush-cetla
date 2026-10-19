@@ -12,7 +12,7 @@ var envNameRe = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 // maxTemplateDepth bounds ${A:-${B:-...}} nesting.
 const maxTemplateDepth = 8
 
-// SafeTemplate reports whether s is safe to hand to Crush's shell-style
+// SafeTemplate reports whether s is safe to hand to Ta-Da's shell-style
 // value expander: literal text plus plain environment references only.
 //
 // Allowed references are $NAME, ${NAME} and ${NAME:-DEFAULT}, where NAME

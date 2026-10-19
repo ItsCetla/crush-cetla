@@ -17,21 +17,21 @@ var updateProvidersCmd = &cobra.Command{
 	Short: "Update providers",
 	Long: `Update provider information from a specified local path or remote URL.
 
-Crush never updates the provider catalog on its own: it uses the catalog
+Ta-Da never updates the provider catalog on its own: it uses the catalog
 saved by this command, or the one embedded in this release when none has
 been saved. Running this command is the only way to fetch a newer catalog.`,
 	Example: `
 # Update Catwalk providers remotely (default)
-crush update-providers
+tada update-providers
 
 # Update Catwalk providers from a custom URL
-crush update-providers https://example.com/providers.json
+tada update-providers https://example.com/providers.json
 
 # Update Catwalk providers from a local file
-crush update-providers /path/to/local-providers.json
+tada update-providers /path/to/local-providers.json
 
 # Update Catwalk providers from embedded version
-crush update-providers embedded
+tada update-providers embedded
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// NOTE(@andreynering): We want to skip logging output do stdout here.

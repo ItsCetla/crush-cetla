@@ -76,7 +76,7 @@ func (a OpenCodeApplied) clone() OpenCodeApplied {
 	return a
 }
 
-// openCodeToolNames maps OpenCode built-in tool names to the Crush tools a
+// openCodeToolNames maps OpenCode built-in tool names to the Ta-Da tools a
 // tools toggle turns off.
 var openCodeToolNames = map[string][]string{
 	"bash":      {"bash"},
@@ -92,7 +92,7 @@ var openCodeToolNames = map[string][]string{
 	"question":  {"question"},
 }
 
-// openCodeDenyTools maps OpenCode permission keys to the Crush tools a
+// openCodeDenyTools maps OpenCode permission keys to the Ta-Da tools a
 // whole-tool deny rule turns off. OpenCode's edit permission covers every
 // tool that changes files.
 var openCodeDenyTools = map[string][]string{
@@ -108,7 +108,7 @@ var openCodeDenyTools = map[string][]string{
 	"question":  {"question"},
 }
 
-// openCodeNoPromptTools are the OpenCode tools whose Crush counterparts
+// openCodeNoPromptTools are the OpenCode tools whose Ta-Da counterparts
 // never prompt inside the project, so an allow rule changes nothing and an
 // ask rule can't be honored.
 var openCodeNoPromptTools = map[string]bool{
@@ -124,7 +124,7 @@ var openCodeNoPromptTools = map[string]bool{
 }
 
 // openCodeEditTools are the tools OpenCode's "edit": "allow" lets run
-// without a prompt. Crush only allows them for files inside the project.
+// without a prompt. Ta-Da only allows them for files inside the project.
 var openCodeEditTools = []string{"edit", "multiedit", "write", "lsp_replace_symbol"}
 
 // applyOpenCodeContext applies the OpenCode settings that shape the agent
@@ -233,7 +233,7 @@ func (c *Config) applyOpenCodeCompaction(imp *openCodeImport) {
 		return
 	}
 	// A plugin that turns compaction off usually manages the context
-	// itself. Crush doesn't run plugins, so keep summarizing.
+	// itself. Ta-Da doesn't run plugins, so keep summarizing.
 	if len(imp.config.Plugins) > 0 {
 		imp.notef("compaction.auto is false, but auto-summarize stays on because OpenCode plugins, which may manage the context instead, are not run")
 		return
@@ -308,7 +308,7 @@ func (c *Config) applyOpenCodeTools(imp *openCodeImport) {
 		}
 		tools, ok := openCodeToolNames[pattern]
 		if !ok {
-			imp.notef("tools.%s: false skipped: no matching Crush tool or imported MCP server", pattern)
+			imp.notef("tools.%s: false skipped: no matching Ta-Da tool or imported MCP server", pattern)
 			continue
 		}
 		for _, t := range tools {
@@ -378,16 +378,16 @@ func (c *Config) applyOpenCodePermissions(imp *openCodeImport) {
 	}
 	c.Options.DisabledTools = disabled
 	if askAll {
-		imp.notef("permission rule *: ask partly followed: Crush prompts before writes, commands, web access and MCP tools, not before reads inside the project")
+		imp.notef("permission rule *: ask partly followed: Ta-Da prompts before writes, commands, web access and MCP tools, not before reads inside the project")
 	}
 	if len(matched) > 0 {
-		imp.notef("permission rules Crush already follows: %s", strings.Join(matched, ", "))
+		imp.notef("permission rules Ta-Da already follows: %s", strings.Join(matched, ", "))
 	}
 	if len(skipped) > 0 {
-		imp.notef("permission rules not imported (Crush keeps prompting): %s", strings.Join(skipped, ", "))
+		imp.notef("permission rules not imported (Ta-Da keeps prompting): %s", strings.Join(skipped, ", "))
 	}
 	if len(unprompted) > 0 {
-		imp.notef("permission rules not imported (Crush doesn't prompt for these inside the project): %s", strings.Join(unprompted, ", "))
+		imp.notef("permission rules not imported (Ta-Da doesn't prompt for these inside the project): %s", strings.Join(unprompted, ", "))
 	}
 }
 
@@ -430,7 +430,7 @@ func (c *Config) checkOpenCodeMCPCommands(imp *openCodeImport) {
 
 // applyOpenCodeProviderFilter turns off the providers OpenCode's
 // enabled_providers or disabled_providers exclude. Providers defined in
-// Crush's own config and providers of selected models are left alone.
+// Ta-Da's own config and providers of selected models are left alone.
 func (c *Config) applyOpenCodeProviderFilter(imp *openCodeImport, known []catwalk.Provider) {
 	if imp == nil {
 		return

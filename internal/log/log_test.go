@@ -22,7 +22,7 @@ func TestRecoverPanicWritesToLogDir(t *testing.T) {
 		t.Error("Cleanup was not called")
 	}
 
-	matches, err := filepath.Glob(filepath.Join(dir, "crush-panic-test-*.log"))
+	matches, err := filepath.Glob(filepath.Join(dir, "tada-panic-test-*.log"))
 	if err != nil || len(matches) != 1 {
 		t.Fatalf("Expected one panic log in %s, got %v (%v)", dir, matches, err)
 	}

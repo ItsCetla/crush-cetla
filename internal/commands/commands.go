@@ -74,7 +74,7 @@ func LoadCustomCommands(cfg *config.Config) ([]CustomCommand, error) {
 
 // FromOpenCode converts the commands imported from OpenCode. $ARGUMENTS
 // and $1 to $9 become optional arguments. Shell (!`cmd`) and file (@path)
-// references stay literal text: Crush never runs or reads them on its own.
+// references stay literal text: Ta-Da never runs or reads them on its own.
 func FromOpenCode(cmds []config.OpenCodeCommand) []CustomCommand {
 	commands := make([]CustomCommand, 0, len(cmds))
 	for _, c := range cmds {
@@ -92,7 +92,7 @@ func FromOpenCode(cmds []config.OpenCodeCommand) []CustomCommand {
 }
 
 // openCodeTemplate rewrites OpenCode's positional placeholders $1 to $9 as
-// $ARG1 to $ARG9, which Crush's argument dialog can fill, and returns the
+// $ARG1 to $ARG9, which Ta-Da's argument dialog can fill, and returns the
 // arguments in the order they first appear.
 func openCodeTemplate(template string) (string, []Argument) {
 	var args []Argument
@@ -174,11 +174,11 @@ func LoadMCPPrompts() ([]MCPPrompt, error) {
 func buildCommandSources(cfg *config.Config) []commandSource {
 	return []commandSource{
 		{
-			path:   filepath.Join(home.Config(), "crush", "commands"),
+			path:   filepath.Join(home.Config(), "tada", "commands"),
 			prefix: userCommandPrefix,
 		},
 		{
-			path:   filepath.Join(home.Dir(), ".crush", "commands"),
+			path:   filepath.Join(home.Dir(), ".tada", "commands"),
 			prefix: userCommandPrefix,
 		},
 		{

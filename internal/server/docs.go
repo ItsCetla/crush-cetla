@@ -6,9 +6,9 @@ import (
 	"github.com/charmbracelet/crush/internal/apigen"
 )
 
-// apiInfo is the top-level metadata for the Crush API documentation.
+// apiInfo is the top-level metadata for the Ta-Da API documentation.
 var apiInfo = apigen.Info{
-	Title:   "Crush API",
+	Title:   "Ta-Da API",
 	Version: "1.0",
 }
 

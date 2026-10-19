@@ -26,7 +26,7 @@ type channelSessionStore interface {
 // frontends do not inject (see workspace.ClientWorkspace.RoutesChannelEvents),
 // so a push is processed once no matter how many clients are attached —
 // including zero, which keeps the "a pushed event is never dropped"
-// contract for a headless `crush serve`.
+// contract for a headless `tada serve`.
 //
 // Events are drained sequentially from the subscription, so pushes keep
 // their arrival order. Delivery to multiple workspaces within one event
