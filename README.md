@@ -1,20 +1,29 @@
-# Crush
+<div align="center">
 
-<p align="center">
-    <a href="https://stuff.charm.sh/crush/charm-crush.png"><img width="450" alt="Charm Crush Logo" src="https://github.com/user-attachments/assets/cf8ca3ce-8b02-43f0-9d0f-5a331488da4b" /></a><br />
-    <a href="https://github.com/charmbracelet/crush/releases"><img src="https://img.shields.io/github/release/charmbracelet/crush" alt="Latest Release"></a>
-    <a href="https://github.com/charmbracelet/crush/actions"><img src="https://github.com/charmbracelet/crush/actions/workflows/build.yml/badge.svg" alt="Build Status"></a>
-</p>
+<img src="docs/assets/icon.svg" width="96" height="96" alt="">
 
-<p align="center">Your new coding bestie, now available in your favourite terminal.<br />Your tools, your code, and your workflows, wired into your LLM of choice.</p>
-<p align="center">终端里的编程新搭档，<br />无缝接入你的工具、代码与工作流，全面兼容主流 LLM 模型。</p>
+# Crush (cetla build)
 
-<p align="center"><img width="800" alt="Crush Demo" src="https://github.com/user-attachments/assets/58280caf-851b-470a-b6f7-d5c4ea8a1968" /></p>
+**Charm's Crush coding agent, rebuilt to talk to nobody but the model providers and MCP servers you configure. Imports your OpenCode setup. Windows, macOS and Linux.**
 
-## About this fork
+[![Latest release](https://img.shields.io/github/v/release/ItsCetla/crush-cetla?display_name=tag&include_prereleases&label=release)](https://github.com/ItsCetla/crush-cetla/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/ItsCetla/crush-cetla/total?label=downloads)](https://github.com/ItsCetla/crush-cetla/releases)
+[![Build](https://github.com/ItsCetla/crush-cetla/actions/workflows/build.yml/badge.svg)](https://github.com/ItsCetla/crush-cetla/actions/workflows/build.yml)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-5b4bff)](#download)
+[![License](https://img.shields.io/badge/license-FSL--1.1--MIT-ff5faf)](LICENSE.md)
+[![Go](https://img.shields.io/github/go-mod/go-version/ItsCetla/crush-cetla?label=go)](go.mod)
 
-This is a private fork of [Charm's Crush](https://github.com/charmbracelet/crush)
-that talks to nobody but the model providers and MCP servers you configure:
+[Download](#download) · [Website](https://itscetla.github.io/crush-cetla/) · [What's different](#whats-different-in-this-fork) · [OpenCode import](#importing-from-opencode) · [Configuration](#configuration) · [Changelog](CHANGELOG.md)
+
+<img src="docs/screenshots/hero.svg" width="880" alt="Crush running in a terminal: a session with a local model, the OpenCode import report, and a permission prompt before a shell command.">
+
+</div>
+
+## What's different in this fork
+
+This is a fork of [Charm's Crush](https://github.com/charmbracelet/crush).
+The agent, TUI, LSP and MCP support are upstream's. What changed is who it
+talks to and what it does without asking:
 
 - **No phone-home.** Telemetry (PostHog), the update check, the Catwalk and
   Hyper catalog fetches at startup, the Hyper vendor service and the forced
@@ -37,6 +46,105 @@ that talks to nobody but the model providers and MCP servers you configure:
   from disk only. OpenCode plugins are never run. See
   [Importing from OpenCode](#importing-from-opencode).
 
+Every fork change is listed in the [changelog](CHANGELOG.md).
+
+## Download
+
+Grab the archive for your machine from the
+[latest release](https://github.com/ItsCetla/crush-cetla/releases/latest),
+unpack it, and put the `crush` binary somewhere on your `PATH`. Each archive
+also contains the README, the license, a man page and shell completions.
+
+### Windows
+
+| Build | File | What it does |
+| --- | --- | --- |
+| x64 | `crush_<version>_Windows_x86_64.zip` | Most PCs. Unzip, then run `crush.exe` from PowerShell or Windows Terminal. |
+| ARM64 | `crush_<version>_Windows_arm64.zip` | Snapdragon and other ARM laptops. |
+
+> [!NOTE]
+> The binaries are not code-signed. If SmartScreen appears, choose
+> **More info → Run anyway**, or clear the mark of the web first:
+> `Unblock-File .\crush.exe`.
+
+```powershell
+Expand-Archive crush_<version>_Windows_x86_64.zip -DestinationPath $env:LOCALAPPDATA\Programs\crush
+# add $env:LOCALAPPDATA\Programs\crush\crush_<version>_Windows_x86_64 to your PATH
+crush --version
+```
+
+### macOS
+
+| Build | File | What it does |
+| --- | --- | --- |
+| Apple silicon | `crush_<version>_Darwin_arm64.tar.gz` | M1 and later. |
+| Intel | `crush_<version>_Darwin_x86_64.tar.gz` | Intel Macs. |
+
+> [!NOTE]
+> The binaries are not notarized. If macOS refuses to run a binary you
+> downloaded with a browser, remove the quarantine flag:
+> `xattr -d com.apple.quarantine ./crush`.
+
+```bash
+tar -xzf crush_<version>_Darwin_arm64.tar.gz
+sudo install crush_<version>_Darwin_arm64/crush /usr/local/bin/crush
+crush --version
+```
+
+### Linux
+
+| Build | File | What it does |
+| --- | --- | --- |
+| x64 | `crush_<version>_Linux_x86_64.tar.gz` | Any glibc or musl distro; the binary is static. |
+| ARM64 | `crush_<version>_Linux_arm64.tar.gz` | Raspberry Pi 4/5, Graviton, Ampere. |
+
+```bash
+tar -xzf crush_<version>_Linux_x86_64.tar.gz
+sudo install crush_<version>_Linux_x86_64/crush /usr/local/bin/crush
+crush --version
+```
+
+### Checking a download
+
+Every release ships a `SHA256SUMS.txt`. Put it next to the archive and run:
+
+```bash
+# macOS / Linux
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing
+```
+
+```powershell
+# Windows
+Get-FileHash crush_<version>_Windows_x86_64.zip
+Select-String Windows_x86_64 SHA256SUMS.txt
+```
+
+The two hashes must match.
+
+### Build from source
+
+Package managers (Homebrew, npm, AUR, Nix, …) install upstream Crush, not
+this fork. Building needs Go 1.27+ and no other dependencies on any platform.
+
+| Command | What it does |
+| --- | --- |
+| `go build -o crush .` | Build for the current machine into `./crush`. |
+| `go install .` | Build into `$(go env GOPATH)/bin`. |
+| `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o crush.exe .` | Cross-compile a Windows binary from macOS or Linux. |
+| `goreleaser release --snapshot --clean` | Every release archive into `dist/` (needs [goreleaser](https://goreleaser.com)). |
+| `go test ./...` | Run the test suite. |
+
+```bash
+git clone https://github.com/ItsCetla/crush-cetla.git
+cd crush-cetla
+go build -o crush .
+./crush --version
+```
+
+Tagging `vX.Y.Z` runs the `release` workflow, which builds all six archives
+and opens a **draft** release with the matching `CHANGELOG.md` section as
+its notes. Nothing is published until the draft is reviewed.
+
 ## Features
 
 - **Multi-Model:** choose from a wide range of LLMs or add your own via OpenAI- or Anthropic-compatible APIs
@@ -46,23 +154,6 @@ that talks to nobody but the model providers and MCP servers you configure:
 - **Extensible:** add capabilities via MCPs (`http`, `stdio`, and `sse`)
 - **Works Everywhere:** first-class support in every terminal on macOS, Linux, Windows (PowerShell and WSL), Android, FreeBSD, OpenBSD, and NetBSD
 - **Industrial Grade:** built on the Charm ecosystem, powering 25k+ applications, from leading open source projects to business-critical infrastructure
-
-## Installation
-
-Package managers (Homebrew, npm, AUR, Nix, …) install upstream Crush, not
-this fork. Build it from source with Go 1.27+:
-
-```bash
-git clone https://github.com/ItsCetla/crush-cetla.git
-cd crush-cetla
-go build -o crush .
-./crush --version
-
-# Or install into $(go env GOPATH)/bin
-go install .
-```
-
-On macOS (including Apple Silicon) no extra dependencies are needed.
 
 ## Getting Started
 
@@ -960,7 +1051,10 @@ otherwise).
 
 ## Privacy
 
-This fork collects no telemetry and does not check for updates.
+This fork collects no telemetry and does not check for updates. The only
+network connections it makes are to the model providers and MCP servers you
+configure (plus model discovery against those providers' `/models`
+endpoints and OAuth refreshes for accounts you signed in with `crush login`).
 
 ## Q&A
 
@@ -975,6 +1069,24 @@ Installing an extra tool might be needed on Unix-like environments.
 | Linux/BSD + Wayland | `wl-copy` and `wl-paste` |
 | Linux/BSD + X11     | `xclip` or `xsel`        |
 
+## Contributing
+
+Issues and pull requests for fork-specific behaviour (trust gate, egress,
+OpenCode import, releases) are welcome at
+[ItsCetla/crush-cetla](https://github.com/ItsCetla/crush-cetla/issues).
+Keep new network egress opt-in and ask-before-use, and add a line to
+`CHANGELOG.md` under *Unreleased*.
+
+```bash
+go build ./... && go vet ./internal/opencode/... ./internal/config/... && go test ./...
+```
+
+## Security
+
+Found something that lets Crush read, send or run what it shouldn't? Please
+open a [private security advisory](https://github.com/ItsCetla/crush-cetla/security/advisories/new)
+rather than a public issue. `govulncheck` runs weekly in CI.
+
 ## Upstream
 
 Crush is made by [Charm](https://charm.land). Bug reports for code that isn't
@@ -982,7 +1094,7 @@ specific to this fork belong [upstream](https://github.com/charmbracelet/crush).
 
 ## License
 
-[FSL-1.1-MIT](LICENSE.md)
+[FSL-1.1-MIT](LICENSE.md), the same license as upstream Crush.
 
 ---
 
