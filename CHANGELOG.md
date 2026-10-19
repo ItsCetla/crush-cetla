@@ -7,12 +7,35 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-19
+
+### Changed
+
+- **Renamed to Ta-Da.** The binary is now `tada`, environment variables are
+  `TADA_*`, config lives in `~/.config/tada/tada.json`, `tadarc`, `.tada/` and
+  `TADA.md`. The repository moved to
+  [ItsCetla/tada](https://github.com/ItsCetla/tada) and the site to
+  [tada.cetla.dev](https://tada.cetla.dev).
+- On first run, settings and data from `~/.config/crush` and
+  `~/.local/share/crush` are copied into the new Ta-Da folders, and `CRUSH_*`
+  environment variables are still honoured. Project `.crush/` session history
+  is not moved; `.crush/skills` and `.crushignore` are still read.
+- New "cetla" default theme, Ta-Da wordmark and a short startup intro
+  (skip with any key; turn off with `TADA_NO_INTRO=1` or
+  `options.tui.intro: false`).
+
 ### Added
 
-- Windows installer (`crush_<version>_Windows_<arch>_Setup.exe`): per-user
-  install without admin rights, adds `crush` to `PATH`, Start menu entry,
-  uninstaller in Settings → Apps. Built by `.github/workflows/windows-installer.yml`
-  from `packaging/windows/crush.iss`.
+- `tada update` (`--check`, `-y`): downloads the latest release from GitHub,
+  checks it against `SHA256SUMS.txt` and replaces the binary.
+- Background update check: at most every 6 hours, asks api.github.com for the
+  latest release and tells you once per new version. Never downloads on its
+  own. Turn it off with `options.update_check: false`,
+  `option update-check false` or `TADA_NO_UPDATE_CHECK=1`.
+- Windows installer (`tada_<version>_Windows_<arch>_Setup.exe`): per-user
+  install without admin rights, adds `tada` to `PATH`, Start menu entry,
+  uninstaller in Settings → Apps. Upgrading from the 0.1.0 Crush installer
+  removes the old `crush.exe` and shortcuts.
 
 ## [0.1.0] - 2026-10-19
 
