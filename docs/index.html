@@ -213,14 +213,15 @@
           <article class="dl-os" data-os-card="windows">
             <h3><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 11 4.4v7.1H3zm9-1.3L21 3v8.5h-9zM3 12.5h8v7.1L3 18.5zm9 0h9V21l-9-1.2z"/></svg>Windows <span class="mine">this computer</span></h3>
             <div class="dl-item">
-              <p class="dl-file"><code data-dl-file="win-x64">crush_&lt;version&gt;_Windows_x86_64.zip</code><span class="dl-size" data-dl-size="win-x64" hidden></span></p>
-              <a class="btn btn-primary btn-block" data-dl="win-x64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">x64 (most PCs)</a>
+              <p class="dl-file"><code data-dl-file="win-x64-setup">crush_&lt;version&gt;_Windows_x86_64_Setup.exe</code><span class="dl-size" data-dl-size="win-x64-setup" hidden></span></p>
+              <a class="btn btn-primary btn-block" data-dl="win-x64-setup" href="https://github.com/ItsCetla/crush-cetla/releases/latest">Installer, x64 (most PCs)</a>
             </div>
             <div class="dl-item">
-              <p class="dl-file"><code data-dl-file="win-arm64">crush_&lt;version&gt;_Windows_arm64.zip</code><span class="dl-size" data-dl-size="win-arm64" hidden></span></p>
-              <a class="btn btn-secondary btn-block" data-dl="win-arm64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">ARM64</a>
+              <p class="dl-file"><code data-dl-file="win-arm64-setup">crush_&lt;version&gt;_Windows_arm64_Setup.exe</code><span class="dl-size" data-dl-size="win-arm64-setup" hidden></span></p>
+              <a class="btn btn-secondary btn-block" data-dl="win-arm64-setup" href="https://github.com/ItsCetla/crush-cetla/releases/latest">Installer, ARM64</a>
             </div>
-            <p class="dl-note">Unzip, then run <code>crush.exe</code> from PowerShell or Windows Terminal. Not code-signed: if SmartScreen appears, choose <em>More info → Run anyway</em>, or run <code>Unblock-File .\crush.exe</code> first.</p>
+            <p class="dl-note">The installer needs no admin rights. It puts Crush in <code>%LOCALAPPDATA%\Programs\Crush</code>, adds <code>crush</code> to your PATH and the Start menu, and uninstalls from <em>Settings → Apps</em>. Open a new terminal afterwards and run <code>crush</code> in a project folder. Not code-signed: if SmartScreen appears, choose <em>More info → Run anyway</em>.</p>
+            <p class="dl-note">Portable zip, nothing installed: <a data-dl="win-x64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">x64</a> · <a data-dl="win-arm64" href="https://github.com/ItsCetla/crush-cetla/releases/latest">ARM64</a>.</p>
           </article>
 
           <article class="dl-os" data-os-card="mac">
@@ -250,7 +251,7 @@
           </article>
         </div>
 
-        <p class="callout">Package managers (Homebrew, npm, AUR, Nix) install <em>upstream</em> Crush, not this build. Get it from the archives above or build from source.</p>
+        <p class="callout">Package managers (Homebrew, npm, AUR, Nix) install <em>upstream</em> Crush, not this build. Get it from the downloads above or build from source.</p>
 
         <div class="verify">
           <div>
@@ -261,8 +262,8 @@
 shasum -a 256 -c SHA256SUMS.txt --ignore-missing
 
 # Windows (PowerShell)
-Get-FileHash crush_&lt;version&gt;_Windows_x86_64.zip
-Select-String Windows_x86_64 SHA256SUMS.txt</code></pre></div>
+Get-FileHash crush_&lt;version&gt;_Windows_x86_64_Setup.exe
+Select-String Windows_x86_64_Setup SHA256SUMS.txt</code></pre></div>
           </div>
           <div>
             <h3>Build from source</h3>

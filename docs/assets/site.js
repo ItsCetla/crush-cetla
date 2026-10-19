@@ -12,6 +12,8 @@
 
   // goreleaser names: crush_<version>_<Os>_<arch>.<ext>
   var ASSETS = {
+    'win-x64-setup':   /_Windows_x86_64_Setup\.exe$/i,
+    'win-arm64-setup': /_Windows_arm64_Setup\.exe$/i,
     'win-x64':     /_Windows_x86_64\.zip$/i,
     'win-arm64':   /_Windows_arm64\.zip$/i,
     'mac-arm64':   /_Darwin_arm64\.tar\.gz$/i,
@@ -109,6 +111,9 @@
       var a = pickAsset(assets, ASSETS[kind]);
       if (a) files[kind] = a;
     });
+    // Releases made before the installer existed: point installer buttons at the zip.
+    if (!files['win-x64-setup'] && files['win-x64']) files['win-x64-setup'] = files['win-x64'];
+    if (!files['win-arm64-setup'] && files['win-arm64']) files['win-arm64-setup'] = files['win-arm64'];
     var tag = typeof release.tag_name === 'string' ? release.tag_name : '';
     return {
       version: tag.replace(/^v/, ''),
@@ -185,7 +190,7 @@
     document.documentElement.classList.add('os-' + os);
     var card = document.querySelector('[data-os-card="' + os + '"]');
     if (card) card.classList.add('is-mine');
-    var kind = os === 'windows' ? 'win-x64' : os === 'linux' ? 'linux-x64' : '';
+    var kind = os === 'windows' ? 'win-x64-setup' : os === 'linux' ? 'linux-x64' : '';
     var hero = $$('[data-hero-dl]');
     var label = { windows: 'Download for Windows', mac: 'Download for macOS', linux: 'Download for Linux' }[os];
     hero.forEach(function (a) {

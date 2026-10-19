@@ -7,6 +7,13 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Added
+
+- Windows installer (`crush_<version>_Windows_<arch>_Setup.exe`): per-user
+  install without admin rights, adds `crush` to `PATH`, Start menu entry,
+  uninstaller in Settings → Apps. Built by `.github/workflows/windows-installer.yml`
+  from `packaging/windows/crush.iss`.
+
 ## [0.1.0] - 2026-10-19
 
 First tagged release of the fork, based on upstream Crush as of 2026-10-15.

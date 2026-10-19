@@ -18,6 +18,8 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,16 +61,22 @@ jobs:
 
           | Platform | File |
           |---|---|
-          | Windows x64 | \`crush_${VERSION}_Windows_x86_64.zip\` |
-          | Windows ARM64 | \`crush_${VERSION}_Windows_arm64.zip\` |
+          | Windows x64 installer (recommended) | \`crush_${VERSION}_Windows_x86_64_Setup.exe\` |
+          | Windows ARM64 installer | \`crush_${VERSION}_Windows_arm64_Setup.exe\` |
+          | Windows x64 (portable zip) | \`crush_${VERSION}_Windows_x86_64.zip\` |
+          | Windows ARM64 (portable zip) | \`crush_${VERSION}_Windows_arm64.zip\` |
           | macOS Apple silicon | \`crush_${VERSION}_Darwin_arm64.tar.gz\` |
           | macOS Intel | \`crush_${VERSION}_Darwin_x86_64.tar.gz\` |
           | Linux x64 | \`crush_${VERSION}_Linux_x86_64.tar.gz\` |
           | Linux ARM64 | \`crush_${VERSION}_Linux_arm64.tar.gz\` |
 
+          The Windows installer needs no admin rights: it installs to
+          \`%LOCALAPPDATA%\\Programs\\Crush\`, adds \`crush\` to your PATH, adds a
+          Start menu entry, and uninstalls from Settings > Apps.
+
           Verify a download against \`SHA256SUMS.txt\`:
           \`shasum -a 256 -c SHA256SUMS.txt --ignore-missing\` (macOS/Linux) or
-          \`Get-FileHash crush_${VERSION}_Windows_x86_64.zip\` (PowerShell).
+          \`Get-FileHash crush_${VERSION}_Windows_x86_64_Setup.exe\` (PowerShell).
           EOT
           echo "--- notes.md"; cat "$RUNNER_TEMP/notes.md"
 
@@ -95,3 +103,10 @@ jobs:
             cat dist/SHA256SUMS.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+
+  windows-installer:
+    needs: release
+    uses: ./.github/workflows/windows-installer.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}

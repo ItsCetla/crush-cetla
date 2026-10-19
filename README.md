@@ -59,19 +59,25 @@ also contains the README, the license, a man page and shell completions.
 
 | Build | File | What it does |
 | --- | --- | --- |
-| x64 | `crush_<version>_Windows_x86_64.zip` | Most PCs. Unzip, then run `crush.exe` from PowerShell or Windows Terminal. |
-| ARM64 | `crush_<version>_Windows_arm64.zip` | Snapdragon and other ARM laptops. |
+| x64 installer | `crush_<version>_Windows_x86_64_Setup.exe` | Most PCs. Recommended. |
+| ARM64 installer | `crush_<version>_Windows_arm64_Setup.exe` | Snapdragon and other ARM laptops. |
+| x64 / ARM64 zip | `crush_<version>_Windows_x86_64.zip`, `..._arm64.zip` | Portable: nothing is installed. Unzip and run `crush.exe`. |
 
-> [!NOTE]
-> The binaries are not code-signed. If SmartScreen appears, choose
-> **More info → Run anyway**, or clear the mark of the web first:
-> `Unblock-File .\crush.exe`.
+The installer needs no admin rights. It installs to
+`%LOCALAPPDATA%\Programs\Crush`, adds that folder to your user `PATH`, adds a
+Start menu entry, and shows up in **Settings → Apps** for uninstalling (which
+also takes it back off `PATH`). Open a new terminal afterwards:
 
 ```powershell
-Expand-Archive crush_<version>_Windows_x86_64.zip -DestinationPath $env:LOCALAPPDATA\Programs\crush
-# add $env:LOCALAPPDATA\Programs\crush\crush_<version>_Windows_x86_64 to your PATH
-crush --version
+cd C:\path\to\your\project
+crush
 ```
+
+Silent install for scripts: `crush_<version>_Windows_x86_64_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES`.
+
+> [!NOTE]
+> The installer and binaries are not code-signed. If SmartScreen appears,
+> choose **More info → Run anyway**.
 
 ### macOS
 
@@ -115,8 +121,8 @@ shasum -a 256 -c SHA256SUMS.txt --ignore-missing
 
 ```powershell
 # Windows
-Get-FileHash crush_<version>_Windows_x86_64.zip
-Select-String Windows_x86_64 SHA256SUMS.txt
+Get-FileHash crush_<version>_Windows_x86_64_Setup.exe
+Select-String Windows_x86_64_Setup SHA256SUMS.txt
 ```
 
 The two hashes must match.

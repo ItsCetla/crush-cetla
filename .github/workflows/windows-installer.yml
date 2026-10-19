@@ -1,0 +1,82 @@
+name: windows-installer
+# Wraps the goreleaser Windows zips of a (draft) release in Inno Setup
+# installers (packaging/windows/crush.iss) and uploads them, with an updated
+# SHA256SUMS.txt, to the same release. Called by release.yml; can also be run
+# by hand for an existing release.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag (for example v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # The workflow's own commit, not the tag: lets this run for releases
+        # tagged before packaging/windows existed.
+        with:
+          persist-credentials: false
+
+      - name: Build and upload installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:TAG
+          if ($tag -notmatch '^v\d') { throw "tag '$tag' must look like v1.2.3" }
+          $version = $tag.Substring(1)
+
+          $iscc = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress | Out-Host
+            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          }
+
+          $work = Join-Path $env:RUNNER_TEMP 'installer'
+          New-Item -ItemType Directory -Force $work | Out-Null
+          $built = @()
+          foreach ($a in @(@{ arch = 'x64'; label = 'x86_64' }, @{ arch = 'arm64'; label = 'arm64' })) {
+            $name = "crush_${version}_Windows_$($a.label)"
+            gh release download $tag -p "$name.zip" -D $work --clobber
+            if ($LASTEXITCODE -ne 0) { throw "download $name.zip failed" }
+            Expand-Archive "$work\$name.zip" -DestinationPath "$work\src" -Force
+            & $iscc /Q "/DAppVersion=$version" "/DArch=$($a.arch)" "/DSourceDir=$work\src\$name" "/O$work\out" packaging\windows\crush.iss
+            if ($LASTEXITCODE -ne 0) { throw "iscc failed for $name" }
+            $built += "$work\out\${name}_Setup.exe"
+          }
+
+          gh release download $tag -p SHA256SUMS.txt -D $work --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'download SHA256SUMS.txt failed' }
+          $sums = Get-Content "$work\SHA256SUMS.txt" | Where-Object { $_ -notmatch '_Setup\.exe$' }
+          foreach ($f in $built) {
+            $hash = (Get-FileHash -Algorithm SHA256 $f).Hash.ToLower()
+            $sums += "$hash  $(Split-Path -Leaf $f)"
+          }
+          [IO.File]::WriteAllText("$work\SHA256SUMS.txt", (($sums | Sort-Object { $_.Substring(66) }) -join "`n") + "`n")
+
+          gh release upload $tag @built "$work\SHA256SUMS.txt" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'upload failed' }
+
+          "## Windows installers" >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          Get-Content "$work\SHA256SUMS.txt" >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
