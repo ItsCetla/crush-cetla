@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Ta-Da">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7D56F4"/>
-      <stop offset="1" stop-color="#FF5FAF"/>
+      <stop offset="0" stop-color="#FFB347"/>
+      <stop offset="1" stop-color="#E8501F"/>
     </linearGradient>
   </defs>
   <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#g)"/>
-  <rect x="22" y="30" width="84" height="68" rx="12" fill="#17131F"/>
-  <path d="M38 50 L54 62 L38 74" fill="none" stroke="#FF5FAF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="62" y="68" width="28" height="7" rx="3.5" fill="#F4F1FF"/>
-  <circle cx="34" cy="20" r="3.5" fill="#17131F" opacity=".35"/>
-  <circle cx="46" cy="20" r="3.5" fill="#17131F" opacity=".35"/>
-  <circle cx="58" cy="20" r="3.5" fill="#17131F" opacity=".35"/>
+  <rect x="22" y="30" width="84" height="68" rx="12" fill="#12100E"/>
+  <path d="M38 50 L54 62 L38 74" fill="none" stroke="#FFB347" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="62" y="68" width="28" height="7" rx="3.5" fill="#F4EFE6"/>
+  <circle cx="34" cy="20" r="3.5" fill="#12100E" opacity=".35"/>
+  <circle cx="46" cy="20" r="3.5" fill="#12100E" opacity=".35"/>
+  <circle cx="58" cy="20" r="3.5" fill="#12100E" opacity=".35"/>
 </svg>

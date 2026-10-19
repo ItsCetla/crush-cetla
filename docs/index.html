@@ -7,8 +7,8 @@
   <meta name="description" content="A terminal coding agent, forked from Charm's Crush, that talks to nobody but the model providers and MCP servers you configure. No telemetry, web tools off by default, untrusted projects stay inert, and it imports your OpenCode setup. Windows, macOS and Linux.">
   <link rel="canonical" href="https://tada.cetla.dev/">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#FBFAFF" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#110E18" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F4EFE6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#12100E" media="(prefers-color-scheme: dark)">
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
   <link rel="icon" type="image/png" sizes="64x64" href="assets/favicon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
@@ -126,7 +126,15 @@
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7 12 3 4 7l8 4 8-4zM4 7v10l8 4 8-4V7M12 11v10"/></svg></span>Reviewable releases</h3>
-            <p>Every tag builds six archives in a public GitHub Actions run with pinned actions, ships a <code>SHA256SUMS.txt</code>, and lands as a draft release that is reviewed before it is published.</p>
+            <p>Every tag builds six archives and two Windows installers in a public GitHub Actions run with pinned actions, ships a <code>SHA256SUMS.txt</code>, and lands as a draft release that is reviewed before it is published.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5M12 8v5l3 2"/></svg></span>Updates when you say so</h3>
+            <p><code>tada update</code> fetches the newest release, checks it against <code>SHA256SUMS.txt</code> and swaps the binary in place. Ta-Da mentions a new version once; it never downloads on its own, and the check can be turned off.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8zM5 16l.6 1.4L7 18l-1.4.6L5 20l-.6-1.4L3 18l1.4-.6z"/></svg></span>Its own look</h3>
+            <p>A warm "cetla" theme, a Ta-Da wordmark and a short startup flourish (any key skips it; <code>TADA_NO_INTRO=1</code> turns it off). Charm's themes are still in the picker.</p>
           </article>
         </div>
       </div>
@@ -193,7 +201,7 @@
           <li><strong>OAuth refresh</strong> for accounts you signed in with <code>tada login</code>.</li>
           <li class="still"><strong>Web tools, only once enabled</strong> and only after you approve each request.</li>
           <li class="still"><strong>Catalog refresh, only on request</strong> with <code>tada update-providers</code>.</li>
-          <li class="still"><strong>Update check, unless turned off.</strong> At most every 6 hours, one request to <code>api.github.com</code> for this repo's latest release; downloads only when you run <code>tada update</code>. Off with <code>options.update_check: false</code> or <code>TADA_NO_UPDATE_CHECK=1</code>.</li>
+          <li class="still"><strong>Update check, unless turned off.</strong> At most every 6 hours, one request to <code>api.github.com</code> for this repo's latest release; downloads only when you run <code>tada update</code>. Off with <code>options.update_check: false</code>, <code>option update-check false</code> or <code>TADA_NO_UPDATE_CHECK=1</code>.</li>
           <li><strong>Nothing else.</strong> No telemetry, no crash reports, no other startup fetches.</li>
         </ul>
         <p class="legend"><i style="background:var(--mint)"></i>always, to hosts you chose <i style="background:var(--amber)"></i>opt-in or can be turned off</p>
@@ -252,7 +260,7 @@
           </article>
         </div>
 
-        <p class="callout">Package managers (Homebrew, npm, AUR, Nix) install <em>upstream</em> Ta-Da, not this build. Get it from the downloads above or build from source.</p>
+        <p class="callout">Package managers (Homebrew, npm, AUR, Nix) install Charm's <em>upstream</em> Crush, not Ta-Da. Get it from the downloads above or build from source.</p>
 
         <div class="verify">
           <div>
@@ -307,8 +315,16 @@ go build -o tada .
             <p>Yes: <code>option web-tools true</code> inside Ta-Da, <code>options.enable_web_tools: true</code> in config, or <code>TADA_ENABLE_WEB_TOOLS=1</code>. Each fetch still asks for permission, and downloads are size-capped.</p>
           </details>
           <details>
+            <summary>How do I update?</summary>
+            <p>Run <code>tada update</code> (add <code>--check</code> to only look, or <code>-y</code> to skip the prompt). It downloads the release for your platform, verifies it against <code>SHA256SUMS.txt</code> and replaces the binary. On Windows with the installer, quit Ta-Da first, or just run the new Setup.exe; it upgrades in place.</p>
+          </details>
+          <details>
+            <summary>I used this fork when it was called Crush. What happens to my setup?</summary>
+            <p>On first run Ta-Da copies <code>~/.config/crush</code> and <code>~/.local/share/crush</code> into its own folders and still reads <code>CRUSH_*</code> variables, <code>.crush/skills</code> and <code>.crushignore</code>. Per-project session history in <code>.crush/</code> isn't moved. The 0.2.0 Windows installer replaces the old <code>crush.exe</code> and its shortcuts.</p>
+          </details>
+          <details>
             <summary>What license is it under?</summary>
-            <p><a href="https://github.com/ItsCetla/tada/blob/main/LICENSE.md">FSL-1.1-MIT</a>, the same Functional Source License as upstream Ta-Da. You may use, copy, modify and redistribute it for anything except a competing product; each version becomes MIT two years after its release.</p>
+            <p><a href="https://github.com/ItsCetla/tada/blob/main/LICENSE.md">FSL-1.1-MIT</a>, the same Functional Source License as upstream Crush. You may use, copy, modify and redistribute it for anything except a competing product; each version becomes MIT two years after its release.</p>
           </details>
         </div>
       </div>
