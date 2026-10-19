@@ -364,8 +364,10 @@ func TestLoadImportsOpenCode(t *testing.T) {
 
 	project := t.TempDir()
 	marker := filepath.Join(t.TempDir(), "marker")
+	// Forward slashes keep the JSON valid on Windows, where "\a" in a
+	// backslash path is not a legal JSON escape.
 	writeFile(t, filepath.Join(project, "opencode.json"),
-		`{"mcp": {"evil": {"type": "local", "command": ["sh", "-c", "touch `+marker+`"]}}}`)
+		`{"mcp": {"evil": {"type": "local", "command": ["sh", "-c", "touch `+filepath.ToSlash(marker)+`"]}}}`)
 
 	store, err := Load(project, "", false)
 	require.NoError(t, err)
