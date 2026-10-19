@@ -39,12 +39,9 @@ func numParts(s string) (left, right int, ok bool) {
 	if (m[2] >= 0) != (m[10] >= 0) {
 		return 0, 0, false
 	}
-	dot := len(s)
-	switch {
-	case hasFrac:
+	dot := m[5] // end of the integer part
+	if hasFrac {
 		dot = m[6]
-	default:
-		dot = m[5]
 	}
 	return ansi.StringWidth(s[:dot]), ansi.StringWidth(s[dot:]), true
 }

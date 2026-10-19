@@ -71,7 +71,7 @@ func (hb *hbarGeom) scale(lo, hi float64) {
 		return
 	}
 	cells := hb.area - 1
-	hb.negCells = max(1, int(math.Round(float64(cells)*-lo/(hi-lo))))
+	hb.negCells = toInt(float64(cells)*-lo/(hi-lo), 1, max(cells, 1))
 	hb.axisX = hb.x0 + hb.negCells
 	hb.perUnit = float64(cells) / (hi - lo)
 }
@@ -106,11 +106,10 @@ func (hb *hbarGeom) row(cv *canvas, y int, v float64, ink int, label string) {
 
 // posBar draws v in eighth blocks from x and returns the column after it.
 func (hb *hbarGeom) posBar(cv *canvas, x, y int, v float64, ink int) int {
-	e := int(math.Round(v * hb.perUnit * 8))
-	if v > 0 {
+	e := toInt(v*hb.perUnit*8, 0, max((cv.w-x)*8, 0))
+	if v > 0 && cv.w > x {
 		e = max(e, 1)
 	}
-	e = min(e, (cv.w-x)*8)
 	for range e / 8 {
 		cv.set(x, y, "█", ink)
 		x++
@@ -124,7 +123,7 @@ func (hb *hbarGeom) posBar(cv *canvas, x, y int, v float64, ink int) int {
 
 // negBar draws v leftward from the axis in half cells.
 func (hb *hbarGeom) negBar(cv *canvas, y int, v float64, ink int) {
-	h := min(max(int(math.Round(-v*hb.perUnit*2)), 1), hb.negCells*2)
+	h := toInt(-v*hb.perUnit*2, 1, max(hb.negCells*2, 1))
 	x := hb.axisX - 1
 	for range h / 2 {
 		cv.set(x, y, "█", ink)
@@ -268,7 +267,7 @@ func (vb *vbar) rows(lo, hi float64) {
 	case hi == 0:
 		vb.negRows = barH
 	default:
-		vb.posRows = min(max(int(math.Round(barH*hi/span)), 1), barH-1)
+		vb.posRows = toInt(barH*hi/span, 1, barH-1)
 		vb.negRows = barH - vb.posRows
 	}
 	vb.perUnit = math.Inf(1)
@@ -279,8 +278,8 @@ func (vb *vbar) rows(lo, hi float64) {
 		vb.perUnit = math.Min(vb.perUnit, float64(vb.negRows)/-lo)
 	}
 	// Trim rows the shared scale leaves empty.
-	vb.posRows = int(math.Ceil(hi*vb.perUnit - 1e-9))
-	vb.negRows = int(math.Ceil(-lo*vb.perUnit - 1e-9))
+	vb.posRows = toInt(math.Ceil(hi*vb.perUnit-1e-9), 0, vb.posRows)
+	vb.negRows = toInt(math.Ceil(-lo*vb.perUnit-1e-9), 0, vb.negRows)
 }
 
 func (ch *chart) drawBar(cv *canvas, vb vbar, x int, v float64, ink int, ext *barExtremes) {
@@ -309,8 +308,8 @@ func (ch *chart) drawBar(cv *canvas, vb vbar, x int, v float64, ink int, ext *ba
 
 // posBar fills a bar upward from the zero line and returns its top row.
 func (vb vbar) posBar(cv *canvas, x int, v float64, ink int) int {
-	e := min(int(math.Round(v*vb.perUnit*8)), vb.posRows*8)
-	if v > 0 {
+	e := toInt(v*vb.perUnit*8, 0, vb.posRows*8)
+	if v > 0 && vb.posRows > 0 {
 		e = max(e, 1)
 	}
 	y := vb.zeroY() - 1
@@ -327,7 +326,7 @@ func (vb vbar) posBar(cv *canvas, x int, v float64, ink int) int {
 
 // negBar fills a bar downward from the zero line and returns the row below it.
 func (vb vbar) negBar(cv *canvas, x int, v float64, ink int) int {
-	h := min(max(int(math.Round(-v*vb.perUnit*2)), 1), vb.negRows*2)
+	h := toInt(-v*vb.perUnit*2, 1, max(vb.negRows*2, 1))
 	y := vb.zeroY()
 	for range h / 2 {
 		vb.fill(cv, x, y, "█", ink)

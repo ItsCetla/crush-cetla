@@ -93,7 +93,7 @@ func (g lineGeom) x(i int) int {
 }
 
 func (g lineGeom) y(v float64) int {
-	return int(math.Round((g.yMax - v) / (g.yMax - g.yMin) * float64(g.dotsY-1)))
+	return toInt((g.yMax-v)/(g.yMax-g.yMin)*float64(g.dotsY-1), 0, g.dotsY-1)
 }
 
 // line draws a braille line plot with a nice-tick y axis and x labels.
@@ -272,7 +272,7 @@ func sparkline(vals []float64) string {
 		case hi == lo:
 			b.WriteString("▄")
 		default:
-			b.WriteString(sparkLevels[int(math.Round((v-lo)/(hi-lo)*7))])
+			b.WriteString(sparkLevels[toInt((v-lo)/(hi-lo)*7, 0, len(sparkLevels)-1)])
 		}
 	}
 	return b.String()

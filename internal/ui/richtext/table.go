@@ -43,7 +43,7 @@ func RenderTable(src string, width int, th Theme) (string, error) {
 	if width < 8 {
 		return "", errTooNarrow
 	}
-	pt, err := parseTable(src)
+	pt, err := parseTable(cleanText(src, true))
 	if err != nil {
 		return "", err
 	}

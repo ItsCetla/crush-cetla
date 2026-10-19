@@ -17,6 +17,7 @@ const (
 	maxSeries     = 8
 	maxPoints     = 200
 	maxChartWidth = 100
+	maxDecimals   = 15
 	minChartWidth = 20
 )
 
@@ -95,7 +96,7 @@ func parseChart(body string) (*chart, error) {
 	if len(spec.Series) == 0 {
 		return nil, errors.New("no series")
 	}
-	ch := &chart{kind: kind, title: strings.TrimSpace(spec.Title), unit: strings.TrimSpace(spec.Unit)}
+	ch := &chart{kind: kind, title: strings.TrimSpace(cleanText(spec.Title, false)), unit: strings.TrimSpace(cleanText(spec.Unit, false))}
 	if extra := len(spec.Series) - maxSeries; extra > 0 {
 		spec.Series = spec.Series[:maxSeries]
 		ch.notes = append(ch.notes, fmt.Sprintf("+%d series not shown", extra))
@@ -136,11 +137,15 @@ func (ch *chart) load(spec chartSpec) error {
 		for j := range vals {
 			vals[j] = math.NaN()
 			if j < len(s.Values) && s.Values[j] != nil {
-				vals[j] = *s.Values[j]
+				v := *s.Values[j]
+				if !finite(v) || math.Abs(v) > maxAbsValue {
+					return fmt.Errorf("value %g out of range", v)
+				}
+				vals[j] = v
 				seen = true
 			}
 		}
-		name := strings.TrimSpace(s.Name)
+		name := strings.TrimSpace(cleanText(s.Name, false))
 		if name == "" && len(spec.Series) > 1 {
 			name = "series " + strconv.Itoa(i+1)
 		}
@@ -151,8 +156,8 @@ func (ch *chart) load(spec chartSpec) error {
 	}
 	ch.labels = make([]string, n)
 	for i := range ch.labels {
-		if i < len(spec.Labels) && strings.TrimSpace(spec.Labels[i]) != "" {
-			ch.labels[i] = strings.TrimSpace(spec.Labels[i])
+		if i < len(spec.Labels) && strings.TrimSpace(cleanText(spec.Labels[i], false)) != "" {
+			ch.labels[i] = strings.TrimSpace(cleanText(spec.Labels[i], false))
 		} else {
 			ch.labels[i] = strconv.Itoa(i + 1)
 		}
@@ -345,7 +350,7 @@ func smallDecimals(a float64) int {
 	case a >= 1:
 		return 2
 	default:
-		return 2 - int(math.Floor(math.Log10(a)))
+		return toInt(2-math.Floor(math.Log10(a)), 0, maxDecimals)
 	}
 }
 
@@ -403,7 +408,10 @@ func niceTicks(lo, hi float64, n int) ([]float64, float64) {
 	step := niceNum(niceNum(hi-lo, false)/float64(n-1), true)
 	start := math.Floor(lo/step) * step
 	end := math.Ceil(hi/step) * step
-	count := int(math.Round((end-start)/step)) + 1
+	if !finite(step) || step <= 0 || !finite(start) || !finite(end) {
+		return []float64{lo, hi}, hi - lo
+	}
+	count := toInt((end-start)/step, 1, 4*n) + 1
 	ticks := make([]float64, count)
 	for i := range ticks {
 		v := start + float64(i)*step
@@ -428,7 +436,7 @@ func tickLabels(ticks []float64, step float64, unit string) []string {
 			div, suf = sc.div, sc.suf
 		}
 	}
-	dec := max(0, -int(math.Floor(math.Log10(step/div)+1e-9)))
+	dec := toInt(-math.Floor(math.Log10(step/div)+1e-9), 0, maxDecimals)
 	out := make([]string, len(ticks))
 	for i, t := range ticks {
 		num := trimFloat(math.Abs(t)/div, dec) + suf
