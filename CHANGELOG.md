@@ -7,6 +7,41 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
+### Added
+
+- **Tables and charts in replies.** Markdown tables in assistant replies are
+  drawn as styled tables: amber header, faint row stripes, numbers lined up
+  on the decimal point, `:--:` alignment, and bold, italic and code cells.
+  Tables that are too wide shrink their text columns with `…` (number
+  columns are never cut) and fall back to stacked rows when nothing fits.
+  A fenced ```` ```chart ```` block with JSON is drawn as a bar, horizontal
+  bar, braille line or sparkline chart, with a legend for several series.
+  A broken chart shows its code block and a dim `chart: <error>` line. It is
+  all drawn locally, follows the active theme and `NO_COLOR`, and copying a
+  message still copies the raw markdown. Turn it off with
+  `options.tui.rich_blocks: false` or `TADA_NO_RICH=1`.
+- In the TUI, the agent's system prompt gets a short note on tables and
+  `chart` blocks (only when `rich_blocks` is on). `tada run` and sub-agents
+  don't get it.
+- **Session tabs.** Sessions you open stay as tabs above the chat. Click a
+  tab or press `alt+1`…`alt+9` to switch, `ctrl+pgdown`/`ctrl+pgup` for the
+  next or previous tab, `alt+w` or the tab's `×` (or a middle click) to
+  close it, and `+` for a new session. The commands palette has Next Tab,
+  Previous Tab and Close Tab. The tab bar only shows with two or more tabs.
+
+### Changed
+
+- Diffs in edit and write tool results wrap long lines instead of cutting
+  them off, in both unified and split views.
+
+### Fixed
+
+- The header wordmark in wide (fullscreen) windows: the D is never stretched
+  into a box, and the dotted field beside it ends in a straight edge instead
+  of a ragged one.
+
 ## [0.2.0] - 2026-10-19
 
 ### Changed
@@ -96,5 +131,7 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/crush-cetla/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/ItsCetla/crush-cetla/releases/tag/v0.1.0
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ItsCetla/tada/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/ItsCetla/tada/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/ItsCetla/tada/releases/tag/v0.1.0

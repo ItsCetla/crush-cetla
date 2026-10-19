@@ -50,6 +50,11 @@ talks to and what it does without asking:
   file-edit permissions are picked up from a local OpenCode install, read
   from disk only. OpenCode plugins are never run. See
   [Importing from OpenCode](#importing-from-opencode).
+- **Tables, charts and tabs.** Markdown tables in replies are drawn as
+  bordered tables, ```` ```chart ```` blocks as bar, line or sparkline charts,
+  and open sessions stay as tabs above the chat. Diffs wrap long lines. Set
+  `options.tui.rich_blocks` to `false` or `TADA_NO_RICH=1` to show the plain
+  markdown instead.
 
 Every fork change is listed in the [changelog](CHANGELOG.md).
 
