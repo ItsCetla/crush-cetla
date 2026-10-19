@@ -1018,6 +1018,11 @@
           "type": "boolean",
           "description": "Play the short animated intro when the TUI starts. Any key skips it. TADA_NO_INTRO=1 also turns it off",
           "default": true
+        },
+        "rich_blocks": {
+          "type": "boolean",
+          "description": "Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off",
+          "default": true
         }
       },
       "additionalProperties": false,

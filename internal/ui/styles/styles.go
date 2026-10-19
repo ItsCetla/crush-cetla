@@ -16,6 +16,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/charmbracelet/crush/internal/ui/diffview"
+	"github.com/charmbracelet/crush/internal/ui/richtext"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
@@ -620,6 +621,22 @@ type Styles struct {
 
 	// Attachments styles
 	Attachments AttachmentStyles
+
+	// RichText colors markdown tables and ```chart blocks in assistant
+	// replies.
+	RichText richtext.Theme
+
+	// Tabs styles for the session tab bar above the chat.
+	Tabs struct {
+		Active        lipgloss.Style // Title of the tab being viewed
+		ActiveIndex   lipgloss.Style // Shortcut number of the tab being viewed
+		ActiveClose   lipgloss.Style // Close mark of the tab being viewed
+		Inactive      lipgloss.Style // Title of a background tab
+		InactiveIndex lipgloss.Style // Shortcut number of a background tab
+		InactiveClose lipgloss.Style // Close mark of a background tab
+		New           lipgloss.Style // The "+" new-session button
+		More          lipgloss.Style // "‹" / "›" marks for tabs scrolled out of view
+	}
 
 	// Pills styles for todo/queue pills
 	Pills struct {

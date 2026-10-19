@@ -1,0 +1,7 @@
+╭─────────┬────────┬───────────────────────────────────────╮
+│ Feature │ Status │ Notes                                 │
+├─────────┼────────┼───────────────────────────────────────┤
+│ Tables  │  done  │ Uses lipgloss/table with a pipe: a|b  │
+│ Charts  │  wip   │ Braille line plots, docs and *escape… │
+│ Split   │  done  │ goldmark AST walk                     │
+╰─────────┴────────┴───────────────────────────────────────╯

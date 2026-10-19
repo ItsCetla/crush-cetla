@@ -204,6 +204,12 @@ type UI struct {
 
 	lastUserMessageTime int64
 
+	// tabs are the sessions opened during this run, shown as a tab bar
+	// above the chat once there is more than one. tabHits holds the
+	// clickable spans of the last drawn bar.
+	tabs    []sessionTab
+	tabHits []tabHit
+
 	// The width and height of the terminal in cells.
 	width  int
 	height int
@@ -566,6 +572,9 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	// Initialize compact mode from config
 	ui.forceCompactMode = com.Config().Options.TUI.CompactMode
 
+	// Tables and charts in replies: options.tui.rich_blocks / TADA_NO_RICH.
+	chat.SetRichBlocks(com.Config().Options.TUI.RichBlocksEnabled())
+
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true
 
@@ -891,6 +900,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.setState(uiChat, m.focus)
 		m.session = msg.session
+		m.trackSessionTab(msg.session)
 		m.sidebarOffset = 0
 		m.sessionFiles = msg.files
 		// Session switch: the memoized busy state and queued prompts
@@ -1003,13 +1013,27 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case pubsub.Event[session.Session]:
 		if msg.Type == pubsub.DeletedEvent {
+			idx := m.tabIndex(msg.Payload.ID)
 			if m.session != nil && m.session.ID == msg.Payload.ID {
+				// Show the deleted tab's neighbour when there is one.
+				if next := neighbourTab(idx, len(m.tabs)); idx >= 0 && next >= 0 {
+					m.removeTab(idx)
+					cmds = append(cmds, m.loadSession(m.tabs[next].id))
+					break
+				}
+				m.removeTab(idx)
 				if cmd := m.newSession(); cmd != nil {
 					cmds = append(cmds, cmd)
 				}
+				break
+			}
+			if idx >= 0 {
+				m.removeTab(idx)
+				m.updateLayoutAndSize()
 			}
 			break
 		}
+		m.updateTabTitle(msg.Payload)
 		if m.session != nil && msg.Payload.ID == m.session.ID {
 			prevHasInProgress := hasInProgressTodo(m.session.Todos)
 			prevPillsHeight := m.pillsAreaHeight()
@@ -1191,6 +1215,15 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, tea.Batch(cmds...)
 				}
 			}
+		}
+
+		// Clicks on the session tab bar switch, close or add tabs.
+		if m.layout.tabs.Dy() > 0 && image.Pt(msg.X, msg.Y).In(m.layout.tabs) &&
+			(msg.Button == uv.MouseLeft || msg.Button == uv.MouseMiddle) {
+			if cmd := m.handleTabBarClick(msg.X-m.layout.tabs.Min.X, msg.Button == uv.MouseMiddle); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return m, tea.Batch(cmds...)
 		}
 
 		if cmd := m.handleClickFocus(msg); cmd != nil {
@@ -2161,6 +2194,21 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 			cmds = append(cmds, cmd)
 		}
 		m.dialog.CloseDialog(dialog.CommandsID)
+	case dialog.ActionNextTab:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		if cmd := m.cycleTab(1); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case dialog.ActionPrevTab:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		if cmd := m.cycleTab(-1); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case dialog.ActionCloseTab:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		if cmd := m.closeActiveTab(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case dialog.ActionSummarize:
 		if m.isAgentBusy() {
 			cmds = append(cmds, util.ReportWarn("Agent is busy, please wait before summarizing session..."))
@@ -2974,6 +3022,35 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				}
 				return true
 			}
+		case key.Matches(msg, m.keyMap.Tabs.Next) && len(m.tabs) > 0:
+			if m.state == uiChat || m.state == uiLanding {
+				if cmd := m.cycleTab(1); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				return true
+			}
+		case key.Matches(msg, m.keyMap.Tabs.Prev) && len(m.tabs) > 0:
+			if m.state == uiChat || m.state == uiLanding {
+				if cmd := m.cycleTab(-1); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				return true
+			}
+		case key.Matches(msg, m.keyMap.Tabs.Close):
+			if m.state == uiChat && m.activeTabIndex() >= 0 {
+				if cmd := m.closeActiveTab(); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				return true
+			}
+		case key.Matches(msg, m.keyMap.Tabs.Jump) && len(m.tabs) > 0:
+			if m.state == uiChat || m.state == uiLanding {
+				n, _ := strconv.Atoi(strings.TrimPrefix(msg.String(), "alt+"))
+				if cmd := m.switchToTab(n - 1); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				return true
+			}
 		case key.Matches(msg, m.keyMap.Suspend):
 			if m.isAgentBusy() {
 				cmds = append(cmds, util.ReportWarn("Agent is busy, please wait..."))
@@ -3503,6 +3580,7 @@ func (m *UI) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 
 	case uiLanding:
 		m.drawHeader(scr, layout.header)
+		m.drawTabBar(scr, layout.tabs)
 		main := uv.NewStyledString(m.landingView())
 		main.Draw(scr, layout.main)
 
@@ -3527,6 +3605,7 @@ func (m *UI) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 			m.drawSidebar(scr, layout.sidebar)
 		}
 
+		m.drawTabBar(scr, layout.tabs)
 		m.chat.Draw(scr, layout.main)
 		if layout.pills.Dy() > 0 && m.pillsView != "" {
 			uv.NewStyledString(m.pillsView).Draw(scr, layout.pills)
@@ -3886,6 +3965,9 @@ func (m *UI) FullHelp() [][]key.Binding {
 		}
 
 		binds = append(binds, mainBinds)
+		if len(m.tabs) >= 2 {
+			binds = append(binds, []key.Binding{k.Tabs.Jump, k.Tabs.Next, k.Tabs.Prev, k.Tabs.Close})
+		}
 
 		switch m.focus {
 		case uiFocusEditor:
@@ -4290,6 +4372,10 @@ func (m *UI) generateLayout(w, h int) uiLayout {
 		// editor
 		// ------
 		// help
+		if m.tabBarVisible() {
+			uiLayout.tabs = image.Rect(appRect.Min.X-1, appRect.Min.Y, appRect.Max.X+1, appRect.Min.Y+1)
+			appRect.Min.Y += 2
+		}
 		var headerRect, mainRect image.Rectangle
 		layout.Vertical(
 			layout.Len(landingHeaderHeight),
@@ -4332,6 +4418,10 @@ func (m *UI) generateLayout(w, h int) uiLayout {
 			).Split(appRect).Assign(&sessionDetailsArea, new(image.Rectangle))
 			uiLayout.sessionDetails = sessionDetailsArea
 			uiLayout.sessionDetails.Min.Y += compactHeaderHeight // adjust for header
+			if m.tabBarVisible() {
+				uiLayout.tabs = image.Rect(mainRect.Min.X, mainRect.Min.Y, mainRect.Max.X-1, mainRect.Min.Y+1)
+				mainRect.Min.Y += 1
+			}
 			// Add one line gap between header and main content
 			mainRect.Min.Y += 1
 			var editorRect image.Rectangle
@@ -4374,6 +4464,10 @@ func (m *UI) generateLayout(w, h int) uiLayout {
 			).Split(appRect).Assign(&mainRect, &sideRect)
 			// Add padding left
 			sideRect.Min.X += 1
+			if m.tabBarVisible() {
+				uiLayout.tabs = image.Rect(mainRect.Min.X, mainRect.Min.Y, mainRect.Max.X-1, mainRect.Min.Y+1)
+				mainRect.Min.Y += 2
+			}
 			var editorRect image.Rectangle
 			layout.Vertical(
 				layout.Len(mainRect.Dy()-editorHeight),
@@ -4431,6 +4525,9 @@ type uiLayout struct {
 
 	// session details is the area for the session details overlay in compact mode.
 	sessionDetails uv.Rectangle
+
+	// tabs is the one-row session tab bar; empty when hidden.
+	tabs uv.Rectangle
 }
 
 func (m *UI) openEditor(value string) tea.Cmd {

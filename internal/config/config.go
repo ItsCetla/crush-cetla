@@ -361,6 +361,17 @@ type TUIOptions struct {
 	Mouse       *bool       `json:"mouse,omitempty" jsonschema:"description=Enable terminal mouse capture for selection\\, clicks\\, and scrolling in the TUI. Disable to let the terminal emulator or tmux handle text selection and copy/paste,default=true"`
 	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Ta-Da,enum=default,enum=compact,enum=none,default=default"`
 	Intro       *bool       `json:"intro,omitempty" jsonschema:"description=Play the short animated intro when the TUI starts. Any key skips it. TADA_NO_INTRO=1 also turns it off,default=true"`
+	RichBlocks  *bool       `json:"rich_blocks,omitempty" jsonschema:"description=Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off,default=true"`
+}
+
+// RichBlocksEnabled reports whether markdown tables and chart blocks in
+// replies are drawn as styled tables and charts. It is on unless
+// options.tui.rich_blocks is false or TADA_NO_RICH is set.
+func (t *TUIOptions) RichBlocksEnabled() bool {
+	if v, ok := os.LookupEnv("TADA_NO_RICH"); ok && v != "" && v != "0" && !strings.EqualFold(v, "false") {
+		return false
+	}
+	return t == nil || t.RichBlocks == nil || *t.RichBlocks
 }
 
 // IntroEnabled reports whether the startup intro should play. It is on

@@ -1,0 +1,32 @@
+Region:    North America
+Q1:        1,204.5
+Q2:        1,310.2
+Q3:        1,288.9
+Q4:        1,450.0
+FY:        5,253.6
+YoY:       12.4%
+Margin:    31.2%
+Headcount: 4,210
+Offices:   14
+────────────────────────────────────────
+Region:    Europe, Middle East and Africa
+Q1:        802.1
+Q2:        845.7
+Q3:        790.3
+Q4:        910.8
+FY:        3,348.9
+YoY:       8.1%
+Margin:    27.9%
+Headcount: 2,980
+Offices:   22
+────────────────────────────────────────
+Region:    Asia Pacific
+Q1:        640.0
+Q2:        702.4
+Q3:        755.1
+Q4:        820.6
+FY:        2,918.1
+YoY:       19.8%
+Margin:    25.0%
+Headcount: 3,105
+Offices:   17

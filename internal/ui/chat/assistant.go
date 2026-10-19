@@ -521,7 +521,19 @@ func (a *AssistantMessageItem) contentKey() (uint64, uint64) {
 	if a.planStreaming() {
 		planStreaming = 1
 	}
-	return fnv64(a.message.Content().Text), uint64(planStreaming)
+	extra := uint64(planStreaming)
+	if a.richReady() {
+		extra |= 2
+	}
+	return fnv64(a.message.Content().Text), extra
+}
+
+// richReady reports whether this reply should draw its tables and charts
+// as rich blocks: the option is on and the reply has finished streaming.
+// While it streams, glamour draws everything, so a half-written chart
+// never flashes an error.
+func (a *AssistantMessageItem) richReady() bool {
+	return RichBlocksEnabled() && a.message.IsFinished()
 }
 
 // SetPlanAgent flags this item as plan-agent output (or clears the
@@ -762,6 +774,11 @@ func (a *AssistantMessageItem) renderThinking(thinking string, width int) string
 // findSafeMarkdownBoundary.
 func (a *AssistantMessageItem) renderMarkdown(content string, width int) string {
 	renderer := common.MarkdownRenderer(a.sty, width)
+	if a.richReady() && hasRichBlock(content) {
+		if out, ok := renderRich(content, width, renderer, a.sty.RichText); ok {
+			return out
+		}
+	}
 	return a.streamingContent.Render(content, width, renderer)
 }
 

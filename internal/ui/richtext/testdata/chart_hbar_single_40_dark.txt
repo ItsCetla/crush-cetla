@@ -1,0 +1,5 @@
+Revenue by region
+North America ████████████████████ $1.2M
+Europe        █████████████▎ $830k
+Asia Pacific  ██████████▎ $640k
+LatAm         █▉ $120k

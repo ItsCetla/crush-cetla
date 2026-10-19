@@ -812,7 +812,8 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		if err != nil {
 			return err
 		}
-		result.SetSystemPrompt(systemPrompt)
+		richOn := c.cfg.Config().Options.TUI.RichBlocksEnabled()
+		result.SetSystemPrompt(withRichBlocksHint(systemPrompt, c.interactive, isSubAgent, richOn))
 		return nil
 	})
 

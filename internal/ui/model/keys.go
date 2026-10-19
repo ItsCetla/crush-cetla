@@ -69,6 +69,14 @@ type KeyMap struct {
 		FocusChat      key.Binding
 	}
 
+	// Tabs are the session tab bar keys.
+	Tabs struct {
+		Next  key.Binding
+		Prev  key.Binding
+		Close key.Binding
+		Jump  key.Binding
+	}
+
 	Initialize struct {
 		Yes,
 		No,
@@ -192,6 +200,23 @@ func DefaultKeyMap() KeyMap {
 	km.Editor.SelectAll = key.NewBinding(
 		key.WithKeys("ctrl+shift+a"),
 		key.WithHelp("ctrl+shift+a", "select all"),
+	)
+
+	km.Tabs.Next = key.NewBinding(
+		key.WithKeys("ctrl+pgdown"),
+		key.WithHelp("ctrl+pgdn", "next tab"),
+	)
+	km.Tabs.Prev = key.NewBinding(
+		key.WithKeys("ctrl+pgup"),
+		key.WithHelp("ctrl+pgup", "previous tab"),
+	)
+	km.Tabs.Close = key.NewBinding(
+		key.WithKeys("alt+w"),
+		key.WithHelp("alt+w", "close tab"),
+	)
+	km.Tabs.Jump = key.NewBinding(
+		key.WithKeys("alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "alt+6", "alt+7", "alt+8", "alt+9"),
+		key.WithHelp("alt+1-9", "go to tab"),
 	)
 
 	km.Chat.NewSession = key.NewBinding(

@@ -1,0 +1,4 @@
+Prices
+AAPL ▁▂▁▃▅▄▇▆█ $198 min $179 max $198
+MSFT ▂▁▃▄▄▆▆▇█ $440 min $405 max $440
+flat ▄▄▄▄      $5 min $5 max $5

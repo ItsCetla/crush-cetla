@@ -12,6 +12,7 @@ import (
 	"charm.land/glamour/v2/ansi"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/ui/diffview"
+	"github.com/charmbracelet/crush/internal/ui/richtext"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
@@ -1209,6 +1210,32 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Pills.HelpText = lipgloss.NewStyle().Foreground(o.fgMostSubtle)
 	s.Pills.Area = base
 
+	activeTab := base.Background(o.bgMostVisible)
+	inactiveTab := base.Background(o.bgLeastVisible)
+	s.Tabs.Active = activeTab.Foreground(o.fgBase).Bold(true)
+	s.Tabs.ActiveIndex = activeTab.Foreground(o.secondary)
+	s.Tabs.ActiveClose = activeTab.Foreground(o.fgSubtle)
+	s.Tabs.Inactive = inactiveTab.Foreground(o.fgSubtle)
+	s.Tabs.InactiveIndex = inactiveTab.Foreground(o.fgMostSubtle)
+	s.Tabs.InactiveClose = inactiveTab.Foreground(o.fgMostSubtle)
+	s.Tabs.New = base.Foreground(o.primary).Bold(true)
+	s.Tabs.More = base.Foreground(o.fgMostSubtle)
+
+	// Tables and charts in assistant replies follow the theme palette:
+	// ember, amber, honey, live first, then the remaining accents.
+	s.RichText = richtext.Theme{
+		Text:   o.fgBase,
+		Dim:    o.fgSubtle,
+		Header: o.secondary,
+		Border: o.separator,
+		Stripe: o.bgLeastVisible,
+		Error:  o.error,
+		Series: distinctColors(
+			o.primary, o.secondary, o.warningSubtle, o.success,
+			o.info, o.keyword, o.plan, o.warning, o.accent, o.error,
+		),
+	}
+
 	return s
 }
 
@@ -1216,3 +1243,22 @@ func quickStyle(o quickStyleOpts) Styles {
 // primitive that does not already set its own background, so glamour paints an
 // uninterrupted background under all rendered text. Primitives that carry an
 // intentional background of their own (e.g. H1, inline code) keep it.
+
+// distinctColors drops nil and repeated colors, keeping the first eight.
+func distinctColors(cs ...color.Color) []color.Color {
+	out := make([]color.Color, 0, 8)
+	seen := map[[4]uint32]bool{}
+	for _, c := range cs {
+		if c == nil || len(out) == 8 {
+			continue
+		}
+		r, g, b, a := c.RGBA()
+		k := [4]uint32{r, g, b, a}
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, c)
+	}
+	return out
+}

@@ -1,0 +1,7 @@
+╭──────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Step │ Description                                                                                             │
+├──────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│    1 │ Install the CLI with your package manager of choice and make sure it is on your PATH before continuing. │
+│    2 │ Run the setup wizard, which asks for an API key and writes a config file to your home directory.        │
+│    3 │ Start a session.                                                                                        │
+╰──────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────╯
