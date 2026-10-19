@@ -154,7 +154,7 @@ tada --continue
 
 		if _, err := program.Run(); err != nil {
 			slog.Error("TUI run error", "error", err)
-			return errors.New("Ta-Da crashed. If you'd like to report it, please copy the stacktrace above and open an issue at https://github.com/ItsCetla/tada/issues/new?template=bug.yml") //nolint:staticcheck
+			return errors.New("Ta-Da crashed. If you'd like to report it, please copy the stacktrace above and open an issue at https://github.com/ItsCetla/tada/issues/new?template=bug.yml")
 		}
 		var banner config.ExitBanner
 		if cfg := com.Config(); cfg != nil {

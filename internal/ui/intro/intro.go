@@ -344,11 +344,15 @@ func lerp(a, b color.Color, f float64) color.Color {
 
 func clamp(v, lo, hi float64) float64 { return math.Max(lo, math.Min(hi, v)) }
 
-func easeOut(t float64) float64 { return 1 - math.Pow(1-t, 3) }
+func easeOut(t float64) float64 {
+	u := 1 - t
+	return 1 - u*u*u
+}
 
 func easeInOut(t float64) float64 {
 	if t < 0.5 {
 		return 4 * t * t * t
 	}
-	return 1 - math.Pow(-2*t+2, 3)/2
+	u := -2*t + 2
+	return 1 - u*u*u/2
 }
