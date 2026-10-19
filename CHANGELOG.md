@@ -7,6 +7,18 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-19
+
+### Security
+
+- Tables and charts no longer pass terminal control characters through.
+  Escape sequences in a chart's title, labels, series names or unit, or in a
+  table cell, are stripped before drawing, so a reply can't retitle the
+  window or clear the screen.
+- Charts with extreme values (beyond ±1e300) are refused with a
+  `chart: value … out of range` note, and very large or very tiny values can
+  no longer crash the chart renderer.
+
 ## [0.3.0] - 2026-10-19
 
 ### Added
@@ -131,7 +143,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/ItsCetla/tada/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ItsCetla/tada/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ItsCetla/tada/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ItsCetla/tada/releases/tag/v0.1.0
