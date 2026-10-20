@@ -70,6 +70,28 @@ func TestClassifyCommand(t *testing.T) {
 		"git -C sub config core.fsmonitor x":          ClassOutside,
 		"git commit -m 'update config'":               ClassWrite,
 		"cat .gitignore":                              ClassWrite,
+		// Commands whose name is only known at run time can't be graded.
+		"$X -rf build":                       ClassDelete,
+		`"$(printf rm)" x`:                   ClassDelete,
+		"a=rm; $a x":                         ClassDelete,
+		"env $CMD x":                         ClassDelete,
+		"command $CMD x":                     ClassDelete,
+		"f() { \"$@\"; }; f rm x":            ClassDelete,
+		"echo $HOME":                         ClassWrite,
+		`awk 'BEGIN { system("rm -rf x") }'`: ClassDelete,
+		`lua -e 'os.remove("x")'`:            ClassDelete,
+		// Protected paths hidden behind quoting, globs or variables.
+		"echo x > .gi''t/hooks/pre-commit":     ClassOutside,
+		`cp hook ".git"/hooks/pre-commit`:      ClassOutside,
+		"cp hook .g?t/hooks/pre-commit":        ClassOutside,
+		"cp hook .GIT./hooks/pre-commit":       ClassOutside,
+		"D=.git; cp hook $D/hooks/pre-commit":  ClassOutside,
+		"echo x > $DIR/hooks/pre-commit":       ClassOutside,
+		"git --git-dir=.gi''t log":             ClassOutside,
+		"git -c x=y con''fig core.hooksPath h": ClassOutside,
+		"cp a 'tad'a.json":                     ClassOutside,
+		"ls *.go":                              ClassWrite,
+		"echo hi > out.txt":                    ClassWrite,
 	}
 	for cmd, want := range cases {
 		require.Equal(t, want, ClassifyCommand(cmd), cmd)

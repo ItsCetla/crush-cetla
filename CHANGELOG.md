@@ -7,6 +7,21 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-10-20
+
+### Security
+
+- **Commands named at run time always ask.** A command whose name comes
+  from a variable or substitution (`$X -rf dir`, `"$(printf rm)" x`,
+  `env $CMD`) can't be graded, so it now counts as a delete. Code handed to
+  awk, Lua, Tcl, R, Julia and similar interpreters is checked for deletes
+  and network calls too, including shell commands inside it such as awk's
+  `system("rm x")`.
+- **Quoting no longer hides protected paths from the grader.** Shell
+  commands are checked after quotes are removed (`.gi''t`, `".git"/hooks`),
+  with globs (`.g?t`), other spellings (`.GIT.`), `git -c x=y config`, and
+  output redirected to a path that's only known at run time.
+
 ## [0.5.6] - 2026-10-20
 
 ### Added
@@ -382,7 +397,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.6...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.7...HEAD
+[0.5.7]: https://github.com/ItsCetla/tada/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/ItsCetla/tada/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/ItsCetla/tada/compare/v0.5.1...v0.5.5
 [0.5.1]: https://github.com/ItsCetla/tada/compare/v0.5.0...v0.5.1

@@ -2,6 +2,7 @@ package permission
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -132,12 +133,16 @@ var (
 	}
 	interpreters = []string{
 		"python", "python2", "python3", "perl", "ruby", "node", "deno", "bun",
-		"php", "osascript", "pwsh", "powershell",
+		"php", "osascript", "pwsh", "powershell", "awk", "gawk", "mawk",
+		"nawk", "lua", "luajit", "tclsh", "wish", "expect", "rscript",
+		"julia", "jshell", "groovy", "elixir", "erl", "racket", "guile",
 	}
 
 	// deleteCodeRE and networkCodeRE spot deletes and network calls in
 	// code handed to an interpreter, such as `python -c` or a heredoc.
-	deleteCodeRE = regexp.MustCompile(`(?i)\b(?:os\.(?:remove|unlink|rmdir|removedirs)|shutil\.rmtree|rmtree|unlink(?:Sync)?|rm(?:Sync|dir|dirSync)?\s*\(|fs\.(?:promises\.)?rm|rm_r[f]?|rm_rf|File\.delete|FileUtils\.rm|Remove-Item|send2trash|\.unlink\(|kill\s*\()`)
+	deleteCodeRE = regexp.MustCompile(`(?i)\b(?:os\.(?:remove|unlink|rmdir|removedirs)|shutil\.rmtree|rmtree|unlink(?:Sync)?|rm(?:Sync|dir|dirSync)?\s*\(|fs\.(?:promises\.)?rm|rm_r[f]?|rm_rf|File\.delete|FileUtils\.rm|Remove-Item|send2trash|\.unlink\(|kill\s*\()` +
+		// A shell command inside the code, as in awk's system("rm x").
+		`|["'\x60]\s*(?:sudo\s+)?(?:/\S*/)?(?:rm|rmdir|unlink|shred|dd|truncate|kill|pkill|killall|srm)\s`)
 	// protectedCommandRE spots a command that touches a protected project
 	// path (see protectedDirs) or changes git config, which can point git
 	// at hooks that run later.
@@ -149,8 +154,9 @@ var (
 // ClassifyCommand grades a shell command. It matches the raw text and also
 // parses the script, so a delete can't hide behind a path (/bin/rm), quotes
 // ("rm"), a backslash (\rm), a wrapper (sudo, env, xargs, sh -c) or an
-// interpreter one-liner. A script that doesn't parse grades as a delete so
-// it always asks.
+// interpreter one-liner. A script that doesn't parse, or runs a command
+// whose name is only known at run time ($cmd, "$(...)"), grades as a delete
+// so it always asks.
 func ClassifyCommand(command string) Class {
 	class := ClassWrite
 	switch {
@@ -169,6 +175,9 @@ func ClassifyCommand(command string) Class {
 	interpreted := false
 	for _, argv := range cmds {
 		for _, variant := range shell.CommandVariants(argv) {
+			if variant[0] == "" {
+				return ClassDelete
+			}
 			name := strings.ToLower(shell.CommandName(variant[0]))
 			switch {
 			case slices.Contains(deleteCommands, name) || strings.HasPrefix(name, "mkfs"):
@@ -180,7 +189,7 @@ func ClassifyCommand(command string) Class {
 			}
 		}
 	}
-	if protectedCommandRE.MatchString(command) {
+	if protectedCommandRE.MatchString(command) || touchesProtected(command) {
 		class = Stricter(class, ClassOutside)
 	}
 	if interpreted {
@@ -194,6 +203,110 @@ func ClassifyCommand(command string) Class {
 		}
 	}
 	return class
+}
+
+// touchesProtected parses a script and reports whether it names a protected
+// project path once quoting is removed (.gi”t, ".git"/hooks, .g?t), assigns
+// one to a variable, runs `git config`, or redirects output to a path that
+// is only known at run time.
+func touchesProtected(script string) bool {
+	file, err := syntax.NewParser().Parse(strings.NewReader(script), "")
+	if err != nil {
+		return true
+	}
+	found := false
+	syntax.Walk(file, func(node syntax.Node) bool {
+		if found {
+			return false
+		}
+		switch n := node.(type) {
+		case *syntax.Redirect:
+			if n.Word != nil && writesTo(n.Op) {
+				if _, ok := shell.LiteralWord(n.Word); !ok {
+					found = true
+				}
+			}
+		case *syntax.CallExpr:
+			if len(n.Args) > 0 {
+				argv := make([]string, len(n.Args))
+				for i, w := range n.Args {
+					argv[i], _ = shell.LiteralWord(w)
+				}
+				for _, v := range shell.CommandVariants(argv) {
+					if strings.ToLower(shell.CommandName(v[0])) == "git" &&
+						gitSubcommand(v[1:]) == "config" {
+						found = true
+					}
+				}
+			}
+		case *syntax.Word:
+			if lit, ok := shell.LiteralWord(n); ok && protectedWord(lit) {
+				found = true
+			}
+		}
+		return !found
+	})
+	return found
+}
+
+// writesTo reports whether a redirect writes to its target.
+func writesTo(op syntax.RedirOperator) bool {
+	switch op {
+	case syntax.RdrOut, syntax.AppOut, syntax.RdrInOut, syntax.RdrClob,
+		syntax.RdrAll, syntax.AppAll:
+		return true
+	}
+	return false
+}
+
+// gitSubcommand returns the first argument of a git command line that
+// isn't a global option.
+func gitSubcommand(args []string) string {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "-C" || a == "-c" || a == "--git-dir" || a == "--work-tree" ||
+			a == "--namespace" || a == "--exec-path":
+			i++
+		case strings.HasPrefix(a, "-"):
+		default:
+			return a
+		}
+	}
+	return ""
+}
+
+// protectedWord reports whether an unquoted shell word names a protected
+// project path, in any segment and after an option's "=". A glob segment
+// counts when it could match a protected name; like the shell, a pattern
+// only matches a leading dot that it spells out.
+func protectedWord(word string) bool {
+	parts := strings.FieldsFunc(strings.ToLower(word), func(r rune) bool {
+		return r == '/' || r == '\\' || r == '='
+	})
+	for i, part := range parts {
+		part, _, _ = strings.Cut(part, ":")
+		part = strings.TrimRight(part, ". ")
+		if part == "" {
+			continue
+		}
+		names := protectedDirs
+		if i == len(parts)-1 {
+			names = append(slices.Clip(names), protectedNames...)
+		}
+		for _, name := range names {
+			if part == name {
+				return true
+			}
+			if strings.ContainsAny(part, "*?[") &&
+				(name[0] != '.' || part[0] == '.') {
+				if ok, _ := path.Match(part, name); ok {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // isInterpreter reports whether name runs code it is given, including
