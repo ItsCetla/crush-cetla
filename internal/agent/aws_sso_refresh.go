@@ -15,6 +15,7 @@ import (
 
 	"github.com/charmbracelet/crush/internal/agent/notify"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/proc"
 	"github.com/charmbracelet/crush/internal/pubsub"
 )
 
@@ -94,6 +95,7 @@ func (c *coordinator) refreshAWSCredentials(ctx context.Context, providerCfg con
 // returning any failure with captured stderr for context.
 func (c *coordinator) runAWSAuthRefresh(ctx context.Context, providerCfg config.ProviderConfig) error {
 	cmd := exec.CommandContext(ctx, "sh", "-c", providerCfg.AWSAuthRefresh)
+	proc.HideConsole(cmd)
 	cmd.Dir = c.cfg.WorkingDir()
 
 	stdout, err := cmd.StdoutPipe()

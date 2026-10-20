@@ -198,8 +198,14 @@ func dispatchShebang(ctx context.Context, scriptPath string, probe []byte, args 
 	cmd.Stdout = hc.Stdout
 	cmd.Stderr = hc.Stderr
 	isolateProcess(cmd)
+	// Without this, Run blocks forever when the script exits (or is
+	// cancelled) but a subprocess it started still holds the output pipes.
+	cmd.WaitDelay = defaultKillTimeout
 
 	if err := cmd.Run(); err != nil {
+		if errors.Is(err, exec.ErrWaitDelay) {
+			return nil
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			code := exitErr.ExitCode()

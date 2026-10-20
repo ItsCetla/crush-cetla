@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/proc"
 	"github.com/google/uuid"
 )
 
@@ -282,6 +283,9 @@ func RunTurn(ctx context.Context, opts TurnOptions, h Handler) (*TurnResult, err
 	// Not CommandContext: cancelling ctx must interrupt first, then kill (below).
 	cmd := exec.Command(bin, BuildArgs(opts)...) //nolint:noctx // cancellation handled by hand
 	cmd.Dir = opts.WorkDir
+	proc.HideConsole(cmd)
+	// Bounds Wait if a process the CLI started outlives it holding stderr.
+	cmd.WaitDelay = 5 * time.Second
 	cmd.Env = opts.Env
 	if cmd.Env == nil {
 		cmd.Env = ChildEnv(os.Environ(), false)
@@ -313,11 +317,9 @@ func RunTurn(ctx context.Context, opts TurnOptions, h Handler) (*TurnResult, err
 	}
 	defer t.stopWaiting()
 
-	kill := func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-	}
+	// The whole tree: on Windows `claude` is often a .cmd shim, and killing
+	// only the shim leaves node holding stdout, so the read loop never ends.
+	kill := func() { _ = proc.KillTree(cmd.Process) }
 
 	t.initID = t.nextID()
 	if err := t.send(map[string]any{

@@ -510,9 +510,9 @@ func stretchLetterformPart(s string, p letterformProps) string {
 var TadaLetterforms = []letterform{LetterT, LetterA, LetterD, LetterA}
 
 // tadaStretchable lists the indexes in [TadaLetterforms] that still read
-// correctly when stretched. A wide D looks like a box or an O, so it is
-// never picked.
-var tadaStretchable = []int{0, 1, 3}
+// correctly when stretched. Only the T does: a wide D looks like a box or an
+// O, and a wide A reads as a bar or an "F", worst in the Windows console font.
+var tadaStretchable = []int{0}
 
 // Wordmark returns the plain, unstyled TADA wordmark (no stretching), drawn
 // with half-block characters. The intro scales and animates it.

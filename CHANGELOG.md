@@ -7,6 +7,23 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Fixed
+
+- **Windows: freezes on "Waiting for tool response…".** Shell commands,
+  MCP servers and the Claude Code engine now get their own hidden console
+  instead of sharing Ta-Da's. Before, a child process could read the keys
+  meant for Ta-Da, draw over the screen, or reset the console mode, which
+  left typing, Esc, paste and quitting dead. Cancelling now ends the whole
+  process tree (an `npm` → `node` chain, or the `node` behind a `claude.cmd`
+  shim) rather than just the first process, so a stuck tool can always be
+  stopped.
+- **Ctrl+V pastes text.** Ctrl+V used to paste only images, so in terminals
+  that pass Ctrl+V to the app (Windows conhost) pasting text did nothing. It
+  now pastes an image if the clipboard holds one and the model takes images,
+  and text otherwise.
+- **Logo.** Only the T is ever stretched now; a stretched A looked like a
+  bar or an "F", especially in the Windows console font.
+
 ## [0.4.1] - 2026-10-20
 
 ### Added

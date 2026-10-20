@@ -3194,10 +3194,10 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				}
 
 			case key.Matches(msg, m.keyMap.Editor.PasteImage):
-				if !m.currentModelSupportsImages() {
-					break
-				}
-				cmds = append(cmds, m.pasteImageFromClipboard)
+				// Some terminals (the Windows console among them) hand
+				// Ctrl+V to the app instead of pasting, so it must
+				// paste text too, not only images.
+				cmds = append(cmds, m.pasteFromClipboard)
 			case key.Matches(msg, m.keyMap.Editor.PasteText):
 				cmds = append(cmds, m.pasteTextFromClipboard)
 
@@ -6289,73 +6289,30 @@ func (m *UI) pasteTextFromClipboard() tea.Msg {
 	return tea.PasteMsg{Content: string(textData)}
 }
 
-// pasteImageFromClipboard reads image data from the system clipboard and
-// creates an attachment. If no image data is found, it falls back to
-// interpreting clipboard text as a file path.
-func (m *UI) pasteImageFromClipboard() tea.Msg {
-	if !m.currentModelSupportsImages() {
-		return util.NewWarnMsg("The current model does not support image attachments")
-	}
-	imageData, err := clipboard.Read(clipboard.FormatImage)
-	if int64(len(imageData)) > common.MaxAttachmentSize {
-		return util.InfoMsg{
-			Type: util.InfoTypeError,
-			Msg:  "File too large, max 5MB",
+// pasteFromClipboard handles Ctrl+V when the terminal passes the key through
+// instead of pasting. An image on the clipboard becomes an attachment when
+// the model takes images; anything else is pasted as text, which also turns
+// a copied image path into an attachment.
+func (m *UI) pasteFromClipboard() tea.Msg {
+	if m.currentModelSupportsImages() {
+		imageData, err := clipboard.Read(clipboard.FormatImage)
+		if err == nil && len(imageData) > 0 {
+			if int64(len(imageData)) > common.MaxAttachmentSize {
+				return util.InfoMsg{
+					Type: util.InfoTypeError,
+					Msg:  "File too large, max 5MB",
+				}
+			}
+			name := fmt.Sprintf("paste_%d.png", m.pasteIdx())
+			return message.Attachment{
+				FilePath: name,
+				FileName: name,
+				MimeType: mimeOf(imageData),
+				Content:  imageData,
+			}
 		}
 	}
-	name := fmt.Sprintf("paste_%d.png", m.pasteIdx())
-	if err == nil {
-		return message.Attachment{
-			FilePath: name,
-			FileName: name,
-			MimeType: mimeOf(imageData),
-			Content:  imageData,
-		}
-	}
-
-	textData, textErr := clipboard.Read(clipboard.FormatText)
-	if textErr != nil || len(textData) == 0 {
-		return nil // Clipboard is empty or does not contain an image
-	}
-
-	path := strings.TrimSpace(string(textData))
-	path = strings.ReplaceAll(path, "\\ ", " ")
-	if _, statErr := os.Stat(path); statErr != nil {
-		return nil // Clipboard does not contain an image or valid file path
-	}
-
-	if !common.IsImagePath(path) {
-		return util.NewInfoMsg("File type is not a supported image format")
-	}
-
-	fileInfo, statErr := os.Stat(path)
-	if statErr != nil {
-		return util.InfoMsg{
-			Type: util.InfoTypeError,
-			Msg:  fmt.Sprintf("Unable to read file: %v", statErr),
-		}
-	}
-	if fileInfo.Size() > common.MaxAttachmentSize {
-		return util.InfoMsg{
-			Type: util.InfoTypeError,
-			Msg:  "File too large, max 5MB",
-		}
-	}
-
-	content, readErr := os.ReadFile(path)
-	if readErr != nil {
-		return util.InfoMsg{
-			Type: util.InfoTypeError,
-			Msg:  fmt.Sprintf("Unable to read file: %v", readErr),
-		}
-	}
-
-	return message.Attachment{
-		FilePath: path,
-		FileName: filepath.Base(path),
-		MimeType: mimeOf(content),
-		Content:  content,
-	}
+	return m.pasteTextFromClipboard()
 }
 
 var pasteRE = regexp.MustCompile(`paste_(\d+).txt`)

@@ -24,6 +24,7 @@ import (
 	"github.com/charmbracelet/crush/internal/discover"
 	"github.com/charmbracelet/crush/internal/env"
 	"github.com/charmbracelet/crush/internal/home"
+	"github.com/charmbracelet/crush/internal/proc"
 	powernapConfig "github.com/charmbracelet/x/powernap/pkg/config"
 	"github.com/qjebbs/go-jsons"
 	"github.com/tidwall/gjson"
@@ -1131,11 +1132,13 @@ func assignIfNil[T any](ptr **T, val T) {
 }
 
 func isInsideWorktree() bool {
-	bts, err := exec.CommandContext(
+	cmd := exec.CommandContext(
 		context.Background(),
 		"git", "rev-parse",
 		"--is-inside-work-tree",
-	).CombinedOutput()
+	)
+	proc.HideConsole(cmd)
+	bts, err := cmd.CombinedOutput()
 	return err == nil && strings.TrimSpace(string(bts)) == "true"
 }
 
@@ -1164,6 +1167,7 @@ func computeWorktreeRoot(dir string) string {
 		context.Background(),
 		"git", "rev-parse", "--show-toplevel",
 	)
+	proc.HideConsole(cmd)
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

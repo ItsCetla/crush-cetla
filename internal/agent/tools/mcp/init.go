@@ -23,6 +23,7 @@ import (
 	"github.com/charmbracelet/crush/internal/oauth"
 	mcpoauth "github.com/charmbracelet/crush/internal/oauth/mcp"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/proc"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -1495,6 +1496,7 @@ func stdioCheck(old *exec.Cmd) error {
 	}
 	cmd := exec.CommandContext(ctx, old.Path, args...)
 	cmd.Env = old.Env
+	proc.HideConsole(cmd)
 	cmd.WaitDelay = stdioCheckTimeout
 	out, err := cmd.CombinedOutput()
 	if err == nil || errors.Is(ctx.Err(), context.DeadlineExceeded) {
