@@ -24,7 +24,7 @@ func (m *UI) openArtifactsCmd() tea.Cmd {
 		if err != nil {
 			return util.ReportError(err)()
 		}
-		if err := artifacts.OpenBrowser(u); err != nil {
+		if err := artifacts.OpenBrowser(svc.Store.SignInURL(u)); err != nil {
 			return util.NewInfoMsg("Artifacts gallery: " + u)
 		}
 		return util.NewInfoMsg("Opened the artifacts gallery at " + u)

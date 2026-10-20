@@ -1,6 +1,7 @@
 package artifacts
 
 import (
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -57,7 +58,12 @@ func TestServicePublishReadAndOpen(t *testing.T) {
 	require.Zero(t, r.Warnings)
 	require.Contains(t, r.Text, "Published \"Q3 Revenue\"")
 	require.True(t, strings.HasSuffix(r.URL, "/a/"+r.ID))
-	require.Equal(t, []string{r.URL}, rec.urls)
+	// The browser gets the viewer key; the tool result never does.
+	key, err := svc.Store.ViewerKey()
+	require.NoError(t, err)
+	require.Equal(t, []string{r.URL + "#k=" + key}, rec.urls)
+	require.NotContains(t, r.URL, key)
+	require.NotContains(t, r.Text, key)
 
 	// Only a new artifact opens the browser.
 	r2, err := svc.Artifact(ctx, env, ArtifactParams{ID: r.URL, Content: strPtr(fullPage), BaseVersion: 1})
@@ -182,7 +188,10 @@ func TestServiceDataAndComments(t *testing.T) {
 func TestServerGuard(t *testing.T) {
 	t.Parallel()
 	st, id := newTestArtifact(t)
-	h := Handler(st, ServerOptions{}, "http://127.0.0.1:7480")
+	h, err := Handler(st, ServerOptions{}, "http://127.0.0.1:7480")
+	require.NoError(t, err)
+	key, err := st.ViewerKey()
+	require.NoError(t, err)
 
 	do := func(method, host, target string, hdr map[string]string, body string) *httptest.ResponseRecorder {
 		req := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
@@ -194,28 +203,104 @@ func TestServerGuard(t *testing.T) {
 		h.ServeHTTP(w, req)
 		return w
 	}
+	signed := map[string]string{"X-Tada-Key": key}
 
-	require.Equal(t, http.StatusOK, do("GET", "127.0.0.1:7480", "/api/artifacts", nil, "").Code)
+	require.Equal(t, http.StatusOK, do("GET", "127.0.0.1:7480", "/api/artifacts", signed, "").Code)
 	require.Equal(t, http.StatusOK, do("GET", "localhost:7480", "/api/ping", nil, "").Code)
 	// DNS rebinding: a foreign Host is refused.
-	require.Equal(t, http.StatusForbidden, do("GET", "evil.example:7480", "/api/artifacts", nil, "").Code)
+	require.Equal(t, http.StatusForbidden, do("GET", "evil.example:7480", "/api/artifacts", signed, "").Code)
 
-	// Writes need the viewer header and JSON.
+	// Writes need the key, the viewer header and JSON.
 	pin := "/api/artifacts/" + id + "/pin"
-	require.Equal(t, http.StatusForbidden, do("POST", "127.0.0.1:7480", pin, map[string]string{"Content-Type": "application/json"}, `{"pinned":true}`).Code)
-	require.Equal(t, http.StatusUnsupportedMediaType, do("POST", "127.0.0.1:7480", pin, map[string]string{"X-Tada-Viewer": "1", "Content-Type": "text/plain"}, `{"pinned":true}`).Code)
-	require.Equal(t, http.StatusOK, do("POST", "127.0.0.1:7480", pin, map[string]string{"X-Tada-Viewer": "1", "Content-Type": "application/json"}, `{"pinned":true}`).Code)
+	write := func(hdr map[string]string) int {
+		hdr["X-Tada-Key"] = key
+		return do("POST", "127.0.0.1:7480", pin, hdr, `{"pinned":true}`).Code
+	}
+	require.Equal(t, http.StatusForbidden, write(map[string]string{"Content-Type": "application/json"}))
+	require.Equal(t, http.StatusUnsupportedMediaType, write(map[string]string{"X-Tada-Viewer": "1", "Content-Type": "text/plain"}))
+	require.Equal(t, http.StatusOK, write(map[string]string{"X-Tada-Viewer": "1", "Content-Type": "application/json"}))
 	m, err := st.Get(id)
 	require.NoError(t, err)
 	require.True(t, m.Pinned)
+}
+
+func TestServerNeedsViewerKey(t *testing.T) {
+	t.Parallel()
+	st, id := newTestArtifact(t)
+	h, err := Handler(st, ServerOptions{}, "http://127.0.0.1:7480")
+	require.NoError(t, err)
+	key, err := st.ViewerKey()
+	require.NoError(t, err)
+
+	get := func(target, k string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), "GET", target, nil)
+		req.Host = "127.0.0.1:7480"
+		if k != "" {
+			req.Header.Set("X-Tada-Key", k)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w
+	}
+	wrong := strings.Repeat("0", 64)
+	for _, p := range []string{
+		"/api/artifacts",
+		"/api/artifacts/" + id,
+		"/api/artifacts/" + id + "/comments",
+		"/api/events?id=" + id,
+		"/api/events?id=" + id + "&k=" + wrong,
+	} {
+		require.Equal(t, http.StatusUnauthorized, get(p, "").Code, p)
+		require.Equal(t, http.StatusUnauthorized, get(p, wrong).Code, p)
+	}
+	// Writes are refused before they reach the store.
+	req := httptest.NewRequestWithContext(t.Context(), "DELETE", "/api/artifacts/"+id, nil)
+	req.Host = "127.0.0.1:7480"
+	req.Header.Set("X-Tada-Viewer", "1")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	_, err = st.Get(id)
+	require.NoError(t, err)
+
+	// The shells hold no data and stay public.
+	require.Equal(t, http.StatusOK, get("/", "").Code)
+	require.Equal(t, http.StatusOK, get("/a/"+id, "").Code)
+	require.Equal(t, http.StatusOK, get("/_tada/viewer.js", "").Code)
+
+	// With the key, the API hands out the page base, and only that base
+	// serves the artifact's pages.
+	w = get("/api/artifacts/"+id, key)
+	require.Equal(t, http.StatusOK, w.Code)
+	var out struct {
+		Artifact struct {
+			PageBase string `json:"page_base"`
+		} `json:"artifact"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &out))
+	require.Equal(t, "/p/"+pageKey(key, id)+"/"+id, out.Artifact.PageBase)
+	require.NotContains(t, out.Artifact.PageBase, key)
+	require.Equal(t, http.StatusOK, get(out.Artifact.PageBase+"/1/index.html", "").Code)
+	require.Equal(t, http.StatusNotFound, get("/p/"+strings.Repeat("a", 32)+"/"+id+"/1/index.html", "").Code)
+	require.NotEqual(t, http.StatusOK, get("/p/"+id+"/1/index.html", "").Code)
+
+	other, err := NewStore(t.TempDir())
+	require.NoError(t, err)
+	otherKey, err := other.ViewerKey()
+	require.NoError(t, err)
+	require.NotEqual(t, key, otherKey)
+	require.Equal(t, http.StatusNotFound, get("/p/"+pageKey(otherKey, id)+"/"+id+"/1/index.html", "").Code)
 }
 
 func TestServerPageIsSandboxed(t *testing.T) {
 	t.Parallel()
 	st, id := newTestArtifact(t)
 	for _, allow := range []bool{false, true} {
-		h := Handler(st, ServerOptions{AllowCDN: allow}, "http://127.0.0.1:7480")
-		req := httptest.NewRequestWithContext(t.Context(), "GET", PagePath(id, 1), nil)
+		h, err := Handler(st, ServerOptions{AllowCDN: allow}, "http://127.0.0.1:7480")
+		require.NoError(t, err)
+		page, err := st.PagePath(id, 1)
+		require.NoError(t, err)
+		req := httptest.NewRequestWithContext(t.Context(), "GET", page, nil)
 		req.Host = "127.0.0.1:7480"
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)

@@ -30,8 +30,35 @@
   let theme = loadTheme();
   applyTheme(theme);
 
+  // ---------- viewer key ----------
+  // Ta-Da opens the viewer with #k=<key>. Keep the key in this origin's
+  // storage (which, unlike cookies, is separate per port) and take it out of
+  // the address bar. Every API call sends it.
+  const KEY_STORE = 'tada:key';
+  let viewerKey = '';
+  {
+    const m = /^#k=([0-9a-f]{64})$/.exec(location.hash);
+    if (m) {
+      viewerKey = m[1];
+      try { localStorage.setItem(KEY_STORE, viewerKey); } catch { /* storage unavailable */ }
+      try { history.replaceState(null, '', location.pathname + location.search); } catch { /* ignore */ }
+    } else {
+      try { viewerKey = localStorage.getItem(KEY_STORE) || ''; } catch { /* storage unavailable */ }
+    }
+  }
+  // A tab already open on this page only sees a hash change, so sign in
+  // and start over with the new key.
+  window.addEventListener('hashchange', () => {
+    const m = /^#k=([0-9a-f]{64})$/.exec(location.hash);
+    if (!m) return;
+    try { localStorage.setItem(KEY_STORE, m[1]); } catch { /* storage unavailable */ }
+    location.replace(location.pathname + location.search);
+  });
+  const SIGN_IN_MSG = 'Open it from Ta-Da ("Open Artifacts Gallery" in the command palette, or "tada artifacts open") to sign in this browser.';
+
   async function api(path, { method = 'GET', body } = {}) {
     const init = { method, headers: {} };
+    if (viewerKey) init.headers['X-Tada-Key'] = viewerKey;
     if (method !== 'GET') {
       init.headers['X-Tada-Viewer'] = '1';
       init.headers['Content-Type'] = 'application/json';
@@ -167,6 +194,7 @@
     replyOpen: '',
     replyDraft: '',
     deleted: false,
+    pageBase: '',
   };
 
   let $;
@@ -188,8 +216,10 @@
 
   // ---------- frame ----------
 
+  // Pages live under a per-artifact key the API hands out, so the frame
+  // waits for loadArtifact before it loads anything.
   function pageURL(ver) {
-    return `/p/${EID}/${ver || 'latest'}/index.html`;
+    return `${state.pageBase}/${ver || 'latest'}/index.html`;
   }
 
   function createFrame() {
@@ -202,11 +232,10 @@
       sendTheme();
     });
     $('frame-wrap').appendChild(frame);
-    navigateFrame(state.current);
   }
 
   function navigateFrame(ver) {
-    if (!frame) return;
+    if (!frame || !state.pageBase) return;
     $('loading').hidden = false;
     frame.src = pageURL(ver);
     $('open').href = pageURL(ver);
@@ -241,6 +270,7 @@
       const a = data.artifact;
       if (!a || typeof a !== 'object') throw new Error('Malformed response');
       state.artifact = a;
+      if (typeof a.page_base === 'string') state.pageBase = a.page_base;
       state.versions = Array.isArray(a.versions) ? a.versions.filter((v) => v && Number.isFinite(v.n)) : [];
       const maxN = state.versions.reduce((m, v) => Math.max(m, v.n), 0);
       state.latest = Math.max(Number(a.version) || 0, maxN);
@@ -251,6 +281,7 @@
       } else if (state.current === state.latest) {
         selectVersion(0);
       }
+      if (!frame.getAttribute('src')) navigateFrame(state.current);
       renderHeader();
       renderPicker();
       return true;
@@ -258,6 +289,8 @@
       if (err.status === 404) {
         showNotice('Artifact not found', 'It may have been deleted, or the link is wrong.');
         markDeleted();
+      } else if (err.status === 401) {
+        showNotice('Sign in needed', `This browser isn't signed in to the viewer. ${SIGN_IN_MSG}`);
       } else {
         toast(`Couldn't load artifact details: ${err.message}`, { error: true });
       }
@@ -460,7 +493,7 @@
         state.comments = Array.isArray(data.comments) ? data.comments.filter((c) => c && typeof c.id === 'string') : [];
         renderThreads();
       } catch (err) {
-        if (err.status !== 404) toast(`Couldn't load comments: ${err.message}`, { error: true });
+        if (err.status !== 404 && err.status !== 401) toast(`Couldn't load comments: ${err.message}`, { error: true });
       }
     })();
     try { await commentsLoading; } finally { commentsLoading = null; }
@@ -623,8 +656,8 @@
   // ---------- live updates ----------
 
   function subscribe() {
-    if (!('EventSource' in window)) return;
-    const es = new EventSource(`/api/events?id=${EID}`);
+    if (!('EventSource' in window) || !viewerKey) return;
+    const es = new EventSource(`/api/events?id=${EID}&k=${viewerKey}`);
     let hadError = false;
     const parse = (ev) => {
       try {

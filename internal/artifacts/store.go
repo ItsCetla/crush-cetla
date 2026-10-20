@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/crush/internal/home"
@@ -132,6 +133,9 @@ func (m *Meta) Summary() Summary {
 // from several processes: every write takes a per-artifact file lock.
 type Store struct {
 	root string
+
+	keyMu sync.Mutex
+	key   string
 }
 
 // DefaultRoot is where artifacts live unless TADA_ARTIFACTS_DIR says
@@ -165,8 +169,10 @@ func (s *Store) Root() string { return s.root }
 
 var idRe = regexp.MustCompile(`^[a-z0-9]{6,32}$`)
 
+var pageKeyRe = regexp.MustCompile(`^[0-9a-f]{32}/`)
+
 // ParseID accepts a bare id or any viewer URL that contains one
-// (http://127.0.0.1:7480/a/<id>, /p/<id>/3/index.html, ...).
+// (http://127.0.0.1:7480/a/<id>, /p/<page key>/<id>/3/index.html, ...).
 func ParseID(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if idRe.MatchString(s) {
@@ -176,7 +182,13 @@ func ParseID(s string) (string, error) {
 		return ParseID(firstSegment(s[i+3:]))
 	}
 	if i := strings.Index(s, "/p/"); i >= 0 {
-		return ParseID(firstSegment(s[i+3:]))
+		rest := s[i+3:]
+		// Page links put a 32-character key before the id. New ids are
+		// 10 characters, so the two can't be confused.
+		if loc := pageKeyRe.FindStringIndex(rest); loc != nil {
+			rest = rest[loc[1]:]
+		}
+		return ParseID(firstSegment(rest))
 	}
 	return "", fmt.Errorf("%q is not an artifact id or link", s)
 }

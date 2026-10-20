@@ -149,15 +149,17 @@ func NewArtifactTools(svc *artifacts.Service, permissions permission.Service, wo
 	}
 }
 
-// outsidePaths returns the paths that aren't inside workingDir.
+// outsidePaths returns the paths that aren't inside workingDir. It follows
+// symlinks, so a link in the project that points elsewhere counts as
+// outside.
 func outsidePaths(workingDir string, paths []string) []string {
-	wd, err := filepath.Abs(workingDir)
+	wd, err := realPath(workingDir)
 	if err != nil {
 		return paths
 	}
 	var out []string
 	for _, p := range paths {
-		abs, err := filepath.Abs(p)
+		abs, err := realPath(p)
 		if err != nil {
 			out = append(out, p)
 			continue
@@ -168,4 +170,25 @@ func outsidePaths(workingDir string, paths []string) []string {
 		}
 	}
 	return out
+}
+
+// realPath is p made absolute with every symlink resolved. For a path that
+// doesn't exist, it resolves the nearest parent that does.
+func realPath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	rest := ""
+	for dir := abs; ; {
+		if r, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(r, rest), nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return abs, nil
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+		dir = parent
+	}
 }

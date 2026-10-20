@@ -150,6 +150,7 @@ func TestParseID(t *testing.T) {
 		"http://127.0.0.1:7480/a/abc123def":   "abc123def",
 		"/a/abc123def?v=2":                    "abc123def",
 		"http://127.0.0.1:7480/p/abc123def/3": "abc123def",
+		"http://127.0.0.1:7480/p/0123456789abcdef0123456789abcdef/abc123def/3/index.html": "abc123def",
 	} {
 		got, err := ParseID(in)
 		require.NoError(t, err, in)

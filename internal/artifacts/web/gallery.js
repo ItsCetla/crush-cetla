@@ -31,8 +31,35 @@
   let theme = loadTheme();
   applyTheme(theme);
 
+  // ---------- viewer key ----------
+  // Ta-Da opens the viewer with #k=<key>. Keep the key in this origin's
+  // storage (which, unlike cookies, is separate per port) and take it out of
+  // the address bar. Every API call sends it.
+  const KEY_STORE = 'tada:key';
+  let viewerKey = '';
+  {
+    const m = /^#k=([0-9a-f]{64})$/.exec(location.hash);
+    if (m) {
+      viewerKey = m[1];
+      try { localStorage.setItem(KEY_STORE, viewerKey); } catch { /* storage unavailable */ }
+      try { history.replaceState(null, '', location.pathname + location.search); } catch { /* ignore */ }
+    } else {
+      try { viewerKey = localStorage.getItem(KEY_STORE) || ''; } catch { /* storage unavailable */ }
+    }
+  }
+  // A tab already open on this page only sees a hash change, so sign in
+  // and start over with the new key.
+  window.addEventListener('hashchange', () => {
+    const m = /^#k=([0-9a-f]{64})$/.exec(location.hash);
+    if (!m) return;
+    try { localStorage.setItem(KEY_STORE, m[1]); } catch { /* storage unavailable */ }
+    location.replace(location.pathname + location.search);
+  });
+  const SIGN_IN_MSG = 'Open it from Ta-Da ("Open Artifacts Gallery" in the command palette, or "tada artifacts open") to sign in this browser.';
+
   async function api(path, { method = 'GET', body } = {}) {
     const init = { method, headers: {} };
+    if (viewerKey) init.headers['X-Tada-Key'] = viewerKey;
     if (method !== 'GET') {
       init.headers['X-Tada-Viewer'] = '1';
       init.headers['Content-Type'] = 'application/json';
@@ -41,7 +68,11 @@
     const res = await fetch(path, init);
     let data = null;
     try { data = await res.json(); } catch { /* empty or non-JSON */ }
-    if (!res.ok) throw new Error((data && typeof data.error === 'string' && data.error) || `Request failed (${res.status})`);
+    if (!res.ok) {
+      const err = new Error((data && typeof data.error === 'string' && data.error) || `Request failed (${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
     return data || {};
   }
 
@@ -197,7 +228,9 @@
         render();
       } catch (err) {
         const box = $('error');
-        box.textContent = `Couldn't load artifacts: ${err.message}`;
+        box.textContent = err.status === 401
+          ? `This browser isn't signed in to the viewer. ${SIGN_IN_MSG}`
+          : `Couldn't load artifacts: ${err.message}`;
         box.hidden = false;
       }
     })();
@@ -213,8 +246,8 @@
   }
 
   function subscribe() {
-    if (!('EventSource' in window)) return;
-    const es = new EventSource('/api/events');
+    if (!('EventSource' in window) || !viewerKey) return;
+    const es = new EventSource(`/api/events?k=${viewerKey}`);
     let hadError = false;
     es.addEventListener('version', scheduleLoad);
     es.addEventListener('deleted', scheduleLoad);
@@ -264,7 +297,7 @@
   }
 
   function frameSrc(a) {
-    return `/p/${encodeURIComponent(a.id)}/latest/index.html`;
+    return typeof a.page_base === 'string' ? `${a.page_base}/latest/index.html` : 'about:blank';
   }
 
   function buildCard(a) {

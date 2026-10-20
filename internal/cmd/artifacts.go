@@ -106,7 +106,7 @@ var artifactsServeCmd = &cobra.Command{
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Artifacts viewer at %s (Ctrl+C to stop)\nStore: %s\n", url, svc.Store.Root())
 		if open, _ := cmd.Flags().GetBool("open"); open {
-			_ = artifacts.OpenBrowser(url)
+			_ = artifacts.OpenBrowser(svc.Store.SignInURL(url))
 		}
 		select {
 		case <-ctx.Done():
@@ -149,10 +149,10 @@ this command does; press Ctrl+C to stop it.`,
 				return err
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), base+path)
-			return artifacts.OpenBrowser(base + path)
+			return artifacts.OpenBrowser(svc.Store.SignInURL(base + path))
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "%s (Ctrl+C to stop the viewer)\n", url+path)
-		_ = artifacts.OpenBrowser(url + path)
+		_ = artifacts.OpenBrowser(svc.Store.SignInURL(url + path))
 		select {
 		case <-ctx.Done():
 			return nil

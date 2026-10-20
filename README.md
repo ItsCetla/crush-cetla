@@ -910,6 +910,17 @@ Artifacts live in `~/.local/share/tada/artifacts` (or under
 `$XDG_DATA_HOME`, `%LOCALAPPDATA%` on Windows, or `TADA_ARTIFACTS_DIR`). The
 viewer only answers on 127.0.0.1 and rejects requests from other hosts.
 
+**The viewer needs a key.** Other programs and web pages on your machine
+can reach 127.0.0.1 too, so the viewer's API and pages need a per-machine
+key, kept in `.viewer-key` in the artifacts folder (readable only by you).
+When Ta-Da opens the viewer, it signs that browser in by passing the key
+in the link; the key is then stored in the browser and taken out of the
+address bar. A browser that was never signed in shows a short note
+instead: open the gallery from Ta-Da once (**Open Artifacts Gallery** or
+`tada artifacts open`). Each page is served under its own derived key, so
+a page can't reach the API or other artifacts. Delete `.viewer-key` to
+sign every browser out; a new key is made on the next start.
+
 **Claude Code and other MCP clients.** Claude Code engine sessions get the
 artifact tools automatically. Any other MCP client can use them through
 `tada artifacts mcp`, a stdio server that starts the viewer if it isn't

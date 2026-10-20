@@ -68,7 +68,10 @@ func Default() (*Service, error) {
 // BaseURL makes sure the viewer runs and returns its base URL.
 func (s *Service) BaseURL() (string, error) { return Ensure(s.Store, s.Server) }
 
+// open shows u in the browser, signing the browser in to the viewer. The
+// key goes only to the browser, never into a tool result.
 func (s *Service) open(u string) error {
+	u = s.Store.SignInURL(u)
 	if s.Open != nil {
 		return s.Open(u)
 	}

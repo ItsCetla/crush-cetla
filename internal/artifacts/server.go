@@ -59,6 +59,7 @@ type Server struct {
 	opts  ServerOptions
 	srv   *http.Server
 	url   string
+	key   string
 }
 
 var (
@@ -99,7 +100,11 @@ func Ensure(store *Store, opts ServerOptions) (string, error) {
 			}
 			continue
 		}
-		s := newServer(store, opts, "http://"+addr)
+		s, err := newServer(store, opts, "http://"+addr)
+		if err != nil {
+			_ = ln.Close()
+			return "", err
+		}
 		go func() {
 			if err := s.srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				slog.Error("Artifacts viewer stopped", "error", err)
@@ -129,7 +134,11 @@ func Serve(ctx context.Context, store *Store, opts ServerOptions) (string, <-cha
 		}
 		return "", nil, err
 	}
-	s := newServer(store, opts, "http://"+addr)
+	s, err := newServer(store, opts, "http://"+addr)
+	if err != nil {
+		_ = ln.Close()
+		return "", nil, err
+	}
 	runningMu.Lock()
 	running[store.root] = s.url
 	owned[store.root] = true
@@ -145,16 +154,17 @@ func Serve(ctx context.Context, store *Store, opts ServerOptions) (string, <-cha
 	return s.url, done, nil
 }
 
-// storeTag identifies a store without revealing its path.
-func storeTag(store *Store) string {
-	sum := sha256.Sum256([]byte(store.root))
-	return hex.EncodeToString(sum[:8])
-}
-
+// pingOK reports whether the server at addr is a viewer for store: it must
+// prove it knows the store's key for a fresh nonce and for this address.
 func pingOK(addr string, store *Store) bool {
+	key, err := store.ViewerKey()
+	if err != nil {
+		return false
+	}
+	nonce := newID() + newID()
 	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+"/api/ping", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+"/api/ping?nonce="+nonce, nil)
 	if err != nil {
 		return false
 	}
@@ -165,32 +175,44 @@ func pingOK(addr string, store *Store) bool {
 	defer resp.Body.Close()
 	var p struct {
 		App   string `json:"app"`
-		Store string `json:"store"`
+		Proof string `json:"proof"`
 	}
 	if json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&p) != nil {
 		return false
 	}
-	return p.App == "tada-artifacts" && p.Store == storeTag(store)
+	return p.App == "tada-artifacts" && equal(p.Proof, pingProof(key, nonce, "http://"+addr))
 }
 
 // Handler returns the viewer's HTTP handler, for tests.
-func Handler(store *Store, opts ServerOptions, baseURL string) http.Handler {
-	return newServer(store, opts, baseURL).srv.Handler
+func Handler(store *Store, opts ServerOptions, baseURL string) (http.Handler, error) {
+	s, err := newServer(store, opts, baseURL)
+	if err != nil {
+		return nil, err
+	}
+	return s.srv.Handler, nil
 }
 
-func newServer(store *Store, opts ServerOptions, baseURL string) *Server {
-	s := &Server{store: store, opts: opts, url: baseURL}
+func newServer(store *Store, opts ServerOptions, baseURL string) (*Server, error) {
+	key, err := store.ViewerKey()
+	if err != nil {
+		return nil, err
+	}
+	s := &Server{store: store, opts: opts, url: baseURL, key: key}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.static("web/gallery.html"))
 	mux.HandleFunc("GET /a/{id}", s.static("web/viewer.html"))
 	mux.HandleFunc("GET /_tada/{file}", s.asset)
-	mux.HandleFunc("GET /p/{id}/{ver}/{path...}", s.file)
+	mux.HandleFunc("GET /p/{key}/{id}/{ver}/{path...}", s.file)
 	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		r.SetPathValue("file", "favicon.svg")
 		s.asset(w, r)
 	})
-	mux.HandleFunc("GET /api/ping", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSONResp(w, map[string]string{"app": "tada-artifacts", "store": storeTag(store)})
+	mux.HandleFunc("GET /api/ping", func(w http.ResponseWriter, r *http.Request) {
+		out := map[string]string{"app": "tada-artifacts"}
+		if n := r.URL.Query().Get("nonce"); n != "" && len(n) <= 64 {
+			out["proof"] = pingProof(s.key, n, s.url)
+		}
+		writeJSONResp(w, out)
 	})
 	mux.HandleFunc("GET /api/artifacts", s.apiList)
 	mux.HandleFunc("GET /api/artifacts/{id}", s.apiGet)
@@ -206,13 +228,27 @@ func newServer(store *Store, opts ServerOptions, baseURL string) *Server {
 		Handler:           s.guard(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	return s
+	return s, nil
 }
 
-// guard blocks DNS rebinding (Host must be loopback) and cross-site
-// writes (every write must carry a custom header, which a page on
-// another origin, or a sandboxed artifact, can't send without a CORS
-// preflight this server never approves).
+// authorized reports whether r carries the viewer key. Browsers send it
+// in X-Tada-Key; EventSource can't set headers, so the event stream also
+// takes it as ?k=.
+func (s *Server) authorized(r *http.Request) bool {
+	k := r.Header.Get("X-Tada-Key")
+	if k == "" && r.URL.Path == "/api/events" {
+		k = r.URL.Query().Get("k")
+	}
+	return k != "" && equal(k, s.key)
+}
+
+// guard blocks DNS rebinding (Host must be loopback), callers without the
+// viewer key (any other local user or process can reach a loopback port),
+// and cross-site writes (every write must carry a custom header, which a
+// page on another origin, or a sandboxed artifact, can't send without a
+// CORS preflight this server never approves). The HTML shells and their
+// scripts hold no data and stay public; artifact pages are guarded by the
+// per-artifact key in their path.
 func (s *Server) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.Host)
@@ -238,6 +274,10 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/ping" && !s.authorized(r) {
+			apiError(w, http.StatusUnauthorized, errors.New("this browser isn't signed in to the viewer: open it from Ta-Da (tada artifacts open)"))
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -306,6 +346,10 @@ func (s *Server) pageCSP() string {
 
 func (s *Server) file(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if !equal(r.PathValue("key"), pageKey(s.key, id)) {
+		http.NotFound(w, r)
+		return
+	}
 	m, err := s.store.Get(id)
 	if err != nil {
 		http.NotFound(w, r)
@@ -449,7 +493,13 @@ func (s *Server) renderDocument(m *Meta, n int, src []byte) ([]byte, error) {
 
 type artifactJSON struct {
 	Summary
-	Versions []Version `json:"versions"`
+	// PageBase is where the artifact's pages live: PageBase + "/3/index.html".
+	PageBase string    `json:"page_base"`
+	Versions []Version `json:"versions,omitempty"`
+}
+
+func (s *Server) pageBase(id string) string {
+	return "/p/" + pageKey(s.key, id) + "/" + id
 }
 
 func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
@@ -459,10 +509,11 @@ func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusInternalServerError, err)
 		return
 	}
-	if list == nil {
-		list = []Summary{}
+	out := make([]artifactJSON, 0, len(list))
+	for _, a := range list {
+		out = append(out, artifactJSON{Summary: a, PageBase: s.pageBase(a.ID)})
 	}
-	writeJSONResp(w, map[string]any{"artifacts": list})
+	writeJSONResp(w, map[string]any{"artifacts": out})
 }
 
 func (s *Server) apiGet(w http.ResponseWriter, r *http.Request) {
@@ -471,7 +522,7 @@ func (s *Server) apiGet(w http.ResponseWriter, r *http.Request) {
 		apiError(w, statusFor(err), err)
 		return
 	}
-	writeJSONResp(w, map[string]any{"artifact": artifactJSON{Summary: m.Summary(), Versions: m.Versions}})
+	writeJSONResp(w, map[string]any{"artifact": artifactJSON{Summary: m.Summary(), PageBase: s.pageBase(m.ID), Versions: m.Versions}})
 }
 
 func (s *Server) apiDelete(w http.ResponseWriter, r *http.Request) {
@@ -791,11 +842,16 @@ func writeJSONResp(w http.ResponseWriter, v any) {
 // ViewerPath is the path of an artifact's viewer page.
 func ViewerPath(id string) string { return "/a/" + id }
 
-// PagePath is the path of a version's page (0 = latest).
-func PagePath(id string, n int) string {
+// PagePath is the path of a version's page (0 = latest), including the
+// artifact's page key.
+func (s *Store) PagePath(id string, n int) (string, error) {
+	key, err := s.ViewerKey()
+	if err != nil {
+		return "", err
+	}
 	v := "latest"
 	if n > 0 {
 		v = strconv.Itoa(n)
 	}
-	return path.Join("/p", id, v, "index.html")
+	return path.Join("/p", pageKey(key, id), id, v, "index.html"), nil
 }
