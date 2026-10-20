@@ -2,6 +2,8 @@ name: build
 on:
   push:
     branches: [main]
+    # A CHANGELOG-only release commit needs no 15-minute test run.
+    paths-ignore: ["**/*.md"]
   pull_request:
 
 permissions:
@@ -28,10 +30,14 @@ jobs:
       - run: go mod tidy
       - run: git diff --exit-code
       - run: go build ./...
+      # The race detector runs on Linux only: on macOS it made this job
+      # take about 15 minutes.
       - run: go build -race ./...
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
       - run: go test -race -failfast ./...
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
+      - run: go test -failfast ./...
+        if: runner.os == 'macOS'
       # The unix-socket and shell tests are Unix-only, so Windows only runs
       # the packages that matter for the Windows build.
       - run: go test -failfast ./internal/opencode/... ./internal/config/... ./internal/version/...

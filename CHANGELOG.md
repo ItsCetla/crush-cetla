@@ -7,6 +7,14 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Changed
+
+- **Faster releases.** The six binaries now build in parallel on separate
+  runners instead of one after another, and a finished release is published
+  automatically once the Windows installers are attached. A release takes
+  about 4 minutes instead of about 10. CI also skips Markdown-only commits
+  and no longer runs the race detector on macOS (Linux still does).
+
 ## [0.4.3] - 2026-10-20
 
 ### Fixed

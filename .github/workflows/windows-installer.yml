@@ -1,19 +1,27 @@
 name: windows-installer
-# Wraps the goreleaser Windows zips of a (draft) release in Inno Setup
-# installers (packaging/windows/tada.iss) and uploads them, with an updated
-# SHA256SUMS.txt, to the same release. Called by release.yml; can also be run
-# by hand for an existing release.
+# Wraps the Windows zips of a (draft) release in Inno Setup installers
+# (packaging/windows/tada.iss) and uploads them, with an updated
+# SHA256SUMS.txt, to the same release; with publish, it then makes the
+# release public. Called by release.yml; can also be run by hand for an
+# existing release.
 on:
   workflow_call:
     inputs:
       tag:
         type: string
         required: true
+      publish:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       tag:
         description: "Existing release tag (for example v0.1.0)"
         required: true
+      publish:
+        description: "Publish the release afterwards"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -80,3 +88,19 @@ jobs:
           '```' >> $env:GITHUB_STEP_SUMMARY
           Get-Content "$work\SHA256SUMS.txt" >> $env:GITHUB_STEP_SUMMARY
           '```' >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Publish the release
+        if: inputs.publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          n=$(gh release view "$TAG" --json assets -q '.assets | length')
+          if [ "$n" -ne 9 ]; then
+            echo "::error::$TAG has $n assets, expected 9; left as a draft"; exit 1
+          fi
+          latest=--latest; case "$TAG" in *-*) latest=--latest=false ;; esac
+          gh release edit "$TAG" --draft=false $latest
+          echo "Published https://github.com/$GH_REPO/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# Release config for this fork: archives + checksums for Windows, macOS and
-# Linux, published as a *draft* GitHub release by .github/workflows/release.yml.
-# No package managers, no signing services, no external uploads.
+# Local snapshot builds only. Real releases are built by
+# .github/workflows/release.yml (one runner per platform) and packaged by
+# scripts/package-release.sh, which keeps the same archive layout as this file.
 #
 #   goreleaser build --snapshot --clean --single-target   # current platform
 #   goreleaser release --snapshot --clean                  # all archives in dist/
@@ -64,7 +64,6 @@ checksum:
   name_template: "SHA256SUMS.txt"
 
 release:
-  # Always a draft: nothing goes public until it is reviewed on GitHub.
   draft: true
   prerelease: auto
   name_template: "v{{ .Version }}"
