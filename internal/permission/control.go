@@ -234,7 +234,7 @@ func touchesProtectedAt(script string, depth int, shadowed bool) bool {
 	if err != nil {
 		return true
 	}
-	shadowed = shadowed || shadowsCommands(file)
+	shadowed = shadowed || shadowsCommands(file, depth)
 	found := false
 	syntax.Walk(file, func(node syntax.Node) bool {
 		if found {
@@ -348,30 +348,47 @@ func readOnly(name string, shadowed bool) bool {
 }
 
 // shadowsCommands reports whether a script may change what a command name
-// runs: it sets PATH, defines an alias or a function, or uses hash or
-// enable to bind a name to a program.
-func shadowsCommands(file *syntax.File) bool {
+// runs: it sets PATH (directly or by name, as in read PATH), defines an
+// alias or a function, uses hash or enable to bind a name to a program,
+// sources a file, or sets a variable that makes bash load code. Scripts it
+// runs through eval or sh -c count too.
+func shadowsCommands(file *syntax.File, depth int) bool {
+	if depth > maxScriptDepth {
+		return true
+	}
 	shadows := false
 	syntax.Walk(file, func(node syntax.Node) bool {
 		switch n := node.(type) {
 		case *syntax.FuncDecl:
 			shadows = true
 		case *syntax.Assign:
-			if n.Name != nil && strings.EqualFold(n.Name.Value, "PATH") {
+			if n.Name != nil && shadowingVar(n.Name.Value) {
 				shadows = true
 			}
 		case *syntax.Word:
 			for _, lit := range shell.ExpandedWords(n) {
-				name, _, ok := strings.Cut(lit, "=")
-				if ok && strings.EqualFold(name, "PATH") {
+				name, _, _ := strings.Cut(lit, "=")
+				if shadowingVar(name) {
 					shadows = true
 				}
 			}
 		case *syntax.CallExpr:
-			for _, w := range n.Args[:min(1, len(n.Args))] {
-				lit, _ := shell.LiteralWord(w)
-				switch strings.ToLower(shell.CommandName(lit)) {
-				case "alias", "hash", "enable":
+			var argv []string
+			for _, w := range n.Args {
+				argv = append(argv, shell.ExpandedWords(w)...)
+			}
+			if len(argv) == 0 {
+				return true
+			}
+			for _, v := range shell.CommandVariants(argv) {
+				switch strings.ToLower(shell.CommandName(v[0])) {
+				case "alias", "hash", "enable", "source", ".":
+					shadows = true
+				}
+			}
+			for _, inner := range shell.InlineScripts(argv) {
+				f, err := syntax.NewParser().Parse(strings.NewReader(inner), "")
+				if inner == "" || err != nil || shadowsCommands(f, depth+1) {
 					shadows = true
 				}
 			}
@@ -379,6 +396,16 @@ func shadowsCommands(file *syntax.File) bool {
 		return !shadows
 	})
 	return shadows
+}
+
+// shadowingVar reports whether a variable (or a bare word naming one, as
+// read and printf -v take) changes which program a command name runs:
+// PATH, the files bash loads at start (BASH_ENV, ENV) and exported bash
+// functions (BASH_FUNC_name%%).
+func shadowingVar(name string) bool {
+	name = strings.ToUpper(name)
+	return name == "PATH" || name == "BASH_ENV" || name == "ENV" ||
+		strings.HasPrefix(name, "BASH_FUNC_")
 }
 
 // setsRunTimeVar reports whether printf assigns to a variable named only
@@ -435,9 +462,10 @@ var (
 		"GIT_SSH", "GIT_SSH_COMMAND", "GIT_ASKPASS", "GIT_PROXY_COMMAND",
 		"SSH_ASKPASS", "PAGER", "EDITOR", "VISUAL",
 	}
-	// harmlessHelpers are values for gitCommandEnv that run nothing new,
-	// as in GIT_PAGER=cat or GIT_EDITOR=true.
-	harmlessHelpers = []string{"", "cat", "true", "false", ":", "less", "more"}
+	// harmlessHelpers are the whole values for gitCommandEnv that run
+	// nothing new, as in GIT_PAGER=cat or GIT_EDITOR=true. Git runs these
+	// values through a shell, so only an exact match counts.
+	harmlessHelpers = []string{"", "cat", "true", "false", ":"}
 )
 
 // gitEnvRisky reports whether setting the environment variable name to
@@ -450,8 +478,7 @@ func gitEnvRisky(name, value string, known bool) bool {
 	case strings.HasPrefix(name, "GIT_CONFIG"), slices.Contains(gitRepoEnv, name):
 		return true
 	case slices.Contains(gitCommandEnv, name):
-		helper, _, _ := strings.Cut(strings.TrimSpace(value), " ")
-		return !known || !slices.Contains(harmlessHelpers, helper)
+		return !known || !slices.Contains(harmlessHelpers, strings.TrimSpace(value))
 	}
 	return false
 }

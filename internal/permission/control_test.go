@@ -156,6 +156,22 @@ func TestClassifyCommand(t *testing.T) {
 		"GIT_EDITOR=true git rebase --continue": ClassWrite,
 		"GIT_TERMINAL_PROMPT=0 git status":      ClassWrite,
 		"GIT_PAGER= git log":                    ClassWrite,
+		// Git runs helper values through a shell, so only an exact
+		// harmless value counts.
+		`GIT_PAGER='cat $(cp h x)' git log`:   ClassOutside,
+		`GIT_EDITOR='true;cp h x' git commit`: ClassOutside,
+		"GIT_PAGER=less git log":              ClassOutside,
+		// Shadowing through wrappers, names, nested scripts and sourcing.
+		"builtin alias cat='cp h'; cat $D":                         ClassOutside,
+		"command hash -p ./evil cat; cat $D":                       ClassOutside,
+		"read PATH <<< ./bin; cat $D":                              ClassOutside,
+		"printf -v PATH ./bin; cat $D":                             ClassOutside,
+		"mapfile -t PATH < f; cat $D":                              ClassOutside,
+		`eval 'alias cat="cp h"'; cat $D`:                          ClassOutside,
+		". ./env.sh; cat $D":                                       ClassOutside,
+		`env 'BASH_FUNC_cat%%=() { cp h "$1"; }' bash -c 'cat $D'`: ClassOutside,
+		"BASH_ENV=./x bash -c 'cat $D'":                            ClassOutside,
+		"echo $PATH; cat $D":                                       ClassWrite,
 	}
 	for cmd, want := range cases {
 		require.Equal(t, want, ClassifyCommand(cmd), cmd)

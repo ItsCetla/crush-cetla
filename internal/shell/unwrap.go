@@ -417,19 +417,9 @@ options:
 	return append(split, args[i:]...)
 }
 
-// isAssignment reports whether a is a NAME=VALUE environment assignment.
+// isAssignment reports whether env takes a as a NAME=VALUE assignment.
+// Like env itself, any = after the first byte counts, so names such as
+// BASH_FUNC_name%% (an exported bash function) are assignments too.
 func isAssignment(a string) bool {
-	name, _, ok := strings.Cut(a, "=")
-	if !ok || name == "" {
-		return false
-	}
-	for i, r := range name {
-		switch {
-		case r == '_', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
-		case i > 0 && r >= '0' && r <= '9':
-		default:
-			return false
-		}
-	}
-	return true
+	return strings.IndexByte(a, '=') > 0
 }

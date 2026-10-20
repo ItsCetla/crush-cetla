@@ -21,13 +21,15 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   `find -execdir`, `find -exec ... {}` and `xargs` running a command that
   can write files now ask. Read-only tools (`cat`, `grep`, `wc`, `ls`, and
   similar) still run without asking, but only by bare name: `./cat`, or any
-  command after the script changes `PATH`, defines an alias or function, or
-  uses `hash` or `enable`, is graded like any other program.
+  command after the script changes `PATH` (also by name, as in `read PATH`),
+  defines an alias or function, uses `hash`, `enable` or `source`, or sets
+  `BASH_ENV` or an exported bash function, is graded like any other
+  program. This includes changes made inside `eval` or `sh -c`.
 - **More git environment is protected.** `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
   `GIT_COMMON_DIR` and the object directory variables now ask. So do
   programs git runs (`GIT_PAGER`, `GIT_EDITOR`, `GIT_SSH_COMMAND`,
-  `GIT_ASKPASS` and similar), unless set to a harmless value like `cat` or
-  `true`. Setting a variable whose name is only known at run time
+  `GIT_ASKPASS` and similar), unless set to exactly `cat`, `true`, `false`
+  or `:`. Setting a variable whose name is only known at run time
   (`printf -v "$name"`, `declare -n`) asks too.
 
 ## [0.5.9] - 2026-10-20
