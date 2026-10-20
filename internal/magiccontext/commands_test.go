@@ -169,7 +169,7 @@ func TestFullRecompConfirmAndRun(t *testing.T) {
 	n := &notices{}
 
 	first := run(e, n, "s1", CmdRecomp, "", msgs)
-	require.Contains(t, first, "## ⚠️ Recomp Confirmation Required")
+	require.Contains(t, first, "## ⚠ Recomp Confirmation Required")
 	require.Contains(t, first, "You currently have **0** compartments.")
 	require.Zero(t, *calls)
 
@@ -219,7 +219,7 @@ func TestPartialRecomp(t *testing.T) {
 	require.GreaterOrEqual(t, len(live), 3)
 
 	confirm := run(e, n, "s1", CmdRecomp, "5-6", msgs)
-	require.Contains(t, confirm, "## ⚠️ Partial Recomp Confirmation Required")
+	require.Contains(t, confirm, "## ⚠ Partial Recomp Confirmation Required")
 	require.Contains(t, confirm, "Snapped to compartment boundaries: **messages 4-6**")
 	require.Contains(t, confirm, "This will **rebuild 1 compartment(s)** in the snapped range.")
 

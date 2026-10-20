@@ -720,7 +720,7 @@ func (e *Engine) dropConfirm(sid string) {
 
 func recompConfirmText(n int) string {
 	return strings.Join([]string{
-		"## ⚠️ Recomp Confirmation Required",
+		"## ⚠ Recomp Confirmation Required",
 		"",
 		fmt.Sprintf("You currently have **%d** compartments.", n),
 		"Running /ctx-recomp will **rebuild the compressed history** from raw session history. Saved memories are not changed.",
@@ -738,7 +738,7 @@ func recompConfirmText(n int) string {
 
 func partialConfirmText(key string, s snappedRange) string {
 	return strings.Join([]string{
-		"## ⚠️ Partial Recomp Confirmation Required",
+		"## ⚠ Partial Recomp Confirmation Required",
 		"",
 		"Requested range: `" + key + "`",
 		fmt.Sprintf("Snapped to compartment boundaries: **messages %d-%d**", s.start, s.end),

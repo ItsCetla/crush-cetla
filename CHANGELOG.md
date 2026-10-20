@@ -7,6 +7,17 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Fixed
+
+- **Windows: boxes around inline code and leftover text on the right.**
+  Inline code was padded with a no-break space plus an invisible variation
+  selector. The Windows console draws that selector as its own "□" cell,
+  so every line with inline code ran two cells wider per code span than
+  Ta-Da expected. That shifted the line right and left stale text at the
+  right edge of the chat. Windows now pads with a plain no-break space.
+- **Magic Context recomp warning** uses a plain "⚠" instead of the emoji
+  form, which some terminals draw two cells wide.
+
 ## [0.4.2] - 2026-10-20
 
 ### Fixed

@@ -1,7 +1,9 @@
 package styles
 
 import (
+	"runtime"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/rivo/uniseg"
@@ -28,6 +30,19 @@ func TestCodespanPaddingIsOneCellWide(t *testing.T) {
 	require.Equal(t, CodespanPadding, cluster, "padding must be a single grapheme cluster")
 	require.Equal(t, 1, w)
 
-	require.NotEqual(t, "\u00a0", CodespanPadding,
-		"sentinel must stay distinguishable from a real no-break space")
+	if runtime.GOOS != "windows" {
+		require.NotEqual(t, "\u00a0", CodespanPadding,
+			"sentinel must stay distinguishable from a real no-break space")
+	}
+}
+
+// TestCodespanPaddingIsSingleRuneOnWindows guards the conhost rendering
+// bug: the Windows console draws a trailing variation selector as its own
+// cell, so the padding there must be exactly one plain rune.
+func TestCodespanPaddingIsSingleRuneOnWindows(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "windows" {
+		t.Skip("windows only")
+	}
+	require.Equal(t, 1, utf8.RuneCountInString(CodespanPadding))
 }
