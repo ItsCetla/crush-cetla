@@ -421,8 +421,20 @@ func setsCodeVar(argv []string) bool {
 	case "mapfile", "readarray":
 		return setsName(argv[1:], "dnOsuCc", "", "C", true)
 	case "getopts":
-		// The usage is getopts optstring name [arg ...].
-		return len(argv) > 2 && (argv[2] == "" || riskyName(argv[2]))
+		// The usage is getopts [--] optstring name [arg ...]. An optstring
+		// known only at run time could split into more words, and one that
+		// looks like an option is treated as unknown.
+		args := argv[1:]
+		if len(args) > 0 && args[0] == "--" {
+			args = args[1:]
+		}
+		switch {
+		case len(args) == 0:
+			return false
+		case args[0] == "", strings.HasPrefix(args[0], "-"):
+			return true
+		}
+		return len(args) > 1 && (args[1] == "" || riskyName(args[1]))
 	}
 	return false
 }
@@ -431,8 +443,10 @@ func setsCodeVar(argv []string) bool {
 // any variable they assign could be a riskyName. argOpts take a value,
 // attached or in the next word; nameOpts are those whose value is a
 // variable name; codeOpts run code. When positional is set, the words
-// after the options are variable names too. A word or name known only at
-// run time ("") counts as risky.
+// after the options are variable names too. A word, value or name known
+// only at run time ("") counts as risky, since unquoted it could split
+// into more options (read -p $msg could become read -p x -a PS4). A
+// literal ” looks the same, so read -d ” asks too.
 func setsName(args []string, argOpts, nameOpts, codeOpts string, positional bool) bool {
 	risky := func(name string) bool { return name == "" || riskyName(name) }
 	i := 0
@@ -464,8 +478,8 @@ func setsName(args []string, argOpts, nameOpts, codeOpts string, positional bool
 				i++
 				val, next = args[i], true
 			}
-			if strings.IndexByte(nameOpts, c) >= 0 &&
-				((next && val == "") || riskyName(val)) {
+			if (next && val == "") ||
+				(strings.IndexByte(nameOpts, c) >= 0 && riskyName(val)) {
 				return true
 			}
 			break

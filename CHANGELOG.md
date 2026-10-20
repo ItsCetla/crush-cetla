@@ -41,7 +41,7 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   parsed the way bash does, so `read -raPS4` counts), an array element, or a
   name reference (`declare -n r=PS4`, quoted or not, or `declare -n r` with
   no target yet), and a `mapfile -C` callback. Library search paths such as
-  `LD_LIBRARY_PATH` don't ask on their own, and `read -d ''` no longer asks.
+  `LD_LIBRARY_PATH` don't ask on their own.
 
 ## [0.5.9] - 2026-10-20
 
