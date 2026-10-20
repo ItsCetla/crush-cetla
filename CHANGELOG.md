@@ -7,6 +7,27 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Security
+
+- **Brace expansions and globbed command names are graded.** The grader
+  expands `{a,b}` the way the shell does, so `{rm,-rf,x}` counts as a
+  delete and `.{g,x}it/hooks/x` as a protected path. A command name with a
+  glob (`/bin/r? -rf x`) counts as a delete.
+- **Paths and git options known only at run time are protected.** A
+  command that writes files and gets an argument from a variable or
+  substitution (`cp h $D/hooks/x`) is graded as touching a protected path,
+  as is `git $SUB`, `git -c` and `git --config-env`, which can set hooks
+  or commands git runs.
+
+## [0.5.8] - 2026-10-20
+
+### Added
+
+- **`/machines` screen.** See every machine you've added, whether it's online
+  and how many slots are free. Add one by typing its IP (Ollama and LM Studio
+  ports are filled in for you), edit it, switch it on or off, remove it, or
+  recheck them all, without leaving Ta-Da. Also in the command palette.
+
 ## [0.5.7] - 2026-10-20
 
 ### Security
@@ -397,7 +418,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.7...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.8...HEAD
+[0.5.8]: https://github.com/ItsCetla/tada/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/ItsCetla/tada/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/ItsCetla/tada/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/ItsCetla/tada/compare/v0.5.1...v0.5.5
