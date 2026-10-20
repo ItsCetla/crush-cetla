@@ -253,7 +253,7 @@ func touchesProtectedAt(script string, depth int, shadowed bool) bool {
 				if n.Value != nil {
 					value, known = shell.LiteralWord(n.Value)
 				}
-				if gitEnvRisky(n.Name.Value, value, known) {
+				if gitEnvRisky(n.Name.Value, value, known) || codeVar(n.Name.Value) {
 					found = true
 				}
 			}
@@ -273,7 +273,7 @@ func touchesProtectedAt(script string, depth int, shadowed bool) bool {
 				return true
 			}
 			for _, v := range shell.CommandVariants(argv) {
-				if runTimePath(v, shadowed) || setsRunTimeVar(v) {
+				if runTimePath(v, shadowed) || setsRunTimeVar(v) || setsCodeVar(v) {
 					found = true
 				}
 				if strings.ToLower(shell.CommandName(v[0])) == "git" &&
@@ -294,7 +294,8 @@ func touchesProtectedAt(script string, depth int, shadowed bool) bool {
 				// NAME=VALUE (env, export) or a bare NAME (printf -v,
 				// read, declare -n), whose value is then unknown.
 				name, value, known := strings.Cut(lit, "=")
-				if protectedWord(lit) || gitEnvRisky(name, value, known) {
+				if protectedWord(lit) || gitEnvRisky(name, value, known) ||
+					(known && codeVar(name)) {
 					found = true
 				}
 			}
@@ -399,15 +400,41 @@ func shadowsCommands(file *syntax.File, depth int) bool {
 }
 
 // shadowingVar reports whether a variable (or a bare word naming one, as
-// read and printf -v take) changes what a command name runs: PATH, the
-// files bash loads at start (BASH_ENV, ENV), exported bash functions
-// (BASH_FUNC_name%%) and the dynamic loader variables (LD_PRELOAD,
-// DYLD_INSERT_LIBRARIES and the rest), which load code into any program.
+// read and printf -v take) changes what a command name runs: PATH, a
+// codeVar, or a dynamic loader search path (LD_LIBRARY_PATH,
+// DYLD_LIBRARY_PATH and the rest).
 func shadowingVar(name string) bool {
 	name = strings.ToUpper(name)
-	return name == "PATH" || name == "BASH_ENV" || name == "ENV" ||
-		strings.HasPrefix(name, "BASH_FUNC_") ||
+	return name == "PATH" || codeVar(name) ||
 		strings.HasPrefix(name, "LD_") || strings.HasPrefix(name, "DYLD_")
+}
+
+// setsCodeVar reports whether a command assigns a codeVar by name, as in
+// read PS4 or printf -v PS4.
+func setsCodeVar(argv []string) bool {
+	switch strings.ToLower(shell.CommandName(argv[0])) {
+	case "read", "printf", "mapfile", "readarray", "getopts":
+		return slices.ContainsFunc(argv[1:], codeVar)
+	}
+	return false
+}
+
+// codeVars make a shell or program run or load code taken from the value:
+// prompts and traces that bash expands (PS4 with set -x), files bash
+// sources at start, shell options that turn those on, and libraries the
+// loader injects.
+var codeVars = []string{
+	"PS4", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS", "BASH_ENV", "ENV",
+	"BASH_LOADABLES_PATH", "LD_PRELOAD", "LD_AUDIT", "DYLD_INSERT_LIBRARIES",
+	"GCONV_PATH",
+}
+
+// codeVar reports whether setting the variable name could run code, so it
+// is graded like a protected write. Exported bash functions
+// (BASH_FUNC_name%%) count too.
+func codeVar(name string) bool {
+	name = strings.ToUpper(name)
+	return slices.Contains(codeVars, name) || strings.HasPrefix(name, "BASH_FUNC_")
 }
 
 // setsRunTimeVar reports whether printf assigns to a variable named only

@@ -181,7 +181,18 @@ func TestClassifyCommand(t *testing.T) {
 		`trap 'cp h "$D/hooks/x"' EXIT`:            ClassOutside,
 		`trap -- 'cp h .git/hooks/x' EXIT`:         ClassOutside,
 		"trap 'rm -f tmp.txt' EXIT; go test ./...": ClassDelete,
-		"trap - EXIT": ClassWrite,
+		"trap - EXIT":    ClassWrite,
+		`trap "$X" EXIT`: ClassOutside,
+		// Variables that make a shell or program run or load code.
+		`PS4='$(cp h "$D")' SHELLOPTS=xtrace bash -c true`: ClassOutside,
+		`export PS4='$(cp h "$D")'; set -x; true`:          ClassOutside,
+		`PROMPT_COMMAND='cp h "$D"' bash -i`:               ClassOutside,
+		"BASH_ENV=./x bash -c true":                        ClassOutside,
+		"GCONV_PATH=./g iconv -f x":                        ClassOutside,
+		"read PS4 < f; set -x":                             ClassOutside,
+		"LD_LIBRARY_PATH=./lib ./build/app":                ClassWrite,
+		"grep -rn ENV .":                                   ClassWrite,
+		"echo $PS4":                                        ClassWrite,
 	}
 	for cmd, want := range cases {
 		require.Equal(t, want, ClassifyCommand(cmd), cmd)
