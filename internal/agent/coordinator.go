@@ -399,6 +399,7 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 			Channel:           channel,
 			Prompt:            prompt,
 			HiddenUserMessage: message.HiddenUserMessage(ctx),
+			Steer:             message.Steer(ctx) || channel != "",
 			Attachments:       attachments,
 			MaxOutputTokens:   maxTokens,
 			ProviderOptions:   mergedOptions,

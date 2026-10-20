@@ -15,6 +15,16 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   everything. The final answer, errors and approval requests always stay in
   view, and a running turn stays open so you can watch it. Turn it off with
   `options.tui.fold_tools: false`.
+- **Steering.** While the agent is working, Ctrl+Enter (or Alt+Enter where
+  the terminal can't tell Ctrl+Enter apart) sends your message into the
+  running turn instead of waiting for it to end. The built-in agent picks
+  it up at its next step; the Claude Code engine hands it to the CLI right
+  away. Until the agent takes it in, it shows in the queue pill.
+
+### Changed
+
+- Enter while the agent is busy now queues your message as its own turn.
+  It used to be folded into the running turn; use Ctrl+Enter for that.
 
 ### Fixed
 

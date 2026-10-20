@@ -18,6 +18,13 @@ type Event struct {
 	Subtype         string  `json:"subtype,omitempty"`
 	SessionID       string  `json:"session_id,omitempty"`
 	ParentToolUseID *string `json:"parent_tool_use_id,omitempty"`
+	UUID            string  `json:"uuid,omitempty"`
+
+	// user: IsReplay marks the CLI's echo of a user message it added to
+	// the conversation (--replay-user-messages); IsSynthetic marks one
+	// the CLI made up itself.
+	IsReplay    bool `json:"isReplay,omitempty"`
+	IsSynthetic bool `json:"isSynthetic,omitempty"`
 
 	// stream_event
 	Event *StreamEvent `json:"event,omitempty"`

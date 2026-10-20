@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/crush/internal/claudecode"
 	"github.com/charmbracelet/crush/internal/claudecode/fakecli"
@@ -20,6 +21,7 @@ func TestBuildArgs(t *testing.T) {
 		"--include-partial-messages",
 		"--verbose",
 		"--permission-prompt-tool", "stdio",
+		"--replay-user-messages",
 	}
 	require.Equal(t, base, claudecode.BuildArgs(claudecode.TurnOptions{Model: "default"}))
 	require.Equal(t,
@@ -141,4 +143,83 @@ func TestRunTurnCancelSendsInterrupt(t *testing.T) {
 	in := fakecli.Input(t, dir)
 	require.Len(t, in, 3)
 	require.Equal(t, "interrupt", in[2]["request"].(map[string]any)["subtype"])
+}
+
+// steerRun runs a turn that steers "steer me" in as soon as it starts and
+// records the events and steers it sees, in order.
+func steerRun(t *testing.T, bin, dir string) (res *claudecode.TurnResult, seen []string, id string, steer claudecode.SteerFunc) {
+	t.Helper()
+	res, err := claudecode.RunTurn(t.Context(), claudecode.TurnOptions{Binary: bin, WorkDir: dir, Prompt: "hi", Env: os.Environ()}, claudecode.Handler{
+		OnEvent: func(ev claudecode.Event) error {
+			seen = append(seen, ev.Type)
+			return nil
+		},
+		OnStart: func(s claudecode.SteerFunc) {
+			steer = s
+			var ok bool
+			id, ok = s("steer me")
+			require.True(t, ok)
+		},
+		OnSteer: func(got string) error {
+			seen = append(seen, "steer:"+got)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	return res, seen, id, steer
+}
+
+func TestRunTurnSteerMidTurn(t *testing.T) {
+	t.Parallel()
+	bin, dir := fakecli.Write(t, []string{
+		`{"type":"user","isReplay":true,"message":{"role":"user","content":"hi"}}`,
+		`{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"text","text":"working"}]}}`,
+	}, []string{
+		`{"type":"user","isReplay":true,"message":{"role":"user","content":[{"type":"text","text":"steer me"}]}}`,
+		`{"type":"assistant","message":{"id":"m2","role":"assistant","content":[{"type":"text","text":"ok"}]}}`,
+		`{"type":"result","subtype":"success","result":"ok"}`,
+	})
+	res, seen, id, steer := steerRun(t, bin, dir)
+	require.Equal(t, "ok", res.Result.Result)
+	require.Equal(t, []string{"assistant", "steer:" + id, "assistant", "result"}, seen)
+
+	in := fakecli.Input(t, dir)
+	require.Len(t, in, 3)
+	require.Equal(t, "user", in[2]["type"])
+	require.Equal(t, id, in[2]["uuid"])
+	require.Equal(t, "steer me", in[2]["message"].(map[string]any)["content"])
+	require.NotEqual(t, in[1]["uuid"], id)
+	require.Contains(t, fakecli.Args(t, dir), "--replay-user-messages")
+
+	_, ok := steer("too late")
+	require.False(t, ok)
+}
+
+func TestRunTurnSteerWaitsForFollowUpTurn(t *testing.T) {
+	t.Parallel()
+	bin, dir := fakecli.Write(t, []string{
+		`{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"text","text":"one"}]}}`,
+		`{"type":"result","subtype":"success","result":"one"}`,
+	}, []string{
+		`{"type":"user","isReplay":true,"message":{"role":"user","content":"steer me"}}`,
+		`{"type":"assistant","message":{"id":"m2","role":"assistant","content":[{"type":"text","text":"two"}]}}`,
+		`{"type":"result","subtype":"success","result":"two"}`,
+	})
+	res, seen, id, _ := steerRun(t, bin, dir)
+	require.Equal(t, "two", res.Result.Result)
+	require.Equal(t, []string{"assistant", "result", "steer:" + id, "assistant", "result"}, seen)
+}
+
+func TestRunTurnSteerGivesUpWhenCLIGoesQuiet(t *testing.T) {
+	defer claudecode.SetSteerWait(100 * time.Millisecond)()
+	// After the result the fake reads the steer, prints nothing, and
+	// then waits on stdin until the turn gives up and closes it.
+	bin, dir := fakecli.Write(t, []string{
+		`{"type":"result","subtype":"success","result":"one"}`,
+	}, nil, nil)
+	start := time.Now()
+	res, seen, _, _ := steerRun(t, bin, dir)
+	require.Equal(t, "one", res.Result.Result)
+	require.Equal(t, []string{"result"}, seen)
+	require.Less(t, time.Since(start), 4*time.Second)
 }

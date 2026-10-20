@@ -86,16 +86,21 @@ type SessionAgentCall struct {
 	RunID             string
 	Channel           string
 	HiddenUserMessage bool
-	Prompt            string
-	ProviderOptions   fantasy.ProviderOptions
-	Attachments       []message.Attachment
-	MaxOutputTokens   int64
-	Temperature       *float64
-	TopP              *float64
-	TopK              *int64
-	FrequencyPenalty  *float64
-	PresencePenalty   *float64
-	NonInteractive    bool
+	// Steer asks for the prompt to join the running turn: the native
+	// loop folds it in at the next step and the Claude Code engine
+	// writes it to the CLI mid-turn. Without it a prompt sent while
+	// the session is busy waits and runs as its own turn afterwards.
+	Steer            bool
+	Prompt           string
+	ProviderOptions  fantasy.ProviderOptions
+	Attachments      []message.Attachment
+	MaxOutputTokens  int64
+	Temperature      *float64
+	TopP             *float64
+	TopK             *int64
+	FrequencyPenalty *float64
+	PresencePenalty  *float64
+	NonInteractive   bool
 	// OnComplete, when non-nil, replaces the default RunComplete
 	// publish path: the inner Run hands the terminal payload to this
 	// callback instead of emitting it on the RunComplete broker. The
@@ -228,6 +233,14 @@ type sessionAgent struct {
 
 	messageQueue   *csync.Map[string, []SessionAgentCall]
 	activeRequests *csync.Map[string, *activeCancel]
+	// ccSteer holds, per session, a function that writes a steered
+	// prompt into the running Claude Code turn. It reports false when
+	// the turn can't take it any more.
+	ccSteer *csync.Map[string, func(SessionAgentCall) bool]
+	// ccPending lists, per session, the steered prompts the running
+	// Claude Code turn was given but the CLI hasn't taken in yet, so the
+	// queue pill shows them until they land in the chat.
+	ccPending *csync.Map[string, func() []string]
 
 	// dispatchMu holds a per-session mutex that serializes the
 	// accepted -> (cancel-on-entry | queued | active) transition in
@@ -317,6 +330,8 @@ func NewSessionAgent(
 		runComplete:          opts.RunComplete,
 		messageQueue:         csync.NewMap[string, []SessionAgentCall](),
 		activeRequests:       csync.NewMap[string, *activeCancel](),
+		ccSteer:              csync.NewMap[string, func(SessionAgentCall) bool](),
+		ccPending:            csync.NewMap[string, func() []string](),
 		dispatchMu:           csync.NewMap[string, *sync.Mutex](),
 		acceptedRuns:         csync.NewMap[string, int](),
 		cancelMark:           csync.NewMap[string, uint64](),
@@ -455,11 +470,11 @@ func (a *sessionAgent) enqueueCall(call SessionAgentCall) {
 // Calls covered by a pending cancel are dropped; the dropped ones that
 // carry a RunID are returned in canceledWithRunID so the caller can
 // publish their terminal cancelled RunComplete (a caller waiting on that
-// RunID, e.g. `tada run`, would otherwise hang). Uncanceled calls without
-// a RunID are returned in fold to be folded into the active turn,
-// preserving the existing follow-up behavior. Uncanceled calls that carry
-// a RunID are left in the queue so each runs as its own turn via the
-// recursive run path and publishes its own RunComplete, giving every
+// RunID, e.g. `tada run`, would otherwise hang). Uncanceled steer calls
+// without a RunID are returned in fold to be folded into the active turn.
+// Plain queued prompts wait for the turn to finish and run as their own
+// turns. Uncanceled calls that carry a RunID are also left in the queue so
+// each runs as its own turn via the recursive run path and publishes its own RunComplete, giving every
 // RunID-bearing prompt an explicit lifecycle instead of being silently
 // absorbed into another turn. fold is processed by the caller without the
 // lock held.
@@ -476,7 +491,7 @@ func (a *sessionAgent) drainQueueForStep(sessionID string) (fold, canceledWithRu
 			}
 			continue
 		}
-		if queued.RunID != "" {
+		if queued.RunID != "" || !queued.Steer {
 			keep = append(keep, queued)
 			continue
 		}
@@ -689,6 +704,18 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	}
 
 	if a.IsSessionBusy(call.SessionID) {
+		// A steered prompt goes straight into a running Claude Code
+		// turn. Calls with a RunID wait for their own RunComplete, so
+		// they still run as their own turn.
+		if call.Steer && call.RunID == "" {
+			if steer, ok := a.ccSteer.Get(call.SessionID); ok && steer(call) {
+				if call.Accepted != nil {
+					call.Accepted.Close()
+				}
+				sessMu.Unlock()
+				return nil, nil
+			}
+		}
 		// Busy: an earlier prompt is active. Queue this call so it is
 		// folded into (or sequenced after) the active turn, and release any
 		// accept reservation. A Cancel arriving after this point sees the
@@ -908,9 +935,9 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			// sequence so a follow-up queued after the cancel (higher seq)
 			// is not dropped. A dropped prompt carrying a RunID still gets
 			// its terminal cancelled RunComplete so a caller waiting on it
-			// does not hang. Uncanceled prompts without a RunID are folded
-			// into this turn; uncanceled prompts with a RunID are left
-			// queued so each runs as its own turn (with its own
+			// does not hang. Uncanceled steer prompts without a RunID are
+			// folded into this turn; plain prompts and prompts with a
+			// RunID are left queued so each runs as its own turn (with its own
 			// RunComplete) via the recursive run path below.
 			fold, canceledRunIDs := a.drainQueueForStep(call.SessionID)
 			a.publishCanceledQueueDrops(canceledRunIDs)
@@ -2147,14 +2174,14 @@ func (a *sessionAgent) Cancel(sessionID string) {
 		a.cancelMark.Set(sessionID, max(existing, mark))
 	}
 
-	if a.QueuedPrompts(sessionID) > 0 {
+	if a.queuedCalls(sessionID) > 0 {
 		slog.Debug("Clearing queued prompts", "session_id", sessionID)
 		a.clearQueueAndNotify(sessionID)
 	}
 }
 
 func (a *sessionAgent) ClearQueue(sessionID string) {
-	if a.QueuedPrompts(sessionID) > 0 {
+	if a.queuedCalls(sessionID) > 0 {
 		slog.Debug("Clearing queued prompts", "session_id", sessionID)
 		a.clearQueueAndNotify(sessionID)
 	}
@@ -2195,22 +2222,37 @@ func (a *sessionAgent) IsSessionBusy(sessionID string) bool {
 	return busy
 }
 
-func (a *sessionAgent) QueuedPrompts(sessionID string) int {
-	l, ok := a.messageQueue.Get(sessionID)
-	if !ok {
-		return 0
-	}
+// queuedCalls counts the prompts waiting for their own turn.
+func (a *sessionAgent) queuedCalls(sessionID string) int {
+	l, _ := a.messageQueue.Get(sessionID)
 	return len(l)
 }
 
-func (a *sessionAgent) QueuedPromptsList(sessionID string) []string {
-	l, ok := a.messageQueue.Get(sessionID)
+// ccPendingPrompts lists steered prompts the CLI hasn't taken in yet.
+func (a *sessionAgent) ccPendingPrompts(sessionID string) []string {
+	pending, ok := a.ccPending.Get(sessionID)
 	if !ok {
 		return nil
 	}
-	prompts := make([]string, len(l))
-	for i, call := range l {
-		prompts[i] = call.Prompt
+	return pending()
+}
+
+// QueuedPrompts counts the prompts waiting to run, including steered
+// prompts a Claude Code turn hasn't taken in yet.
+func (a *sessionAgent) QueuedPrompts(sessionID string) int {
+	return len(a.ccPendingPrompts(sessionID)) + a.queuedCalls(sessionID)
+}
+
+// QueuedPromptsList lists the prompts waiting to run: steered prompts
+// first, since they land in the running turn, then queued turns.
+func (a *sessionAgent) QueuedPromptsList(sessionID string) []string {
+	prompts := a.ccPendingPrompts(sessionID)
+	l, _ := a.messageQueue.Get(sessionID)
+	if len(prompts) == 0 && len(l) == 0 {
+		return nil
+	}
+	for _, call := range l {
+		prompts = append(prompts, call.Prompt)
 	}
 	return prompts
 }

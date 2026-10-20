@@ -136,6 +136,7 @@ func (a AgentInfo) IsZero() bool {
 // same session.
 type AgentMessage struct {
 	HiddenUserMessage bool         `json:"hidden_user_message,omitempty"`
+	Steer             bool         `json:"steer,omitempty"`
 	SessionID         string       `json:"session_id"`
 	RunID             string       `json:"run_id,omitempty"`
 	Channel           string       `json:"channel,omitempty"`

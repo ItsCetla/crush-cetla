@@ -7,6 +7,7 @@ type KeyMap struct {
 		SendMessage key.Binding
 		OpenEditor  key.Binding
 		Newline     key.Binding
+		Steer       key.Binding
 		AddImage    key.Binding
 		PasteImage  key.Binding
 		MentionFile key.Binding
@@ -139,6 +140,13 @@ func DefaultKeyMap() KeyMap {
 	km.Editor.SendMessage = key.NewBinding(
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "send"),
+	)
+	km.Editor.Steer = key.NewBinding(
+		key.WithKeys("ctrl+enter", "alt+enter"),
+		// Most terminals only report ctrl+enter with keyboard
+		// enhancements on; alt+enter works everywhere else. The help
+		// switches to ctrl+enter when the terminal supports it.
+		key.WithHelp("alt+enter", "steer running turn"),
 	)
 	km.Editor.OpenEditor = key.NewBinding(
 		key.WithKeys("ctrl+o"),

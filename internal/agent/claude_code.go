@@ -74,6 +74,13 @@ type ccRun struct {
 	stopReason string
 	finished   bool
 
+	// steered holds prompts written into the running turn that the CLI
+	// has not taken in yet, by message UUID. The session's Run goroutine
+	// adds to it while the event goroutine takes from it.
+	steerMu sync.Mutex
+	steered map[string]SessionAgentCall
+	order   []string
+
 	denied atomic.Bool
 	// questionReplies holds what each AskUserQuestion call's card shows,
 	// by tool use ID. canUseTool fills it on its own goroutine.
@@ -132,7 +139,13 @@ func (a *sessionAgent) runClaudeCode(
 		Images:         images,
 		Env:            claudecode.ChildEnv(os.Environ(), model.ClaudeKeepAPIKey),
 	}
-	handler := claudecode.Handler{OnEvent: r.onEvent, CanUseTool: r.canUseTool}
+	handler := claudecode.Handler{
+		OnEvent:    r.onEvent,
+		CanUseTool: r.canUseTool,
+		OnStart:    r.onStart,
+		OnSteer:    r.onSteer,
+	}
+	defer r.endSteering()
 
 	run := func(resume bool) (*claudecode.TurnResult, error) {
 		opts.Resume = resume
@@ -205,6 +218,93 @@ func (a *sessionAgent) runClaudeCode(
 	return &fantasy.AgentResult{
 		Response: fantasy.Response{Content: fantasy.ResponseContent{fantasy.TextContent{Text: final}}},
 	}, nil
+}
+
+// onStart lets prompts sent while the turn runs go to the CLI.
+func (r *ccRun) onStart(steer claudecode.SteerFunc) {
+	r.a.ccSteer.Set(r.call.SessionID, func(call SessionAgentCall) bool {
+		var images []claudecode.Image
+		for _, att := range call.Attachments {
+			if att.IsImage() && len(att.Content) > 0 {
+				images = append(images, claudecode.Image{MediaType: att.MimeType, Data: att.Content})
+			}
+		}
+		prompt := message.PromptWithTextAttachments(call.Prompt, call.Attachments)
+		r.steerMu.Lock()
+		defer r.steerMu.Unlock()
+		id, ok := steer(claudecode.UserContent(prompt, images))
+		if !ok {
+			return false
+		}
+		if r.steered == nil {
+			r.steered = map[string]SessionAgentCall{}
+		}
+		r.steered[id] = call
+		r.order = append(r.order, id)
+		return true
+	})
+	r.a.ccPending.Set(r.call.SessionID, r.pendingPrompts)
+}
+
+// pendingPrompts lists the steered prompts the CLI hasn't taken in yet,
+// oldest first.
+func (r *ccRun) pendingPrompts() []string {
+	r.steerMu.Lock()
+	defer r.steerMu.Unlock()
+	var prompts []string
+	for _, id := range r.order {
+		if call, ok := r.steered[id]; ok {
+			prompts = append(prompts, call.Prompt)
+		}
+	}
+	return prompts
+}
+
+// onSteer shows a steered prompt in the chat at the point the CLI took
+// it in.
+func (r *ccRun) onSteer(id string) error {
+	r.steerMu.Lock()
+	call, ok := r.steered[id]
+	delete(r.steered, id)
+	r.steerMu.Unlock()
+	if !ok {
+		return nil
+	}
+	if r.cur() != nil && !r.finished {
+		if err := r.finishMessage(); err != nil {
+			return err
+		}
+	}
+	_, err := r.a.createUserMessage(r.ctx, call)
+	return err
+}
+
+// endSteering stops taking steered prompts. Any the CLI never took in
+// run as their own turns next, unless the turn was canceled.
+func (r *ccRun) endSteering() {
+	r.a.ccSteer.Del(r.call.SessionID)
+	r.a.ccPending.Del(r.call.SessionID)
+	r.steerMu.Lock()
+	var left []SessionAgentCall
+	for _, id := range r.order {
+		if call, ok := r.steered[id]; ok {
+			call.Steer = false
+			left = append(left, call)
+		}
+	}
+	clear(r.steered)
+	r.order = nil
+	r.steerMu.Unlock()
+	if len(left) == 0 || r.genCtx.Err() != nil {
+		return
+	}
+	// Run takes the dispatch lock before a steer, so take it only after
+	// letting go of steerMu.
+	mu := r.a.sessionMu(r.call.SessionID)
+	mu.Lock()
+	defer mu.Unlock()
+	queued, _ := r.a.messageQueue.Get(r.call.SessionID)
+	r.a.messageQueue.Set(r.call.SessionID, append(left, queued...))
 }
 
 func cmpOr(vals ...string) string {

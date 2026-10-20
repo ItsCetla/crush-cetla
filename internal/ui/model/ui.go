@@ -1184,6 +1184,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.SupportsKeyDisambiguation() {
 			m.keyMap.Models.SetHelp("ctrl+m", "models")
 			m.keyMap.Editor.Newline.SetHelp("shift+enter", "newline")
+			m.keyMap.Editor.Steer.SetHelp("ctrl+enter", "steer running turn")
 		}
 	case copyChatHighlightMsg:
 		cmds = append(cmds, m.copyChatHighlight())
@@ -3200,7 +3201,10 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			case key.Matches(msg, m.keyMap.Editor.PasteText):
 				cmds = append(cmds, m.pasteTextFromClipboard)
 
-			case key.Matches(msg, m.keyMap.Editor.SendMessage):
+			case key.Matches(msg, m.keyMap.Editor.SendMessage), key.Matches(msg, m.keyMap.Editor.Steer):
+				// Enter while the agent works queues the prompt as the
+				// next turn; the steer key joins the running turn.
+				steer := key.Matches(msg, m.keyMap.Editor.Steer)
 				if m.modeSwitching {
 					cmds = append(cmds, util.ReportInfo("Switching input mode, one moment..."))
 					break
@@ -3255,7 +3259,7 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				m.randomizePlaceholders()
 				m.historyReset()
 
-				return tea.Batch(m.sendMessage(value, attachments...), m.loadPromptHistory())
+				return tea.Batch(m.sendPrompt(value, sendOptions{steer: steer}, attachments...), m.loadPromptHistory())
 			case key.Matches(msg, m.keyMap.Chat.NewSession):
 				if !m.hasSession() {
 					break
@@ -3977,6 +3981,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 		case uiFocusEditor:
 			editorBinds := []key.Binding{
 				k.Editor.Newline,
+				k.Editor.Steer,
 				k.Editor.MentionFile,
 				k.Editor.OpenEditor,
 				k.Editor.PasteText,
@@ -4053,6 +4058,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 			)
 			editorBinds := []key.Binding{
 				k.Editor.Newline,
+				k.Editor.Steer,
 				k.Editor.MentionFile,
 				k.Editor.OpenEditor,
 				k.Editor.PasteText,
@@ -5295,11 +5301,24 @@ func (m *UI) ensureSession() (tea.Cmd, error) {
 
 // sendMessage sends a message with the given content and attachments.
 func (m *UI) sendMessage(content string, attachments ...message.Attachment) tea.Cmd {
-	return m.sendMessageInternal(content, false, attachments...)
+	return m.sendPrompt(content, sendOptions{}, attachments...)
 }
 
 // sendMessageInternal can hide a generated continuation from the chat.
 func (m *UI) sendMessageInternal(content string, hidden bool, attachments ...message.Attachment) tea.Cmd {
+	return m.sendPrompt(content, sendOptions{hidden: hidden}, attachments...)
+}
+
+// sendOptions changes how sendPrompt submits a prompt.
+type sendOptions struct {
+	// hidden keeps a generated continuation out of the chat.
+	hidden bool
+	// steer joins the running turn instead of queueing behind it.
+	steer bool
+}
+
+func (m *UI) sendPrompt(content string, opts sendOptions, attachments ...message.Attachment) tea.Cmd {
+	hidden := opts.hidden
 	if err := m.com.Workspace.AgentReadyErr(); err != nil {
 		return util.ReportError(err)
 	}
@@ -5363,6 +5382,9 @@ func (m *UI) sendMessageInternal(content string, hidden bool, attachments ...mes
 		runCtx := context.Background()
 		if hidden {
 			runCtx = message.WithHiddenUserMessage(runCtx)
+		}
+		if opts.steer {
+			runCtx = message.WithSteer(runCtx)
 		}
 		err := m.com.Workspace.AgentRun(runCtx, sessionID, content, attachments...)
 		if errors.Is(err, context.Canceled) {

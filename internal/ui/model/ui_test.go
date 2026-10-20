@@ -131,6 +131,7 @@ type testWorkspace struct {
 	runPrompts        []string
 	yolo              bool
 	runHidden         []bool
+	runSteer          []bool
 	compactCalls      []bool
 }
 
@@ -174,7 +175,12 @@ func (w *testWorkspace) AgentReadyErr() error {
 func (w *testWorkspace) AgentRun(ctx context.Context, _ string, prompt string, _ ...message.Attachment) error {
 	w.runPrompts = append(w.runPrompts, prompt)
 	w.runHidden = append(w.runHidden, message.HiddenUserMessage(ctx))
+	w.runSteer = append(w.runSteer, message.Steer(ctx))
 	return nil
+}
+
+func (w *testWorkspace) ListUserMessages(context.Context, string) ([]message.Message, error) {
+	return nil, nil
 }
 
 func (w *testWorkspace) SetCompactMode(scope config.Scope, compact bool) error {
@@ -757,6 +763,40 @@ func TestGeneratedPlanContinuationIsHidden(t *testing.T) {
 	}
 	require.Equal(t, []bool{true, false}, ws.runHidden)
 	require.Equal(t, []string{"Implement the plan.", "Implement the plan."}, ws.runPrompts)
+}
+
+// Ctrl+Enter (or Alt+Enter where the terminal can't tell Ctrl+Enter
+// apart) steers the running turn; Enter sends a prompt of its own.
+func TestSteerKeysMarkThePrompt(t *testing.T) {
+	t.Parallel()
+	u, ws := newPlanUI(t, "sess-1")
+	ws.agentReady = true
+	u.keyMap = DefaultKeyMap()
+	u.state = uiChat
+	u.focus = uiFocusEditor
+	u.attachments = attachments.New(nil, attachments.Keymap{})
+	u.textarea.Focus()
+	var runAll func(tea.Cmd)
+	runAll = func(cmd tea.Cmd) {
+		if cmd == nil {
+			return
+		}
+		if batch, ok := cmd().(tea.BatchMsg); ok {
+			for _, c := range batch {
+				runAll(c)
+			}
+		}
+	}
+	for _, k := range []tea.KeyPressMsg{
+		{Code: tea.KeyEnter, Mod: tea.ModCtrl},
+		{Code: tea.KeyEnter, Mod: tea.ModAlt},
+		{Code: tea.KeyEnter},
+	} {
+		u.textarea.SetValue("go left")
+		runAll(u.handleKeyPressMsg(k))
+	}
+	require.Equal(t, []string{"go left", "go left", "go left"}, ws.runPrompts)
+	require.Equal(t, []bool{true, true, false}, ws.runSteer)
 }
 
 func TestToggleInputModeFromAutoGoesToManual(t *testing.T) {

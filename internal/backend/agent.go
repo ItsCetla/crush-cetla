@@ -93,6 +93,9 @@ func (b *Backend) runAgent(ws *Workspace, msg proto.AgentMessage, accept *agent.
 	if msg.HiddenUserMessage {
 		ctx = message.WithHiddenUserMessage(ctx)
 	}
+	if msg.Steer {
+		ctx = message.WithSteer(ctx)
+	}
 	if msg.RunID != "" {
 		ctx = agent.WithRunID(ctx, msg.RunID)
 	}

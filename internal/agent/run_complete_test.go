@@ -77,10 +77,10 @@ func TestDrainQueueForStep_FiltersUnderDispatchLock(t *testing.T) {
 
 	const sessionID = "drain-session"
 	a.messageQueue.Set(sessionID, []SessionAgentCall{
-		{SessionID: sessionID, Prompt: "below", acceptSeq: 1},
-		{SessionID: sessionID, Prompt: "at-mark", acceptSeq: 2},
-		{SessionID: sessionID, Prompt: "after", acceptSeq: 3},
-		{SessionID: sessionID, Prompt: "untracked", acceptSeq: 0},
+		{SessionID: sessionID, Prompt: "below", acceptSeq: 1, Steer: true},
+		{SessionID: sessionID, Prompt: "at-mark", acceptSeq: 2, Steer: true},
+		{SessionID: sessionID, Prompt: "after", acceptSeq: 3, Steer: true},
+		{SessionID: sessionID, Prompt: "untracked", acceptSeq: 0, Steer: true},
 	})
 	// Cancel high-water mark at seq 2: seq <= 2 and seq == 0 are covered.
 	a.cancelMark.Set(sessionID, 2)
@@ -98,7 +98,7 @@ func TestDrainQueueForStep_FiltersUnderDispatchLock(t *testing.T) {
 }
 
 // TestDrainQueueForStep_NoMarkFoldsAllNonRunID verifies that with no
-// cancel mark recorded, every queued call without a RunID is folded.
+// cancel mark recorded, every steer call without a RunID is folded.
 func TestDrainQueueForStep_NoMarkFoldsAllNonRunID(t *testing.T) {
 	t.Parallel()
 
@@ -110,8 +110,8 @@ func TestDrainQueueForStep_NoMarkFoldsAllNonRunID(t *testing.T) {
 
 	const sessionID = "drain-nomark"
 	a.messageQueue.Set(sessionID, []SessionAgentCall{
-		{SessionID: sessionID, Prompt: "a", acceptSeq: 0},
-		{SessionID: sessionID, Prompt: "b", acceptSeq: 5},
+		{SessionID: sessionID, Prompt: "a", acceptSeq: 0, Steer: true},
+		{SessionID: sessionID, Prompt: "b", acceptSeq: 5, Steer: true},
 	})
 
 	fold, canceledWithRunID := a.drainQueueForStep(sessionID)
@@ -137,8 +137,8 @@ func TestDrainQueueForStep_KeepsRunIDPromptsQueued(t *testing.T) {
 
 	const sessionID = "drain-runid"
 	a.messageQueue.Set(sessionID, []SessionAgentCall{
-		{SessionID: sessionID, Prompt: "fold-me", acceptSeq: 1},
-		{SessionID: sessionID, RunID: "run-a", Prompt: "keep-me", acceptSeq: 2},
+		{SessionID: sessionID, Prompt: "fold-me", acceptSeq: 1, Steer: true},
+		{SessionID: sessionID, RunID: "run-a", Prompt: "keep-me", acceptSeq: 2, Steer: true},
 		{SessionID: sessionID, RunID: "run-b", Prompt: "keep-me-too", acceptSeq: 3},
 	})
 
@@ -153,6 +153,99 @@ func TestDrainQueueForStep_KeepsRunIDPromptsQueued(t *testing.T) {
 	require.Len(t, kept, 2)
 	require.Equal(t, "run-a", kept[0].RunID)
 	require.Equal(t, "run-b", kept[1].RunID)
+}
+
+// TestDrainQueueForStep_KeepsPlainPromptsQueued verifies that a prompt
+// queued without steering waits for the active turn to finish instead of
+// folding into its next step.
+func TestDrainQueueForStep_KeepsPlainPromptsQueued(t *testing.T) {
+	t.Parallel()
+
+	env := testEnv(t)
+	a := NewSessionAgent(SessionAgentOptions{
+		Sessions: env.sessions,
+		Messages: env.messages,
+	}).(*sessionAgent)
+
+	const sessionID = "drain-plain"
+	a.messageQueue.Set(sessionID, []SessionAgentCall{
+		{SessionID: sessionID, Prompt: "later"},
+		{SessionID: sessionID, Prompt: "now", Steer: true},
+		{SessionID: sessionID, Prompt: "later-too"},
+	})
+
+	fold, _ := a.drainQueueForStep(sessionID)
+	require.Len(t, fold, 1)
+	require.Equal(t, "now", fold[0].Prompt)
+
+	kept, ok := a.messageQueue.Get(sessionID)
+	require.True(t, ok)
+	require.Len(t, kept, 2)
+	require.Equal(t, "later", kept[0].Prompt)
+	require.Equal(t, "later-too", kept[1].Prompt)
+}
+
+// TestSessionAgentRun_SteerGoesToClaudeCodeTurn verifies that a steered
+// prompt for a busy session goes to the running Claude Code turn when it
+// takes it, and is queued when it doesn't.
+func TestSessionAgentRun_SteerGoesToClaudeCodeTurn(t *testing.T) {
+	t.Parallel()
+
+	env := testEnv(t)
+	a := NewSessionAgent(SessionAgentOptions{
+		Sessions: env.sessions,
+		Messages: env.messages,
+	}).(*sessionAgent)
+
+	const sessionID = "cc-steer"
+	a.activeRequests.Set(sessionID, &activeCancel{cancel: func() {}})
+	var got []string
+	accept := true
+	a.ccSteer.Set(sessionID, func(call SessionAgentCall) bool {
+		got = append(got, call.Prompt)
+		return accept
+	})
+
+	run := func(call SessionAgentCall) {
+		call.SessionID = sessionID
+		res, err := a.Run(t.Context(), call)
+		require.NoError(t, err)
+		require.Nil(t, res)
+	}
+	run(SessionAgentCall{Prompt: "steered", Steer: true})
+	run(SessionAgentCall{Prompt: "plain"})
+	run(SessionAgentCall{Prompt: "with-run-id", RunID: "r1", Steer: true})
+	accept = false
+	run(SessionAgentCall{Prompt: "refused", Steer: true})
+
+	require.Equal(t, []string{"steered", "refused"}, got)
+	queued, _ := a.messageQueue.Get(sessionID)
+	var prompts []string
+	for _, q := range queued {
+		prompts = append(prompts, q.Prompt)
+	}
+	require.Equal(t, []string{"plain", "with-run-id", "refused"}, prompts)
+}
+
+// TestQueuedPrompts_ListsClaudeCodeSteersFirst verifies that steered
+// prompts the CLI hasn't taken in yet show in the queue ahead of queued
+// turns, and that clearing the queue leaves them alone.
+func TestQueuedPrompts_ListsClaudeCodeSteersFirst(t *testing.T) {
+	t.Parallel()
+
+	a := NewSessionAgent(SessionAgentOptions{}).(*sessionAgent)
+	const sessionID = "cc-pending"
+	require.Zero(t, a.QueuedPrompts(sessionID))
+	require.Nil(t, a.QueuedPromptsList(sessionID))
+
+	a.ccPending.Set(sessionID, func() []string { return []string{"steer-1", "steer-2"} })
+	a.messageQueue.Set(sessionID, []SessionAgentCall{{SessionID: sessionID, Prompt: "next"}})
+
+	require.Equal(t, 3, a.QueuedPrompts(sessionID))
+	require.Equal(t, []string{"steer-1", "steer-2", "next"}, a.QueuedPromptsList(sessionID))
+
+	a.ClearQueue(sessionID)
+	require.Equal(t, []string{"steer-1", "steer-2"}, a.QueuedPromptsList(sessionID))
 }
 
 // TestDrainQueueForStep_ReportsCanceledRunIDDrops verifies that a queued

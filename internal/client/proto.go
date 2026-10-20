@@ -501,6 +501,7 @@ func (c *Client) SetMainAgent(ctx context.Context, id, agentID string) error {
 func (c *Client) SendMessage(ctx context.Context, id string, sessionID, runID, channel, prompt string, attachments ...message.Attachment) error {
 	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/agent", id), nil, jsonBody(proto.AgentMessage{
 		HiddenUserMessage: message.HiddenUserMessage(ctx),
+		Steer:             message.Steer(ctx),
 		SessionID:         sessionID,
 		RunID:             runID,
 		Channel:           channel,
