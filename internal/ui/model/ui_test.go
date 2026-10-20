@@ -199,6 +199,9 @@ func TestToggleInputMode(t *testing.T) {
 	t.Parallel()
 	ui, ws := newPlanUI(t, "sess-1")
 	ui.mode = uiInputModeCode
+	// Without a control hub the cycle skips Edits:
+	// Manual -> Plan -> Auto -> Manual.
+	ui.ctl.unavailable = true
 	for _, want := range []struct {
 		mode    uiInputMode
 		yolo    bool
@@ -817,10 +820,13 @@ func TestToggleInputModeFromAutoGoesToManual(t *testing.T) {
 
 func TestPermissionModeOf(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, permissionModeManual, permissionModeOf(uiInputModeCode, false))
-	require.Equal(t, permissionModeAuto, permissionModeOf(uiInputModeCode, true))
-	require.Equal(t, permissionModePlan, permissionModeOf(uiInputModePlan, false))
-	require.Equal(t, permissionModePlan, permissionModeOf(uiInputModePlan, true), "planning wins over Auto")
+	require.Equal(t, permissionModeManual, permissionModeOf(uiInputModeCode, false, false))
+	require.Equal(t, permissionModeAuto, permissionModeOf(uiInputModeCode, true, false))
+	require.Equal(t, permissionModePlan, permissionModeOf(uiInputModePlan, false, false))
+	require.Equal(t, permissionModePlan, permissionModeOf(uiInputModePlan, true, false), "planning wins over Auto")
+	require.Equal(t, permissionModeEdits, permissionModeOf(uiInputModeCode, false, true))
+	require.Equal(t, permissionModeAuto, permissionModeOf(uiInputModeCode, true, true), "Auto wins over Edits")
+	require.Equal(t, permissionModePlan, permissionModeOf(uiInputModePlan, false, true), "planning wins over Edits")
 }
 
 func TestToggleAutoMode(t *testing.T) {

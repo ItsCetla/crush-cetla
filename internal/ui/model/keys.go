@@ -95,6 +95,11 @@ type KeyMap struct {
 	Tab        key.Binding
 	ToggleYolo key.Binding
 	ShiftTab   key.Binding
+	// TakeBack turns Auto and Edits off and denies anything waiting. It
+	// works while the agent is busy and over any dialog.
+	TakeBack key.Binding
+	// Control opens the control cockpit.
+	Control key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -134,6 +139,14 @@ func DefaultKeyMap() KeyMap {
 		ShiftTab: key.NewBinding(
 			key.WithKeys("shift+tab"),
 			key.WithHelp("shift+tab", "mode"),
+		),
+		TakeBack: key.NewBinding(
+			key.WithKeys("ctrl+q"),
+			key.WithHelp("ctrl+q", "take back"),
+		),
+		Control: key.NewBinding(
+			key.WithKeys("ctrl+\\", "alt+c"),
+			key.WithHelp("ctrl+\\", "control"),
 		),
 	}
 

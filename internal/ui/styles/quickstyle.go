@@ -1173,6 +1173,27 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Status.ModeBannerPlan = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.planMoreSubtle).Padding(0, 1)
 	s.Status.ModeBannerYoloBadge = s.Status.ModeBadgeYolo
 	s.Status.ModeBannerYolo = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.yolo).Padding(0, 1)
+	s.Status.ModeBadgeEdits = modeBadge.Foreground(o.bgBase).Background(o.info).SetString("EDITS")
+	s.Status.ModeBannerEditsBadge = s.Status.ModeBadgeEdits
+	s.Status.ModeBannerEdits = lipgloss.NewStyle().Foreground(o.fgBase).Background(o.infoMostSubtle).Padding(0, 1)
+	s.Status.CostPill = lipgloss.NewStyle().Foreground(o.fgMoreSubtle).Padding(0, 1)
+	s.Status.CostPillWarn = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.warning).Padding(0, 1)
+	s.Status.CostPillOver = lipgloss.NewStyle().Foreground(o.onPrimary).Background(o.destructive).Padding(0, 1)
+
+	s.Control.Allowed = lipgloss.NewStyle().Foreground(o.success)
+	s.Control.Denied = lipgloss.NewStyle().Foreground(o.destructive)
+	s.Control.Canceled = lipgloss.NewStyle().Foreground(o.warning)
+	s.Control.On = lipgloss.NewStyle().Foreground(o.success).Bold(true)
+	s.Control.Off = lipgloss.NewStyle().Foreground(o.fgMoreSubtle)
+	s.Control.Alert = lipgloss.NewStyle().Foreground(o.destructive).Bold(true)
+	s.Control.Warn = lipgloss.NewStyle().Foreground(o.warning)
+	s.Control.Label = lipgloss.NewStyle().Foreground(o.fgMoreSubtle)
+	s.Control.Value = lipgloss.NewStyle().Foreground(o.fgBase)
+	s.Control.Muted = lipgloss.NewStyle().Foreground(o.fgMostSubtle)
+	s.Control.Pip = lipgloss.NewStyle().Foreground(o.primary)
+	s.Control.PipEmpty = lipgloss.NewStyle().Foreground(o.bgMostVisible)
+	s.Control.Tab = lipgloss.NewStyle().Foreground(o.fgMoreSubtle).Padding(0, 1)
+	s.Control.TabOn = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.primary).Bold(true).Padding(0, 1)
 	s.Status.SuccessIndicator = base.Foreground(o.bgLessVisible).Background(o.success).Padding(0, 1).Bold(true).SetString("OKAY!")
 	s.Status.InfoIndicator = s.Status.SuccessIndicator
 	s.Status.WarnIndicator = s.Status.SuccessIndicator.Foreground(o.bgMostVisible).Background(o.warning).SetString("WARNING")

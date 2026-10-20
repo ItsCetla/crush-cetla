@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/control"
+
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/proto"
@@ -603,6 +605,27 @@ func (c *Client) AgentMagicContextCommand(ctx context.Context, id, sessionID, na
 		return "", fmt.Errorf("failed to decode magic context response: %w", err)
 	}
 	return resp.Text, nil
+}
+
+// Control runs a control hub command. A command the hub refused returns
+// its reason as the error.
+func (c *Client) Control(ctx context.Context, id string, cmd control.Command) (control.Reply, error) {
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/control", id), nil, jsonBody(cmd), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return control.Reply{}, fmt.Errorf("failed to run control command: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return control.Reply{}, fmt.Errorf("failed to run control command: status code %d", rsp.StatusCode)
+	}
+	var resp proto.ControlResponse
+	if err := json.NewDecoder(rsp.Body).Decode(&resp); err != nil {
+		return control.Reply{}, fmt.Errorf("failed to decode control response: %w", err)
+	}
+	if resp.Error != "" {
+		return resp.Reply, errors.New(resp.Error)
+	}
+	return resp.Reply, nil
 }
 
 // InitiateAgentProcessing triggers agent initialization on the server.

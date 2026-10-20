@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/control"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/agent"
 	mcptools "github.com/charmbracelet/crush/internal/agent/tools/mcp"
@@ -293,6 +295,11 @@ func (w *AppWorkspace) PermissionSkipRequests() bool {
 
 func (w *AppWorkspace) PermissionSetSkipRequests(skip bool) {
 	w.app.Permissions.SetSkipRequests(skip)
+}
+
+// Control runs a control hub command.
+func (w *AppWorkspace) Control(ctx context.Context, c control.Command) (control.Reply, error) {
+	return w.app.Control.Do(ctx, c)
 }
 
 // -- Questions --

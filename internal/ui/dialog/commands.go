@@ -571,6 +571,11 @@ func (c *Commands) defaultCommands() []*CommandItem {
 
 	commands = append(commands, NewCommandItem(c.com.Styles, "switch_theme", "Themes", "", ActionOpenDialog{ThemeID}))
 
+	commands = append(commands,
+		NewCommandItem(c.com.Styles, "open_control", "Open Control Cockpit", "ctrl+\\", ActionOpenControl{}).WithAliases("control", "cockpit", "cost", "missions", "actions"),
+		NewCommandItem(c.com.Styles, "take_back", "Take Back Control", "ctrl+q", ActionTakeBack{}).WithAliases("stop", "manual"),
+	)
+
 	if cfg == nil || cfg.Options.ArtifactsEnabled() {
 		commands = append(commands, NewCommandItem(c.com.Styles, "open_artifacts", "Open Artifacts Gallery", "", ActionOpenArtifacts{}).WithAliases("artifacts"))
 	}

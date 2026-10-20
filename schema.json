@@ -55,6 +55,43 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "BudgetOptions": {
+      "properties": {
+        "daily": {
+          "type": "number",
+          "description": "Daily budget in US dollars. When today's counted spend reaches it, Ta-Da asks before the next model call",
+          "examples": [
+            5
+          ]
+        },
+        "monthly": {
+          "type": "number",
+          "description": "Monthly budget in US dollars",
+          "examples": [
+            50
+          ]
+        },
+        "session": {
+          "type": "number",
+          "description": "Budget for one session in US dollars",
+          "examples": [
+            2
+          ]
+        },
+        "warn_at": {
+          "items": {
+            "type": "integer",
+            "examples": [
+              80
+            ]
+          },
+          "type": "array",
+          "description": "Percentages of a budget that show a warning. Defaults to 50, 75 and 90"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Completions": {
       "properties": {
         "max_depth": {
@@ -132,6 +169,10 @@
           },
           "type": "object",
           "description": "Environment variables to set on startup"
+        },
+        "machines": {
+          "$ref": "#/$defs/Machines",
+          "description": "Computers on your network that serve models, and how many agents each can run at once"
         }
       },
       "additionalProperties": false,
@@ -613,6 +654,85 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "MachineConfig": {
+      "properties": {
+        "hardware": {
+          "type": "string",
+          "description": "What the machine is, shown to the AI",
+          "examples": [
+            "M1 Max 64GB"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "OpenAI-compatible base URL of the machine's model server",
+          "examples": [
+            "http://192.168.1.20:11434/v1"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "description": "Server type: openai-compat, ollama, lmstudio, llamacpp, omlx or litellm",
+          "default": "openai-compat"
+        },
+        "api_key": {
+          "type": "string",
+          "description": "API key for the server, if it needs one"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model agents on this machine use. Empty uses the first model the server reports",
+          "examples": [
+            "qwen2.5-coder:14b"
+          ]
+        },
+        "context_window": {
+          "type": "integer",
+          "description": "Context window to assume when the server doesn't report one",
+          "examples": [
+            32768
+          ]
+        },
+        "slots": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many agents the machine can run at once",
+          "default": 1
+        },
+        "tags": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "fast",
+              "code"
+            ]
+          },
+          "type": "array",
+          "description": "What the machine is good at, shown to the AI"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Anything else the AI should know about the machine"
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "Keep the machine configured but don't use it",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    },
+    "Machines": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MachineConfig"
+      },
+      "type": "object"
+    },
     "MagicContextOptions": {
       "properties": {
         "enabled": {
@@ -1038,6 +1158,10 @@
         "artifacts": {
           "$ref": "#/$defs/ArtifactsOptions",
           "description": "Artifacts: HTML pages, Markdown documents and slide decks the agent publishes to a local viewer on 127.0.0.1"
+        },
+        "budget": {
+          "$ref": "#/$defs/BudgetOptions",
+          "description": "Spend budgets. When counted spend reaches a limit Ta-Da asks before the next model call. Flat-rate plans are not counted"
         }
       },
       "additionalProperties": false,
@@ -1066,6 +1190,27 @@
           },
           "type": "array",
           "description": "File-writing tools that don't require permission prompts when the file is inside the project. Supported: edit, multiedit, write, lsp_replace_symbol"
+        },
+        "always_ask": {
+          "items": {
+            "type": "string",
+            "examples": [
+              "delete",
+              "network"
+            ]
+          },
+          "type": "array",
+          "description": "Action classes that always ask, even in Auto and Edits mode and after allow for session. Classes: read, write, outside, network, delete. Spend always asks",
+          "default": [
+            "delete"
+          ]
+        },
+        "auto_budget": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object",
+          "description": "Per-session cap on actions of a class that Auto and Edits mode approve before asking again. Keys are classes such as network or outside"
         }
       },
       "additionalProperties": false,

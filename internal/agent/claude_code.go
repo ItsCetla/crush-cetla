@@ -11,12 +11,15 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/claudecode"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/session"
@@ -73,6 +76,7 @@ type ccRun struct {
 	blocks     map[int]*ccBlock
 	tools      map[string]ccToolUse
 	usage      claudecode.Usage
+	turnUsage  fantasy.Usage
 	stopReason string
 	finished   bool
 
@@ -122,6 +126,13 @@ func (a *sessionAgent) runClaudeCode(
 		}
 	}
 
+	if err := a.checkBudget(ctx, call.SessionID); err != nil {
+		if ensureErr := r.ensureAssistant(); ensureErr != nil {
+			return nil, ensureErr
+		}
+		return nil, budgetError(err)
+	}
+
 	ccSession := claudecode.SessionUUID(call.SessionID)
 	_, known := ccKnownSessions.Load(ccSession)
 	resume := known || claudecode.SessionExists(ccSession)
@@ -141,7 +152,7 @@ func (a *sessionAgent) runClaudeCode(
 		SessionID:      ccSession,
 		Images:         images,
 		Env:            claudecode.ChildEnv(os.Environ(), model.ClaudeKeepAPIKey),
-		ExtraArgs:      a.ccExtraArgs,
+		ExtraArgs:      a.claudeCodeArgs(call.SessionID),
 	}
 	handler := claudecode.Handler{
 		OnEvent:    r.onEvent,
@@ -193,6 +204,7 @@ func (a *sessionAgent) runClaudeCode(
 		if model.ClaudeKeepAPIKey && ev.TotalCostUSD > 0 {
 			r.addCost(ev.TotalCostUSD)
 		}
+		r.recordTurnUsage(ev.TotalCostUSD)
 		if ev.IsError && !r.denied.Load() {
 			if err := r.ensureAssistant(); err != nil {
 				return nil, err
@@ -613,12 +625,17 @@ func (r *ccRun) finishMessage() error {
 		r.sessionLock.Unlock()
 		return err
 	}
-	r.a.updateSessionUsage(r.model, &s, fantasy.Usage{
+	msgUsage := fantasy.Usage{
 		InputTokens:         r.usage.InputTokens,
 		OutputTokens:        r.usage.OutputTokens,
 		CacheReadTokens:     r.usage.CacheReadInputTokens,
 		CacheCreationTokens: r.usage.CacheCreationInputTokens,
-	}, nil, false)
+	}
+	r.turnUsage.InputTokens += msgUsage.InputTokens
+	r.turnUsage.OutputTokens += msgUsage.OutputTokens
+	r.turnUsage.CacheReadTokens += msgUsage.CacheReadTokens
+	r.turnUsage.CacheCreationTokens += msgUsage.CacheCreationTokens
+	r.a.updateSessionUsage(r.model, &s, msgUsage, nil, false)
 	s, err = r.a.sessions.Save(r.ctx, s)
 	if err == nil {
 		*r.currentSession = s
@@ -628,6 +645,30 @@ func (r *ccRun) finishMessage() error {
 		return err
 	}
 	return r.updateDetached()
+}
+
+// recordTurnUsage adds the turn to the usage ledger. With an API key the
+// CLI's own cost is an estimate of the bill; on a subscription it's
+// what the turn would cost at API prices, kept apart as flat.
+func (r *ccRun) recordTurnUsage(cliCost float64) {
+	a := r.a
+	if a.control == nil || usageIsZero(r.turnUsage) && cliCost <= 0 {
+		return
+	}
+	row := usageRow(r.model, r.call.SessionID, "chat", r.turnUsage, nil, false)
+	row.Provider = "claude-code"
+	if cliCost > 0 {
+		row.Cost = cliCost
+	}
+	row.Pricing = control.PricingFlat
+	if r.model.ClaudeKeepAPIKey {
+		row.Pricing = control.PricingEstimate
+		if cliCost <= 0 {
+			row.Pricing = control.PricingUnpriced
+			row.Cost = 0
+		}
+	}
+	a.control.RecordUsage(row)
 }
 
 func (r *ccRun) addCost(cost float64) {
@@ -736,6 +777,19 @@ func (r *ccRun) canUseTool(ctx context.Context, req claudecode.PermissionRequest
 		return claudecode.Decision{Message: "Ta-Da has shown your plan to the user. Stop here and end your turn; the user will switch out of plan mode when they want it carried out."}
 	case "AskUserQuestion":
 		return r.ccAskUser(ctx, req)
+	case "mcp__tada-mission__" + control.MissionToolName:
+		// The mission tool only writes the session's mission file.
+		return claudecode.Decision{Allow: true}
+	case "mcp__" + fleet.MCPServerName + "__" + fleet.AskToolName:
+		// Machines are ones the user set up to take this work, like the
+		// agent tool's machine runs, which don't ask either.
+		return claudecode.Decision{Allow: true}
+	case "mcp__" + fleet.MCPServerName + "__" + fleet.ToolName:
+		var p fleet.Params
+		_ = json.Unmarshal(req.Input, &p)
+		if !p.Changes() {
+			return claudecode.Decision{Allow: true}
+		}
 	}
 	if req.ToolName == "Bash" {
 		var in struct {
@@ -751,6 +805,7 @@ func (r *ccRun) canUseTool(ctx context.Context, req claudecode.PermissionRequest
 		return claudecode.Decision{Message: "Ta-Da has no permission service for this session.", Interrupt: true}
 	}
 	name, action, description, path, params := ccPermission(req, r.a.workDir)
+	asked := time.Now()
 	ok, err := r.a.permissions.Request(ctx, permission.CreatePermissionRequest{
 		SessionID:   r.call.SessionID,
 		ToolCallID:  req.ToolUseID,
@@ -762,6 +817,9 @@ func (r *ccRun) canUseTool(ctx context.Context, req claudecode.PermissionRequest
 	})
 	if err != nil || !ok {
 		r.denied.Store(true)
+		if permission.TakenBackSince(r.a.permissions, asked) {
+			return claudecode.Decision{Message: "The person took control back. Stop and ask them before trying again.", Interrupt: true}
+		}
 		return claudecode.Decision{Message: "The user denied permission for this tool call.", Interrupt: true}
 	}
 	return claudecode.Decision{Allow: true}

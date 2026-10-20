@@ -9,6 +9,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/control"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/catwalk/pkg/catwalk"
 	mcptools "github.com/charmbracelet/crush/internal/agent/tools/mcp"
@@ -187,6 +189,10 @@ type Workspace interface {
 	PermissionDeny(perm permission.PermissionRequest) bool
 	PermissionSkipRequests() bool
 	PermissionSetSkipRequests(skip bool)
+
+	// Control runs a control hub command: snapshots, take back, the
+	// Edits mode, usage reports and missions.
+	Control(ctx context.Context, c control.Command) (control.Reply, error)
 
 	// Questions
 	//

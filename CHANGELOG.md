@@ -7,6 +7,41 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-10-20
+
+### Added
+
+- **Machines.** Tell Ta-Da about other computers on your network that run
+  models and how many agents each can run at once (`machine add` in
+  `tadarc`, `tada machines add`, or just tell the AI). The AI hands them
+  side work through the `agent` tool's `machine` parameter, or the
+  `machine_ask` tool with the Claude Code engine. `tada machines` shows
+  which are online and how many slots are free.
+- **Graded permissions.** Every permission request is graded as read,
+  write, outside, network, delete or spend, and the prompt says what kind
+  of action it is and why it's asking. `permissions.always_ask` (default
+  `delete`) makes a class ask even in Auto and after "allow for session";
+  `permissions.auto_budget` caps how many actions of a class Auto approves
+  per session.
+- **Edits mode.** A fourth permission mode between Plan and Auto that
+  approves file edits inside the project and asks for everything else.
+  Shift+Tab now cycles Manual, Plan, Edits, Auto.
+- **Take back control.** Ctrl+Q turns Auto and Edits off, forgets
+  session approvals and denies the waiting request, from any screen.
+- **Action log.** Every request and what happened to it (asked, approved
+  by you, a rule or a mode, denied) is logged per project.
+- **Control cockpit.** Ctrl+\ or Alt+C opens a cockpit with Overview,
+  Cost, Actions and Missions pages.
+- **Budgets.** `options.budget` sets daily, monthly and per-session spend
+  limits in dollars, with warnings at `warn_at` percentages. Reaching one
+  asks before the next model call. The status bar shows today's spend.
+- **Missions.** Goals with a checklist of done criteria that outlive a
+  session. The agent manages them with the new `mission` tool (also
+  offered to Claude Code engine sessions), you manage them in the cockpit,
+  and the active one shows in the sidebar.
+- **`tada status`.** Prints spend, budgets, recent actions and missions
+  once and exits. `--plain` is ASCII only, `--json` is for scripts.
+
 ## [0.5.1] - 2026-10-20
 
 ### Security
@@ -320,7 +355,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/ItsCetla/tada/compare/v0.5.1...v0.5.5
 [0.5.1]: https://github.com/ItsCetla/tada/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ItsCetla/tada/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/ItsCetla/tada/compare/v0.4.2...v0.4.3

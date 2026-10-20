@@ -121,6 +121,7 @@ Available Commands:
   mcp           Manage MCP servers
   lsp           Manage language servers
   hook          Manage hooks
+  machine       Declare other computers that run models
   permissions   Configure tool permissions
   option        Configure general Ta-Da behavior
 ```
@@ -415,6 +416,62 @@ Usage:
 
 Flags:
       --name string              remove hooks with this name
+```
+
+### machine
+
+Declare other computers on your network that serve models, and how many
+agents each can run at once. Ta-Da tells the AI about them and hands them
+side work. See [Machines](../../README.md#machines) for how they're used.
+
+```text
+Usage:
+  machine [command]
+
+Available Commands:
+  add       Add or update a machine
+  remove    Remove a machine
+  rm        Alias for remove
+```
+
+#### `machine add`
+
+Add a machine. Calling it again with the same name updates that machine.
+Leave out `--model` and Ta-Da uses the first model the server lists.
+
+```text
+Usage:
+  machine add <name> --url <url> [flags]
+
+Flags:
+      --url string               OpenAI-compatible base URL (required)
+      --type string              openai-compat, ollama, lmstudio, llamacpp,
+                                 omlx or litellm (default openai-compat)
+      --model string             model the machine's agents run
+      --slots int                agents it runs at once (default 1)
+      --hardware string          what it is, e.g. "M1 Max, 32 GB"
+      --api-key string           API key, if the server needs one
+      --context-window int       context window when the server doesn't say
+      --tag string               what it's good at (repeatable)
+      --notes string             anything else the AI should know
+      --disabled bool            keep it listed but don't use it
+```
+
+```bash
+machine add m1 --url "http://192.168.1.20:11434/v1" --type ollama \
+  --model qwen2.5-coder:14b --slots 4 --hardware "M1 Max"
+machine add pc --url "http://192.168.1.30:11434/v1" --type ollama \
+  --slots 2 --hardware "RTX 3060 Ti" --tag tests --tag docs
+```
+
+#### `machine remove`
+
+Remove a machine.
+
+```text
+Usage:
+  machine remove <name>
+  machine rm <name>
 ```
 
 ### permissions

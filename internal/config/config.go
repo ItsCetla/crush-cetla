@@ -475,6 +475,12 @@ type Permissions struct {
 	// ProjectAllowedTools run without a prompt only when the file they
 	// write resolves inside the working directory.
 	ProjectAllowedTools []string `json:"project_allowed_tools,omitempty" jsonschema:"description=File-writing tools that don't require permission prompts when the file is inside the project. Supported: edit\\, multiedit\\, write\\, lsp_replace_symbol,example=edit,example=write"`
+	// AlwaysAsk lists action classes that ask even in Auto and Edits mode.
+	// Nil means the default (delete); an empty list turns it off.
+	AlwaysAsk []string `json:"always_ask,omitempty" jsonschema:"description=Action classes that always ask\\, even in Auto and Edits mode and after allow for session. Classes: read\\, write\\, outside\\, network\\, delete. Spend always asks,default=delete,example=delete,example=network"`
+	// AutoBudget caps, per session, how many actions of a class Auto and
+	// Edits mode approve before asking again.
+	AutoBudget map[string]int `json:"auto_budget,omitempty" jsonschema:"description=Per-session cap on actions of a class that Auto and Edits mode approve before asking again. Keys are classes such as network or outside"`
 }
 
 type TrailerStyle string
@@ -546,6 +552,8 @@ type Options struct {
 	MagicContext *MagicContextOptions `json:"magic_context,omitempty" jsonschema:"description=Magic Context: background historian\\, ctx_reduce drops\\, project memory and search. Replaces auto-summarize when enabled"`
 	// Artifacts configures the artifact tools and their local viewer.
 	Artifacts *ArtifactsOptions `json:"artifacts,omitempty" jsonschema:"description=Artifacts: HTML pages\\, Markdown documents and slide decks the agent publishes to a local viewer on 127.0.0.1"`
+	// Budget caps counted model spend. See BudgetOptions.
+	Budget *BudgetOptions `json:"budget,omitempty" jsonschema:"description=Spend budgets. When counted spend reaches a limit Ta-Da asks before the next model call. Flat-rate plans are not counted"`
 }
 
 // webTools are the built-in tools that make outbound network requests on
@@ -953,6 +961,10 @@ type Config struct {
 	// Env is a map of environment variables set on startup.
 	Env map[string]string `json:"env,omitempty" jsonschema:"description=Environment variables to set on startup"`
 
+	// Machines are computers on the user's network that serve models, and
+	// how many agents each can run at once.
+	Machines Machines `json:"machines,omitempty" jsonschema:"description=Computers on your network that serve models\\, and how many agents each can run at once"`
+
 	// OpenCodeCommands are the custom commands imported from OpenCode. They
 	// are set on every load (never read from config files) and travel with
 	// the config so clients see them too.
@@ -1184,6 +1196,8 @@ func allToolNames() []string {
 		"artifact",
 		"artifact_data",
 		"artifact_comments",
+		"mission",
+		"machines",
 	}
 }
 
@@ -1212,6 +1226,7 @@ func resolvePlanTools(tools []string) []string {
 		"lsp_call_hierarchy",
 		"lsp_definition",
 		"lsp_symbols",
+		"mission",
 		"question",
 		"sourcegraph",
 		"view",

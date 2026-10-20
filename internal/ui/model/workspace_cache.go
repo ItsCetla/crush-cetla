@@ -322,6 +322,9 @@ func (m *UI) staleWorkspaceRefreshCmds() []tea.Cmd {
 			cmds = append(cmds, cmd)
 		}
 	}
+	if cmd := m.staleControlRefreshCmd(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 	return cmds
 }
 

@@ -3,6 +3,7 @@ package dialog
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -239,16 +240,17 @@ func (p *Permissions) HandleMsg(msg tea.Msg) Action {
 			// Escape denies the permission request.
 			return p.respond(PermissionDeny)
 		case key.Matches(msg, p.keyMap.Right), key.Matches(msg, p.keyMap.Tab):
-			p.selectedOption = (p.selectedOption + 1) % 3
+			p.moveOption(1)
 		case key.Matches(msg, p.keyMap.Left):
-			// Add 2 instead of subtracting 1 to avoid negative modulo.
-			p.selectedOption = (p.selectedOption + 2) % 3
+			p.moveOption(-1)
 		case key.Matches(msg, p.keyMap.Select):
 			return p.selectCurrentOption()
 		case key.Matches(msg, p.keyMap.Allow):
 			return p.respond(PermissionAllow)
 		case key.Matches(msg, p.keyMap.AllowSession):
-			return p.respond(PermissionAllowForSession)
+			if p.sessionAllowed() {
+				return p.respond(PermissionAllowForSession)
+			}
 		case key.Matches(msg, p.keyMap.Deny):
 			return p.respond(PermissionDeny)
 		case key.Matches(msg, p.keyMap.ToggleDiffMode):
@@ -299,6 +301,28 @@ func (p *Permissions) HandleMsg(msg tea.Msg) Action {
 	}
 
 	return nil
+}
+
+// sessionAllowed reports whether "Allow for Session" is offered. Requests
+// that always ask (by policy, or because they spend past a budget) would
+// ask again anyway, so the option would only mislead.
+func (p *Permissions) sessionAllowed() bool {
+	return !p.permission.AlwaysAsk && p.permission.Class != permission.ClassSpend
+}
+
+// options returns the offered options as selectedOption values.
+func (p *Permissions) options() []int {
+	if p.sessionAllowed() {
+		return []int{0, 1, 2}
+	}
+	return []int{0, 2}
+}
+
+// moveOption moves the selection by delta, wrapping around.
+func (p *Permissions) moveOption(delta int) {
+	opts := p.options()
+	i := max(0, slices.Index(opts, p.selectedOption))
+	p.selectedOption = opts[(i+delta+len(opts))%len(opts)]
 }
 
 func (p *Permissions) selectCurrentOption() tea.Msg {
@@ -448,7 +472,11 @@ func (p *Permissions) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 func (p *Permissions) renderHeader(contentWidth int) string {
 	t := p.com.Styles
 
-	title := common.DialogTitle(t, "Permission Required", contentWidth-t.Dialog.Title.GetHorizontalFrameSize(), t.Dialog.TitleGradFromColor, t.Dialog.TitleGradToColor)
+	heading := "Permission Required"
+	if p.permission.ToolName == permission.BudgetToolName {
+		heading = "Budget Reached"
+	}
+	title := common.DialogTitle(t, heading, contentWidth-t.Dialog.Title.GetHorizontalFrameSize(), t.Dialog.TitleGradFromColor, t.Dialog.TitleGradToColor)
 	title = t.Dialog.Title.Render(title)
 
 	// Tool info.
@@ -456,8 +484,18 @@ func (p *Permissions) renderHeader(contentWidth int) string {
 
 	lines := []string{title, "", toolLine}
 
+	// What kind of action this is, and why it asks.
+	if c := p.permission.Class; c.Valid() {
+		lines = append(lines, p.renderKeyValue("Kind", c.Label(), contentWidth))
+	}
+	if r := p.permission.Reason; r != "" {
+		lines = append(lines, p.renderKeyValue("Why", r, contentWidth))
+	}
+
 	// Show generic Path only for tools that don't render their own file/path line.
 	switch p.permission.ToolName {
+	case permission.BudgetToolName:
+		// A budget check has no path.
 	case tools.EditToolName, tools.WriteToolName, tools.MultiEditToolName,
 		tools.ViewToolName, tools.ReplaceSymbolToolName,
 		tools.DownloadToolName, tools.LSToolName:
@@ -516,6 +554,9 @@ func (p *Permissions) renderKeyValue(key, value string, width int) string {
 
 func (p *Permissions) renderToolName(width int) string {
 	toolName := p.permission.ToolName
+	if toolName == permission.BudgetToolName {
+		return p.renderKeyValue("Tool", "Spending budget", width)
+	}
 
 	// Check if this is an MCP tool (format: mcp_<mcpname>_<toolname>).
 	if strings.HasPrefix(toolName, "mcp_") {
@@ -781,9 +822,11 @@ func (p *Permissions) renderContentPanel(content string, width int) string {
 func (p *Permissions) renderButtons(contentWidth int, fullscreen bool) string {
 	buttons := []common.ButtonOpts{
 		{Text: "Allow", UnderlineIndex: 0, Selected: p.selectedOption == 0},
-		{Text: "Allow for Session", UnderlineIndex: 10, Selected: p.selectedOption == 1},
-		{Text: "Deny", UnderlineIndex: 0, Selected: p.selectedOption == 2},
 	}
+	if p.sessionAllowed() {
+		buttons = append(buttons, common.ButtonOpts{Text: "Allow for Session", UnderlineIndex: 10, Selected: p.selectedOption == 1})
+	}
+	buttons = append(buttons, common.ButtonOpts{Text: "Deny", UnderlineIndex: 0, Selected: p.selectedOption == 2})
 
 	content := common.ButtonGroup(p.com.Styles, buttons, "  ")
 

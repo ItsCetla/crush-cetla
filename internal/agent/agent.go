@@ -288,7 +288,9 @@ type sessionAgent struct {
 	questions   question.Service
 	planMode    bool
 	workDir     string
-	ccExtraArgs []string
+	ccExtraArgs func(sessionID string) []string
+	// control records usage, gates budgets and supplies the mission.
+	control Control
 }
 
 type SessionAgentOptions struct {
@@ -310,9 +312,11 @@ type SessionAgentOptions struct {
 	Questions            question.Service
 	PlanMode             bool
 	WorkDir              string
-	// ClaudeCodeArgs are extra arguments for the Claude Code CLI, such as
-	// the --mcp-config that gives it the artifact tools.
-	ClaudeCodeArgs []string
+	// ClaudeCodeArgs returns extra arguments for the Claude Code CLI for
+	// a session, such as --mcp-config for Ta-Da's own tools.
+	ClaudeCodeArgs func(sessionID string) []string
+	// Control is the control hub: usage ledger, budgets and missions.
+	Control Control
 }
 
 func NewSessionAgent(
@@ -345,6 +349,7 @@ func NewSessionAgent(
 		planMode:             opts.PlanMode,
 		workDir:              opts.WorkDir,
 		ccExtraArgs:          opts.ClaudeCodeArgs,
+		control:              opts.Control,
 	}
 }
 
@@ -839,6 +844,9 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	if s := instructions.String(); s != "" {
 		systemPrompt += "\n\n<mcp-instructions>\n" + s + "\n</mcp-instructions>"
 	}
+	if m := a.missionContext(call.SessionID); m != "" {
+		systemPrompt += "\n\n" + m
+	}
 
 	if len(agentTools) > 0 {
 		// Add Anthropic caching to the last tool.
@@ -1003,6 +1011,12 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			callContext = context.WithValue(callContext, tools.SupportsImagesContextKey, largeModel.CatwalkCfg.SupportsImages)
 			callContext = context.WithValue(callContext, tools.ModelNameContextKey, largeModel.CatwalkCfg.Name)
 			currentAssistant = &assistantMsg
+			// Ask before a step that would go past a budget. The
+			// assistant message exists by now, so a stop shows up in
+			// the chat.
+			if budgetErr := a.checkBudget(callContext, call.SessionID); budgetErr != nil {
+				return callContext, prepared, budgetError(budgetErr)
+			}
 			return callContext, prepared, err
 		},
 		OnReasoningStart: func(id string, reasoning fantasy.ReasoningContent) error {
@@ -1157,7 +1171,9 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				return getSessionErr
 			}
 			usage, estimated := fallbackStepUsage(stepMessages, stepResult)
-			a.updateSessionUsage(largeModel, &updatedSession, usage, a.openrouterCost(stepResult.ProviderMetadata), estimated)
+			stepCost := a.openrouterCost(stepResult.ProviderMetadata)
+			a.updateSessionUsage(largeModel, &updatedSession, usage, stepCost, estimated)
+			a.recordUsage(largeModel, call.SessionID, "chat", usage, stepCost, estimated)
 			_, sessionErr := a.sessions.Save(ctx, updatedSession)
 			if sessionErr != nil {
 				return sessionErr
@@ -1600,6 +1616,7 @@ func (a *sessionAgent) Summarize(ctx context.Context, sessionID string, opts fan
 	}
 
 	a.updateSessionUsage(largeModel, &currentSession, resp.TotalUsage, openrouterCost, false)
+	a.recordUsage(largeModel, currentSession.ID, "summary", resp.TotalUsage, openrouterCost, false)
 
 	// Just in case, get just the last usage info.
 	usage := resp.Response.Usage
@@ -2051,6 +2068,8 @@ func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, user
 	if model.FlatRate {
 		cost = 0
 	}
+
+	a.recordUsage(model, sessionID, "title", resp.TotalUsage, openrouterCost, false)
 
 	promptTokens := contextTokens(resp.TotalUsage)
 	completionTokens := resp.TotalUsage.OutputTokens

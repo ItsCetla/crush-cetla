@@ -28,8 +28,10 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
 	"github.com/charmbracelet/crush/internal/artifacts"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/discover"
 	"github.com/charmbracelet/crush/internal/filetracker"
+	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/log"
@@ -177,6 +179,10 @@ type coordinator struct {
 	// Magic Context is off).
 	mc *magiccontext.Engine
 
+	// control is the control hub (nil turns budgets, the usage ledger
+	// and missions off).
+	control *control.Hub
+
 	readyWg errgroup.Group
 }
 
@@ -198,6 +204,9 @@ type CoordinatorOptions struct {
 	Interactive bool
 	// DB is the app database, used by Magic Context (nil turns it off).
 	DB *sql.DB
+	// Control is the control hub: budgets, the usage ledger and
+	// missions (nil turns them off).
+	Control *control.Hub
 }
 
 func NewCoordinator(ctx context.Context, opts CoordinatorOptions) (Coordinator, error) {
@@ -230,6 +239,7 @@ func NewCoordinator(ctx context.Context, opts CoordinatorOptions) (Coordinator, 
 		activeSkills: activeSkills,
 		skillTracker: skillTracker,
 		interactive:  opts.Interactive,
+		control:      opts.Control,
 	}
 
 	c.mc = c.newMagicContextEngine(ctx, opts.DB)
@@ -810,7 +820,8 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		Questions:            c.questions,
 		PlanMode:             agent.ID == config.AgentPlan,
 		WorkDir:              c.cfg.WorkingDir(),
-		ClaudeCodeArgs:       c.claudeCodeArtifactArgs(isSubAgent),
+		ClaudeCodeArgs:       c.claudeCodeArgs(isSubAgent),
+		Control:              c.agentControl(),
 	})
 
 	// The readiness goroutines below perform one-time setup — building the
@@ -832,6 +843,11 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		}
 		richOn := c.cfg.Config().Options.TUI.RichBlocksEnabled()
 		systemPrompt = withRichBlocksHint(systemPrompt, c.interactive, isSubAgent, richOn)
+		if !isSubAgent && !large.ClaudeCode {
+			if section := fleet.PromptSection(c.cfg.Config(), "the agent tool's machine parameter"); section != "" {
+				systemPrompt += "\n\n" + section
+			}
+		}
 		if mc := c.mainMagicContext(isSubAgent); mc != nil {
 			if section := mc.SystemPromptSection(systemPrompt, false); section != "" {
 				systemPrompt += "\n\n" + section
@@ -917,6 +933,14 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 	// Question tool is interactive-only and not available to sub-agents.
 	if !isSubAgent && c.interactive {
 		allTools = append(allTools, tools.NewQuestionTool(c.questions))
+	}
+
+	if ms := c.control.Missions(); ms != nil && !isSubAgent {
+		allTools = append(allTools, tools.NewMissionTool(ms))
+	}
+
+	if !isSubAgent {
+		allTools = append(allTools, tools.NewMachinesTool(c.cfg, c.permissions, c.cfg.WorkingDir()))
 	}
 
 	if opts := c.cfg.Config().Options; opts.ArtifactsEnabled() {
@@ -1873,44 +1897,89 @@ func logDiscoveryStats(
 	)
 }
 
-// artifactService returns the artifacts service configured from
-// options.artifacts. New artifacts open in the browser only in an
-// interactive session.
-// claudeCodeArtifactArgs gives the Claude Code CLI the artifact tools by
-// registering this binary's `artifacts mcp` server with --mcp-config. The
-// server gets the merged artifact settings as flags, since it only reads
-// the global config file on its own.
-func (c *coordinator) claudeCodeArtifactArgs(isSubAgent bool) []string {
-	o := c.cfg.Config().Options
-	if isSubAgent || !o.ArtifactsEnabled() {
+// agentControl returns the hub as the agent's Control, or nil, so a nil
+// hub never hides inside a non-nil interface.
+func (c *coordinator) agentControl() Control {
+	if c.control == nil {
 		return nil
 	}
-	exe, err := os.Executable()
-	if err != nil {
+	return c.control
+}
+
+// mcpConfigArgs turns MCP servers into the CLI's --mcp-config flag.
+func mcpConfigArgs(servers map[string]any) []string {
+	if len(servers) == 0 {
 		return nil
 	}
-	opts := o.ArtifactsOrDefault()
-	args := []string{
-		"artifacts", "mcp",
-		"--port", strconv.Itoa(cmp.Or(opts.Port, artifacts.DefaultPort)),
-		"--allow-cdn=" + strconv.FormatBool(opts.AllowCDN),
-		"--no-open=" + strconv.FormatBool(!c.interactive || !*opts.OpenOnCreate),
-	}
-	cfg, err := json.Marshal(map[string]any{
-		"mcpServers": map[string]any{
-			"tada-artifacts": map[string]any{
-				"type":    "stdio",
-				"command": exe,
-				"args":    args,
-			},
-		},
-	})
+	cfg, err := json.Marshal(map[string]any{"mcpServers": servers})
 	if err != nil {
 		return nil
 	}
 	return []string{"--mcp-config=" + string(cfg)}
 }
 
+func stdioServer(exe string, args ...string) map[string]any {
+	return map[string]any{"type": "stdio", "command": exe, "args": args}
+}
+
+// claudeCodeArtifactServer registers this binary's `artifacts mcp`
+// server. It gets the merged artifact settings as flags, since it only
+// reads the global config file on its own.
+func (c *coordinator) claudeCodeArtifactServer(exe string, isSubAgent bool) map[string]any {
+	o := c.cfg.Config().Options
+	if isSubAgent || !o.ArtifactsEnabled() {
+		return nil
+	}
+	opts := o.ArtifactsOrDefault()
+	return stdioServer(exe,
+		"artifacts", "mcp",
+		"--port", strconv.Itoa(cmp.Or(opts.Port, artifacts.DefaultPort)),
+		"--allow-cdn="+strconv.FormatBool(opts.AllowCDN),
+		"--no-open="+strconv.FormatBool(!c.interactive || !*opts.OpenOnCreate),
+	)
+}
+
+// claudeCodeArtifactArgs gives the Claude Code CLI the artifact tools.
+func (c *coordinator) claudeCodeArtifactArgs(isSubAgent bool) []string {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil
+	}
+	srv := c.claudeCodeArtifactServer(exe, isSubAgent)
+	if srv == nil {
+		return nil
+	}
+	return mcpConfigArgs(map[string]any{"tada-artifacts": srv})
+}
+
+// claudeCodeArgs gives the Claude Code CLI Ta-Da's own tools for a
+// session: the artifact tools, the mission tool bound to that session
+// through `mission mcp`, and the machine tools through `machines mcp`.
+func (c *coordinator) claudeCodeArgs(isSubAgent bool) func(sessionID string) []string {
+	return func(sessionID string) []string {
+		exe, err := os.Executable()
+		if err != nil {
+			return nil
+		}
+		servers := map[string]any{}
+		if srv := c.claudeCodeArtifactServer(exe, isSubAgent); srv != nil {
+			servers["tada-artifacts"] = srv
+		}
+		if ms := c.control.Missions(); ms != nil && !isSubAgent && sessionID != "" {
+			servers["tada-mission"] = stdioServer(exe, "mission", "mcp", "--dir", ms.Dir(), "--session", sessionID)
+		}
+		// Always served to the main agent, so it can save machines the
+		// user describes even before any exist.
+		if !isSubAgent {
+			servers[fleet.MCPServerName] = stdioServer(exe, "machines", "mcp", "--dir", c.cfg.WorkingDir())
+		}
+		return mcpConfigArgs(servers)
+	}
+}
+
+// artifactService returns the artifacts service configured from
+// options.artifacts. New artifacts open in the browser only in an
+// interactive session.
 func (c *coordinator) artifactService() (*artifacts.Service, error) {
 	base, err := artifacts.Default()
 	if err != nil {

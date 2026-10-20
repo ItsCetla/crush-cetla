@@ -567,6 +567,25 @@ type Styles struct {
 		}
 	}
 
+	// Control is the take-back, cost and mission display: the sidebar
+	// strips and the cockpit dialog.
+	Control struct {
+		Allowed  lipgloss.Style // ✓ an allowed action
+		Denied   lipgloss.Style // ✕ a denied action
+		Canceled lipgloss.Style // ! a canceled request or event
+		On       lipgloss.Style // a switch that is on
+		Off      lipgloss.Style // a switch that is off
+		Alert    lipgloss.Style // taken back, over budget
+		Warn     lipgloss.Style // near a budget limit
+		Label    lipgloss.Style // left-hand labels
+		Value    lipgloss.Style // the number or state after a label
+		Muted    lipgloss.Style // notes and timestamps
+		Pip      lipgloss.Style // done mission pips and full bar cells
+		PipEmpty lipgloss.Style // open mission pips and empty bar cells
+		Tab      lipgloss.Style // a cockpit page tab
+		TabOn    lipgloss.Style // the current cockpit page
+	}
+
 	// Status bar and help
 	Status struct {
 		Help lipgloss.Style
@@ -575,6 +594,7 @@ type Styles struct {
 		ModeBadgeManual lipgloss.Style
 		ModeBadgePlan   lipgloss.Style
 		ModeBadgeYolo   lipgloss.Style // shown as AUTO
+		ModeBadgeEdits  lipgloss.Style
 
 		// Full-width banners shown when switching modes.
 		ModeBannerManual      lipgloss.Style
@@ -583,6 +603,13 @@ type Styles struct {
 		ModeBannerPlanBadge   lipgloss.Style
 		ModeBannerYolo        lipgloss.Style
 		ModeBannerYoloBadge   lipgloss.Style
+		ModeBannerEdits       lipgloss.Style
+		ModeBannerEditsBadge  lipgloss.Style
+
+		// Spend pill on the right of the status bar.
+		CostPill     lipgloss.Style
+		CostPillWarn lipgloss.Style
+		CostPillOver lipgloss.Style
 
 		ErrorIndicator   lipgloss.Style
 		WarnIndicator    lipgloss.Style

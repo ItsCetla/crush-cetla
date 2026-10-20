@@ -38,6 +38,13 @@ type BashPermissionsParams struct {
 	AutoBackgroundAfter int    `json:"auto_background_after"`
 }
 
+// TargetCommand returns the command so the permission service can grade
+// it.
+func (p BashPermissionsParams) TargetCommand() string { return p.Command }
+
+// TargetWorkdir returns the directory the command runs in.
+func (p BashPermissionsParams) TargetWorkdir() string { return p.WorkingDir }
+
 type BashResponseMetadata struct {
 	StartTime        int64  `json:"start_time"`
 	EndTime          int64  `json:"end_time"`

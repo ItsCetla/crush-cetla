@@ -35,6 +35,7 @@ const (
 	InfoTypePlan
 	InfoTypeYolo
 	InfoTypeManual
+	InfoTypeEdits
 )
 
 func NewInfoMsg(info string) InfoMsg {

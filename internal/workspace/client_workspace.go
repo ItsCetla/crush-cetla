@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/control"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/agent/notify"
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
@@ -419,6 +421,11 @@ func (w *ClientWorkspace) PermissionSkipRequests() bool {
 
 func (w *ClientWorkspace) PermissionSetSkipRequests(skip bool) {
 	_ = w.client.SetPermissionsSkipRequests(context.Background(), w.workspaceID(), skip)
+}
+
+// Control runs a control hub command on the server.
+func (w *ClientWorkspace) Control(ctx context.Context, c control.Command) (control.Reply, error) {
+	return w.client.Control(ctx, w.workspaceID(), c)
 }
 
 // -- Questions --
@@ -1185,6 +1192,8 @@ func (w *ClientWorkspace) translateEvent(ev any) tea.Msg {
 				Action:      e.Payload.Action,
 				Path:        e.Payload.Path,
 				Params:      e.Payload.Params,
+				Class:       permission.Class(e.Payload.Class),
+				Reason:      e.Payload.Reason,
 			},
 		}
 	case pubsub.Event[proto.PermissionNotification]:

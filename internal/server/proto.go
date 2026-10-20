@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/charmbracelet/crush/internal/control"
+
 	"github.com/charmbracelet/crush/internal/backend"
 	"github.com/charmbracelet/crush/internal/proto"
 	"github.com/charmbracelet/crush/internal/session"
@@ -639,6 +641,30 @@ func (c *controllerV1) handlePostWorkspaceAgentSessionMagicContext(w http.Respon
 		return
 	}
 	jsonEncode(w, proto.MagicContextCommandResponse{Text: text})
+}
+
+// handlePostWorkspaceControl runs a control hub command. A missing
+// workspace is an HTTP error; a command the hub refused is reported in
+// the response body.
+func (c *controllerV1) handlePostWorkspaceControl(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var req control.Command
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.server.logError(r, "Failed to decode request", "error", err)
+		jsonError(w, http.StatusBadRequest, "failed to decode request")
+		return
+	}
+	if _, err := c.backend.GetWorkspace(id); err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	reply, err := c.backend.Control(r.Context(), id, req)
+	resp := proto.ControlResponse{Reply: reply}
+	if err != nil {
+		resp.Error = err.Error()
+	}
+	jsonEncode(w, resp)
 }
 
 // handlePostWorkspaceAgentSessionShell runs a shell command in the workspace.

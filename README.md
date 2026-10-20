@@ -64,6 +64,13 @@ talks to and what it does without asking:
   Pages make no outside requests unless you allow CDNs. `tada artifacts mcp`
   offers the same tools to Claude Desktop and other MCP clients. See
   [Artifacts](#artifacts).
+- **Control cockpit, budgets and missions.** Every action the agent asks
+  to take is graded (read, write, outside the project, network, delete,
+  spend) and logged. **Ctrl+\\** opens a cockpit with spend, budgets, the
+  action log and missions; **Ctrl+Q** takes back control at any time.
+  Spend budgets ask before the next model call once you reach them.
+  `tada status` prints the same view in a terminal. See
+  [Control, budgets and missions](#control-budgets-and-missions).
 - **Magic Context (opt-in).** A Go port of cortexkit/magic-context that
   compresses old turns in the background and keeps project memory across
   sessions. See [Magic Context](#magic-context).
@@ -612,17 +619,24 @@ To disable tools from MCP servers, see the [MCP config section](#mcps).
 
 ### Permission modes
 
-Ta-Da has three modes. Press **Shift+Tab** to cycle through them; the current
+Ta-Da has four modes. Press **Shift+Tab** to cycle through them; the current
 one is always shown at the left of the status bar.
 
 | Mode   | What it does                                                                 |
 | ------ | ---------------------------------------------------------------------------- |
 | Manual | The default. Ta-Da asks before editing files or running commands.           |
 | Plan   | A read-only planner. It can look around but not change anything, and hands you a plan to start coding from. |
+| Edits  | Approves file edits inside the project without asking. Commands, network calls and anything outside the project still ask. |
 | Auto   | Skips permission prompts. System level commands are still blocked.          |
 
 **Ctrl+Y** turns Auto on or off from any mode, and `tada --auto` starts in it
 (`--yolo` still works too). Be very, very careful with Auto.
+
+**Ctrl+Q** takes back control from any mode: it turns Auto and Edits off,
+forgets every "allow for session" approval and denies the request that's
+waiting. Edits needs the control hub; without it Shift+Tab skips Edits.
+Some actions ask even in Auto; see
+[Control, budgets and missions](#control-budgets-and-missions).
 
 ### Disabling Skills
 
@@ -938,6 +952,88 @@ running. For Claude Desktop, add this to `claude_desktop_config.json`:
 `tada artifacts mcp` reads `options.artifacts` from your global config, and
 takes `--port`, `--allow-cdn` and `--no-open` to override it.
 
+### Control, budgets and missions
+
+Ta-Da grades every action the agent asks to take and keeps a log of what
+happened to it. Everything here stays on your machine.
+
+**Grades.** Each request gets a class, shown with a reason on the
+permission prompt:
+
+| Class     | What it covers                                        |
+| --------- | ----------------------------------------------------- |
+| `read`    | Only looks at files.                                  |
+| `write`   | Changes files in the project or runs a local command. |
+| `outside` | Writes outside the project.                           |
+| `network` | Talks to another machine.                             |
+| `delete`  | Removes data or history, or stops processes.          |
+| `spend`   | Goes past a spending budget.                          |
+
+`permissions.always_ask` lists classes that ask even in Auto and Edits mode
+and even after "allow for session" (the default is `delete`; `spend` always
+asks). The prompt for those has no "allow for session" button.
+`permissions.auto_budget` caps how many actions of a class Auto and Edits
+approve per session before asking again:
+
+```json
+{
+  "permissions": {
+    "always_ask": ["delete", "network"],
+    "auto_budget": { "outside": 5 }
+  }
+}
+```
+
+**The cockpit.** Press **Ctrl+\\** (or **Alt+C**), or pick "Control" in
+the command palette. It has four pages (switch with Tab or 1 to 4):
+
+- **Overview:** who's in control, which classes always ask, spend against
+  your budgets and the active mission.
+- **Cost:** a 14-day spend sparkline, the burn rate over the last hour
+  and this month's spend by model.
+- **Actions:** the action log, newest first: what was asked, its class,
+  and whether you, a rule or a mode approved or denied it.
+- **Missions:** goals with a checklist (see below).
+
+In the cockpit, `e` turns Edits mode on or off, `T` takes back control and
+`r` refreshes.
+
+**Budgets.** Set spend limits in US dollars. When counted spend reaches a
+limit, Ta-Da asks before the next model call. The status bar shows today's
+spend as a pill that turns yellow and then red as you near a budget.
+Models without a price show `+?`, and flat-rate plans (such as a Claude
+subscription through the Claude Code engine) aren't counted.
+
+```json
+{
+  "options": {
+    "budget": { "daily": 5, "monthly": 50, "session": 2, "warn_at": [50, 80] }
+  }
+}
+```
+
+The spend ledger is shared by every project and lives next to your global
+config (`control/`). The action log and missions live in the project's
+data directory (`.tada/control/`).
+
+**Missions.** A mission is a goal with a checklist of done criteria that
+outlives one session. The agent manages them with the `mission` tool
+(create, check off criteria, add notes, finish), and you can too on the
+cockpit's Missions page (`n` new, `a` add a criterion, space to check one,
+`p` pause, `d` done, `x` twice to delete). The active mission shows in the
+sidebar and is added to the agent's context each turn.
+
+**`tada status`.** Prints one frame of the cockpit and exits, without
+starting a session, so it works in scripts, status bars and terminals with
+no TTY:
+
+```bash
+tada status            # spend, budgets, recent actions and missions
+tada status --plain    # ASCII only
+tada status --json     # for scripts
+tada status --actions 20
+```
+
 ### Magic Context
 
 Magic Context is a Go port of
@@ -1081,6 +1177,40 @@ model add ollama/qwen3:30b \
 
 The `--discover-models true` flag merges discovered models with the one above;
 your explicit model fields win on conflicts.
+
+### Machines
+
+Got other computers at home running models? Tell Ta-Da about them and it
+will hand them work while you code. Each machine has a number of slots: how
+many agents it runs at once.
+
+```bash
+# tadarc
+machine add m1 --url "http://192.168.1.20:11434/v1" --type ollama \
+  --model qwen2.5-coder:14b --slots 4 --hardware "M1 Max"
+machine add pc --url "http://192.168.1.30:11434/v1" --type ollama \
+  --slots 2 --hardware "RTX 3060 Ti"
+```
+
+Or from the shell: `tada machines add pc --url ... --slots 2`. Run
+`tada machines` to see which machines are online and how many slots are
+free. You can also just tell the AI ("we have an M1 over here with 4
+agents ready") and it will save the machine with its `machines` tool after
+asking you.
+
+How the AI uses them:
+
+- **Built-in engines.** The `agent` tool takes a `machine` parameter
+  (`auto`, `main` or a machine name). Machine agents are read-only research
+  agents: searching, reading, summarizing and reviewing. If a machine Ta-Da
+  picked fails, the task reruns on your main model.
+- **Claude Code engine.** Claude Code gets a `machine_ask` tool that sends a
+  prompt, plus any project files it names, to a free machine and returns
+  the answer. It never leaves the project directory.
+
+Slots are shared by every Ta-Da process on your computer, so two sessions
+won't overload the same machine. Code sent to a machine goes to whatever
+URL you gave it, so only add machines you trust.
 
 ## Logging
 

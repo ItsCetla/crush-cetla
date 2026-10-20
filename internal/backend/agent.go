@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 
+	"github.com/charmbracelet/crush/internal/control"
+
 	"github.com/charmbracelet/crush/internal/agent"
 	"github.com/charmbracelet/crush/internal/agent/notify"
 	"github.com/charmbracelet/crush/internal/config"
@@ -239,6 +241,15 @@ func (b *Backend) MagicContextCommand(ctx context.Context, workspaceID, sessionI
 		return "", errors.New("magic context is not available")
 	}
 	return mc.MagicContextCommand(ctx, sessionID, name, args)
+}
+
+// Control runs a control hub command for the workspace.
+func (b *Backend) Control(ctx context.Context, workspaceID string, c control.Command) (control.Reply, error) {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return control.Reply{}, err
+	}
+	return ws.Control.Do(ctx, c)
 }
 
 // QueuedPrompts returns the number of queued prompts for the session.

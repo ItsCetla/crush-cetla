@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/claudecode"
 	"github.com/charmbracelet/crush/internal/diff"
+	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/session"
 )
@@ -322,6 +323,10 @@ func ccPermission(req claudecode.PermissionRequest, workDir string) (name, actio
 	case "WebFetch":
 		u := str("url")
 		return name, "fetch", "Fetch content from URL: " + u, workDir, tools.FetchPermissionsParams{URL: u, Format: "markdown"}
+	case "mcp__" + fleet.MCPServerName + "__" + fleet.ToolName:
+		var p fleet.Params
+		_ = json.Unmarshal(req.Input, &p)
+		return fleet.ToolName, strings.ToLower(strings.TrimSpace(p.Action)), fleet.DescribeChange(p), workDir, p.Redacted()
 	}
 	if req.BlockedPath != "" {
 		path = req.BlockedPath

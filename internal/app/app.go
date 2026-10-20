@@ -22,6 +22,7 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
 	"github.com/charmbracelet/crush/internal/clipboard"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/filetracker"
 	"github.com/charmbracelet/crush/internal/format"
@@ -55,6 +56,10 @@ type App struct {
 	LSPManager *lsp.Manager
 
 	Skills *skills.Manager
+
+	// Control is the control hub: the action log, usage ledger, budgets
+	// and missions.
+	Control *control.Hub
 
 	config *config.ConfigStore
 
@@ -121,6 +126,8 @@ func New(ctx context.Context, conn *sql.DB, store *config.ConfigStore, skillsMgr
 		agentNotifications: pubsub.NewBroker[notify.Notification](),
 		runCompletions:     pubsub.NewBroker[notify.RunComplete](),
 	}
+
+	app.Control = newControlHub(store, app.Permissions)
 
 	app.setupEvents()
 
@@ -845,6 +852,7 @@ func (app *App) initCoderAgent(ctx context.Context, interactive bool) error {
 		Skills:      app.Skills,
 		Interactive: interactive,
 		DB:          app.db,
+		Control:     app.Control,
 	})
 	if err != nil {
 		slog.Error("Failed to create coder agent", "err", err)

@@ -28,10 +28,25 @@ type Status struct {
 	helpKm   help.KeyMap
 	msg      util.InfoMsg
 
-	// inputMode and yolo drive the mode badge shown before the help hints.
+	// inputMode, yolo and edits drive the mode badge shown before the
+	// help hints.
 	inputMode uiInputMode
 	yolo      bool
+	edits     bool
+
+	// cost is the spend pill drawn on the right, or "" for none.
+	cost      string
+	costLevel costLevel
 }
+
+// costLevel picks the cost pill's color.
+type costLevel int
+
+const (
+	costLevelPlain costLevel = iota
+	costLevelWarn
+	costLevelOver
+)
 
 // NewStatus creates a new status bar and help model.
 func NewStatus(com *common.Common, km help.KeyMap) *Status {
@@ -53,22 +68,47 @@ func (s *Status) ClearInfoMsg() {
 	s.msg = util.InfoMsg{}
 }
 
-// SetMode sets the input mode and Auto (skip-permissions) state used for
-// the mode badge.
-func (s *Status) SetMode(mode uiInputMode, yolo bool) {
+// SetMode sets the input mode, Auto (skip-permissions) and Edits state
+// used for the mode badge.
+func (s *Status) SetMode(mode uiInputMode, yolo, edits bool) {
 	s.inputMode = mode
 	s.yolo = yolo
+	s.edits = edits
+}
+
+// SetCost sets the spend pill. An empty text hides it.
+func (s *Status) SetCost(text string, level costLevel) {
+	s.cost = text
+	s.costLevel = level
+}
+
+// costPill renders the spend pill, or "".
+func (s *Status) costPill() string {
+	if s.cost == "" {
+		return ""
+	}
+	t := s.com.Styles
+	switch s.costLevel {
+	case costLevelOver:
+		return t.Status.CostPillOver.Render(s.cost)
+	case costLevelWarn:
+		return t.Status.CostPillWarn.Render(s.cost)
+	default:
+		return t.Status.CostPill.Render(s.cost)
+	}
 }
 
 // modeBadge renders the badge for the current permission mode: MANUAL,
-// PLAN or AUTO. One is always shown so the mode is never a guess.
+// PLAN, EDITS or AUTO. One is always shown so the mode is never a guess.
 func (s *Status) modeBadge() string {
 	t := s.com.Styles
-	switch permissionModeOf(s.inputMode, s.yolo) {
+	switch permissionModeOf(s.inputMode, s.yolo, s.edits) {
 	case permissionModePlan:
 		return t.Status.ModeBadgePlan.String()
 	case permissionModeAuto:
 		return t.Status.ModeBadgeYolo.String()
+	case permissionModeEdits:
+		return t.Status.ModeBadgeEdits.String()
 	default:
 		return t.Status.ModeBadgeManual.String()
 	}
@@ -102,6 +142,15 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 		helpStyle := s.com.Styles.Status.Help
 		helpWidth := area.Dx() - helpStyle.GetPaddingLeft() - helpStyle.GetPaddingRight()
 		badge := s.modeBadge()
+		pill := s.costPill()
+		pillWidth := lipgloss.Width(pill)
+		if pill != "" && area.Dx() < 60 {
+			// Narrow terminals keep the hints; the cockpit has the cost.
+			pill, pillWidth = "", 0
+		}
+		if pillWidth > 0 {
+			helpWidth -= pillWidth + 1
+		}
 		if badge != "" {
 			// Shrink the hints so the badge does not push them past the
 			// status area.
@@ -117,6 +166,10 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 			helpView = strings.Repeat(" ", badgeLeftInset) + badge + " " + helpView
 		}
 		uv.NewStyledString(helpView).Draw(scr, area)
+		if pillWidth > 0 {
+			pillArea := uv.Rect(area.Max.X-pillWidth-1, area.Min.Y, pillWidth, 1)
+			uv.NewStyledString(pill).Draw(scr, pillArea)
+		}
 	}
 
 	// Render notifications
@@ -142,6 +195,10 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 	case util.InfoTypeManual:
 		indStyle = s.com.Styles.Status.ModeBannerManualBadge
 		msgStyle = s.com.Styles.Status.ModeBannerManual
+		indInset = badgeLeftInset
+	case util.InfoTypeEdits:
+		indStyle = s.com.Styles.Status.ModeBannerEditsBadge
+		msgStyle = s.com.Styles.Status.ModeBannerEdits
 		indInset = badgeLeftInset
 	case util.InfoTypeError:
 		indStyle = s.com.Styles.Status.ErrorIndicator

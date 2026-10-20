@@ -363,6 +363,7 @@ func (c *Config) configureProviders(ctx context.Context, store *ConfigStore, env
 	}
 
 	c.addClaudeCodeProvider()
+	c.addMachineProviders()
 
 	// Discover models concurrently for custom providers that need it.
 	// A provider needs discovery when discover_models is explicitly true,
@@ -493,6 +494,8 @@ func (c *Config) configureProviders(ctx context.Context, store *ConfigStore, env
 
 		c.Providers.Set(id, providerConfig)
 	}
+
+	c.finishMachineProviders()
 
 	if c.Providers.Len() == 0 && c.Options.DisableDefaultProviders {
 		return fmt.Errorf("default providers are disabled and there are no custom providers are configured")

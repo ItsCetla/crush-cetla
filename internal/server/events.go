@@ -71,6 +71,8 @@ func wrapEvent(ev any) *pubsub.Payload {
 				Action:      e.Payload.Action,
 				Path:        e.Payload.Path,
 				Params:      e.Payload.Params,
+				Class:       string(e.Payload.Class),
+				Reason:      e.Payload.Reason,
 			},
 		})
 	case pubsub.Event[permission.PermissionNotification]:

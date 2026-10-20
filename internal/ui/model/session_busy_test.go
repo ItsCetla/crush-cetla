@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
 	"github.com/charmbracelet/crush/internal/commands"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/pubsub"
@@ -63,6 +65,11 @@ func (w *countingWorkspace) AgentIsBusy() bool  { w.agentBusyCalls++; return w.a
 // deliberately uncounted: it is asked once on session load rather than on
 // the per-keystroke paths whose probe counts the other stubs pin.
 func (w *countingWorkspace) AgentIsSessionBusy(string) bool { return w.agentBusy }
+
+// Control reports no control hub, the same as a workspace without one.
+func (w *countingWorkspace) Control(context.Context, control.Command) (control.Reply, error) {
+	return control.Reply{}, errors.New("no control hub")
+}
 
 func (w *countingWorkspace) AgentReadyErr() error {
 	w.readyCalls++

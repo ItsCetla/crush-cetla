@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/charmbracelet/crush/internal/apigen"
+	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/proto"
 )
 
@@ -400,6 +401,16 @@ func (c *controllerV1) endpoints() []apigen.Endpoint {
 			Responds(proto.MagicContextCommandResponse{}).
 			Fails(400, 404, 500).
 			Handle(c.handlePostWorkspaceAgentSessionMagicContext),
+
+		apigen.Post("/v1/workspaces/{id}/control").
+			Summary("Run control command").
+			Description("Runs a control hub command: a status snapshot, take back, the Edits mode, a usage report, the action log or a mission change. A refused command returns 200 with the reason in error.").
+			Tags("control").
+			PathParam("id", "Workspace ID").
+			Accepts(control.Command{}).
+			Responds(proto.ControlResponse{}).
+			Fails(400, 404, 500).
+			Handle(c.handlePostWorkspaceControl),
 
 		apigen.Post("/v1/workspaces/{id}/agent/sessions/{sid}/shell").
 			Summary("Run shell command").

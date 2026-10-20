@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/pubsub"
@@ -64,6 +65,14 @@ type PermissionRequest struct {
 	Action      string `json:"action"`
 	Params      any    `json:"params"`
 	Path        string `json:"path"`
+	// Class grades what the action can change.
+	Class Class `json:"class,omitempty"`
+	// Reason says why a request asks although a mode or an earlier
+	// approval would usually let it run.
+	Reason string `json:"reason,omitempty"`
+	// AlwaysAsk is set when the request asks every time, so approving it
+	// for the session would do nothing.
+	AlwaysAsk bool `json:"always_ask,omitempty"`
 }
 
 type Service interface {
@@ -121,7 +130,21 @@ type permissionService struct {
 	requestMu       sync.Mutex
 	activeRequest   *PermissionRequest
 	activeRequestMu sync.Mutex
+
+	edits atomic.Bool
+
+	controlMu   sync.Mutex
+	policy      Policy
+	takenBackAt time.Time
+	// autoUsed counts, per session and class, the actions Auto or Edits
+	// mode approved since the person last answered for that class.
+	autoUsed map[string]map[Class]int
+	log      []Action
+	recorder func(Action)
 }
+
+// maxActions bounds the in-memory action log.
+const maxActions = 200
 
 // resolve atomically removes the pending request entry for the given
 // permission and, if it was still pending, publishes exactly one
@@ -193,13 +216,16 @@ func (s *permissionService) Deny(permission PermissionRequest) bool {
 }
 
 func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRequest) (bool, error) {
-	if s.skip.Load() {
-		return true, nil
-	}
+	class := Classify(opts, s.workingDir)
+	policy := s.currentPolicy()
+	alwaysAsk := policy.Asks(class)
 
-	// Check if the tool/action combination is in the allowlist
+	// Explicit allow rules from the config and hook approvals are the
+	// person's own decisions made ahead of time, so they hold even for
+	// classes that always ask.
 	commandKey := opts.ToolName + ":" + opts.Action
 	if slices.Contains(s.allowedTools, commandKey) || slices.Contains(s.allowedTools, opts.ToolName) {
+		s.record(opts, class, DecisionAllowed, ViaAllowlist)
 		return true, nil
 	}
 
@@ -208,6 +234,7 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 	// directory. Anything else falls through to the normal prompt.
 	if slices.Contains(s.projectAllowedTools, opts.ToolName) {
 		if target, ok := opts.Params.(FileTarget); ok && withinDir(s.workingDir, target.TargetFile()) {
+			s.record(opts, class, DecisionAllowed, ViaProject)
 			return true, nil
 		}
 	}
@@ -222,7 +249,29 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 			ToolCallID: opts.ToolCallID,
 			Granted:    true,
 		})
+		s.record(opts, class, DecisionAllowed, ViaHook)
 		return true, nil
+	}
+
+	// Auto mode approves everything, Edits mode approves edits inside
+	// the project, each up to its per-session budget.
+	var budgetUsed int
+	if !alwaysAsk {
+		via := Via("")
+		switch {
+		case s.skip.Load():
+			via = ViaAuto
+		case s.edits.Load() && class == ClassWrite && opts.Params != nil && isFileEdit(opts):
+			via = ViaEdits
+		}
+		if via != "" {
+			ok, limit := s.takeAuto(opts.SessionID, class, policy)
+			if ok {
+				s.record(opts, class, DecisionAllowed, via)
+				return true, nil
+			}
+			budgetUsed = limit
+		}
 	}
 
 	s.requestMu.Lock()
@@ -239,12 +288,21 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 	s.autoApproveSessionsMu.RUnlock()
 
 	if autoApprove {
+		// Nobody is there to answer, so a non-interactive run is
+		// approved, except for spending past a budget.
+		granted := class != ClassSpend
 		s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
 			SessionID:  opts.SessionID,
 			ToolCallID: opts.ToolCallID,
-			Granted:    true,
+			Granted:    granted,
+			Denied:     !granted,
 		})
-		return true, nil
+		if granted {
+			s.record(opts, class, DecisionAllowed, ViaHeadless)
+		} else {
+			s.record(opts, class, DecisionDenied, ViaHeadless)
+		}
+		return granted, nil
 	}
 
 	fileInfo, err := os.Stat(opts.Path)
@@ -269,20 +327,26 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 		Description: opts.Description,
 		Action:      opts.Action,
 		Params:      opts.Params,
+		Class:       class,
+		Reason:      reasonFor(class, alwaysAsk, budgetUsed),
+		AlwaysAsk:   alwaysAsk,
 	}
 
-	if _, ok := s.sessionPermissions.Get(PermissionKey{
-		SessionID: permission.SessionID,
-		ToolName:  permission.ToolName,
-		Action:    permission.Action,
-		Path:      permission.Path,
-	}); ok {
-		s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
-			SessionID:  opts.SessionID,
-			ToolCallID: opts.ToolCallID,
-			Granted:    true,
-		})
-		return true, nil
+	if !alwaysAsk {
+		if _, ok := s.sessionPermissions.Get(PermissionKey{
+			SessionID: permission.SessionID,
+			ToolName:  permission.ToolName,
+			Action:    permission.Action,
+			Path:      permission.Path,
+		}); ok {
+			s.notificationBroker.Publish(pubsub.CreatedEvent, PermissionNotification{
+				SessionID:  opts.SessionID,
+				ToolCallID: opts.ToolCallID,
+				Granted:    true,
+			})
+			s.record(opts, class, DecisionAllowed, ViaSession)
+			return true, nil
+		}
 	}
 
 	s.activeRequestMu.Lock()
@@ -298,10 +362,24 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 
 	select {
 	case <-ctx.Done():
+		s.record(opts, class, DecisionCanceled, "")
 		return false, ctx.Err()
 	case granted := <-respCh:
+		if granted {
+			s.resetAuto(opts.SessionID, class)
+			s.record(opts, class, DecisionAllowed, ViaUser)
+		} else {
+			s.record(opts, class, DecisionDenied, ViaUser)
+		}
 		return granted, nil
 	}
+}
+
+// isFileEdit reports whether the request edits a single file, the only
+// kind of action Edits mode approves.
+func isFileEdit(opts CreatePermissionRequest) bool {
+	t, ok := opts.Params.(FileTarget)
+	return ok && t.TargetFile() != ""
 }
 
 // ActiveRequest returns the request that is currently awaiting a
@@ -340,6 +418,11 @@ func (s *permissionService) SubscribeNotifications(ctx context.Context) <-chan p
 
 func (s *permissionService) SetSkipRequests(skip bool) {
 	s.skip.Store(skip)
+	if skip {
+		s.controlMu.Lock()
+		s.takenBackAt = time.Time{}
+		s.controlMu.Unlock()
+	}
 }
 
 func (s *permissionService) SkipRequests() bool {
@@ -415,6 +498,8 @@ func NewPermissionService(workingDir string, skip bool, allowedTools, projectAll
 		allowedTools:        allowedTools,
 		projectAllowedTools: projectAllowedTools,
 		pendingRequests:     csync.NewMap[string, chan bool](),
+		policy:              DefaultPolicy(),
+		autoUsed:            make(map[string]map[Class]int),
 	}
 	svc.skip.Store(skip)
 	return svc

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	mcp "github.com/charmbracelet/crush/internal/agent/tools/mcp"
@@ -106,6 +107,16 @@ func (m *UI) updateSidebarScrollState() {
 		"",
 		m.modelInfo(contentWidth),
 		"",
+	)
+	now := time.Now()
+	for _, s := range []string{m.missionInfo(contentWidth), m.controlInfo(contentWidth, now)} {
+		if s != "" {
+			content = lipgloss.JoinVertical(lipgloss.Left, content, s, "")
+		}
+	}
+	content = lipgloss.JoinVertical(
+		lipgloss.Left,
+		content,
 		filesSection,
 		"",
 		lspSection,

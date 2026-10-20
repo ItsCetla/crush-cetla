@@ -35,7 +35,7 @@ func TestStatusDrawExpandedHelpRowsAlignWithBadge(t *testing.T) {
 	st.helpKm = u
 	st.SetWidth(100)
 	st.ToggleHelp()
-	st.SetMode(uiInputModePlan, false)
+	st.SetMode(uiInputModePlan, false, false)
 
 	lines := drawStatusLines(t, st, 100, 6)
 	require.True(t, strings.HasPrefix(lines[0], strings.Repeat(" ", badgeLeftInset)+"  PLAN  "),
@@ -73,7 +73,7 @@ func TestStatusAlwaysShowsModeBadge(t *testing.T) {
 		{uiInputModePlan, false, "PLAN"},
 		{uiInputModeCode, true, "AUTO"},
 	} {
-		st.SetMode(tc.mode, tc.auto)
+		st.SetMode(tc.mode, tc.auto, false)
 		lines := drawStatusLines(t, st, 100, 1)
 		require.Equal(t, tc.want, strings.TrimSpace(lines[0][:badgeLeftInset+lipgloss.Width(st.modeBadge())]))
 		widths = append(widths, lipgloss.Width(st.modeBadge()))

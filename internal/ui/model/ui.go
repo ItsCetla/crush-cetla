@@ -34,6 +34,7 @@ import (
 	"github.com/charmbracelet/crush/internal/clipboard"
 	"github.com/charmbracelet/crush/internal/commands"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/home"
@@ -441,6 +442,11 @@ type UI struct {
 	probedSession     string
 	probedSessionBusy bool
 	pillsView         string
+
+	// control memoizes the control cockpit snapshot (who's in control,
+	// recent actions, cost, mission). It's fetched off-thread like the
+	// busy caches (see control.go).
+	ctl controlCache
 
 	// Todo spinner
 	todoSpinner    spinner.Model
@@ -854,11 +860,21 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case pubsub.Event[notify.RunComplete]:
 		m.endPendingTurn(msg.Payload.SessionID)
+		// The turn's usage and actions are in; refresh the cost pill.
+		m.invalidateControl()
 		if cmd := m.handlePlanHandoff(msg.Payload); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	case busyStateMsg:
 		cmds = append(cmds, m.applyBusyState(msg)...)
+	case controlSnapshotMsg:
+		if cmd := m.applyControlSnapshot(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case controlReplyMsg:
+		if cmd := m.handleControlReply(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case promptQueueMsg:
 		cmds = append(cmds, m.applyPromptQueue(msg)...)
 	case lspStatesMsg:
@@ -915,6 +931,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// session instead of a stale one.
 		m.invalidateBusyCaches()
 		m.invalidatePromptQueue()
+		m.invalidateControl()
 		m.promptQueue = 0
 		m.promptQueueItems = nil
 		m.promptQueueCheckedAt = time.Time{}
@@ -1147,6 +1164,8 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case pubsub.Event[permission.PermissionNotification]:
 		m.handlePermissionNotification(msg.Payload)
+		// A decision was made, so the action log moved.
+		m.invalidateControl()
 	case pubsub.Event[question.Request]:
 		m.openBatchFormDialog(msg.Payload)
 		m.chat.ScrollToBottom()
@@ -2515,6 +2534,16 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 	case dialog.ActionOpenArtifacts:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, m.openArtifactsCmd())
+	case dialog.ActionOpenControl:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.openControlDialog(dialog.ControlPageOverview))
+	case dialog.ActionControl:
+		cmds = append(cmds, m.runControlCmds(msg.Cmds))
+	case dialog.ActionTakeBack:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.takeBackCmd())
+	case dialog.ActionSetEdits:
+		cmds = append(cmds, m.setEditsCmd(msg.On))
 	case dialog.ActionToggleMouseSupport:
 		cfg := m.com.Config()
 		if cfg == nil {
@@ -3084,6 +3113,11 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				cmds = append(cmds, cmd)
 			}
 			return true
+		case key.Matches(msg, m.keyMap.Control):
+			if cmd := m.openControlDialog(dialog.ControlPageOverview); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return true
 		}
 		return false
 	}
@@ -3095,6 +3129,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		}
 
 		return tea.Batch(cmds...)
+	}
+
+	// Take back works over any dialog, including a waiting permission
+	// prompt, which it denies.
+	if key.Matches(msg, m.keyMap.TakeBack) && !m.ctl.unavailable {
+		return m.takeBackCmd()
 	}
 
 	// Route all messages to dialog if one is open.
@@ -3650,7 +3690,8 @@ func (m *UI) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 
 	// Add status and help layer
 	m.status.SetHideHelp(isOnboarding)
-	m.status.SetMode(m.mode, m.yoloModeCached())
+	m.status.SetMode(m.mode, m.yoloModeCached(), m.editsModeCached())
+	m.status.SetCost(m.costPillText())
 	m.status.Draw(scr, layout.status)
 
 	// Draw completions popup if open
@@ -3967,6 +4008,8 @@ func (m *UI) FullHelp() [][]key.Binding {
 			k.Models,
 			k.Sessions,
 			k.ToggleYolo,
+			k.Control,
+			k.TakeBack,
 		)
 		if hasSession {
 			mainBinds = append(mainBinds, k.Chat.NewSession, k.Chat.EndFollow)
@@ -4057,6 +4100,8 @@ func (m *UI) FullHelp() [][]key.Binding {
 					k.Models,
 					k.Sessions,
 					k.ToggleYolo,
+					k.Control,
+					k.TakeBack,
 				},
 			)
 			editorBinds := []key.Binding{
@@ -4682,16 +4727,22 @@ const (
 	permissionModeManual permissionMode = iota
 	permissionModePlan
 	permissionModeAuto
+	// permissionModeEdits lets Claude edit files inside the project
+	// without asking; commands and anything outside still ask.
+	permissionModeEdits
 )
 
-// permissionModeOf maps the input mode and the skip-requests switch to the
-// mode shown to the user. Planning wins over Auto.
-func permissionModeOf(mode uiInputMode, auto bool) permissionMode {
+// permissionModeOf maps the input mode, the skip-requests switch and edits
+// mode to the mode shown to the user. Planning wins over Auto, and Auto
+// wins over Edits.
+func permissionModeOf(mode uiInputMode, auto, edits bool) permissionMode {
 	switch {
 	case mode == uiInputModePlan:
 		return permissionModePlan
 	case auto:
 		return permissionModeAuto
+	case edits:
+		return permissionModeEdits
 	default:
 		return permissionModeManual
 	}
@@ -4699,23 +4750,48 @@ func permissionModeOf(mode uiInputMode, auto bool) permissionMode {
 
 // permissionMode reports the mode currently shown to the user.
 func (m *UI) permissionMode() permissionMode {
-	return permissionModeOf(m.mode, m.com.Workspace.PermissionSkipRequests())
+	return permissionModeOf(m.mode, m.com.Workspace.PermissionSkipRequests(), m.editsModeCached())
 }
 
-// toggleInputMode is Shift+Tab: Manual -> Plan -> Auto -> Manual.
+// setEditsCmd writes edits mode through the cache and sends it to the
+// control hub.
+func (m *UI) setEditsCmd(on bool) tea.Cmd {
+	m.ctl.edits = on
+	m.invalidateControl()
+	return m.controlCmd(control.Command{Op: control.OpSetEdits, Edits: &on})
+}
+
+// toggleInputMode is Shift+Tab: Manual -> Plan -> Edits -> Auto -> Manual.
+// Edits is skipped when the control hub isn't available.
 func (m *UI) toggleInputMode() tea.Cmd {
 	if m.isAgentBusy() || m.modeSwitching {
 		return util.ReportWarn("Agent is busy, please wait before switching input mode...")
 	}
 	switch m.permissionMode() {
 	case permissionModePlan:
+		if m.ctl.unavailable {
+			if !m.com.Workspace.PermissionSkipRequests() {
+				m.toggleYoloMode()
+			}
+			return m.setInputMode(uiInputModeCode)
+		}
+		if m.com.Workspace.PermissionSkipRequests() {
+			m.toggleYoloMode()
+		}
+		return tea.Batch(m.setEditsCmd(true), m.setInputMode(uiInputModeCode))
+	case permissionModeEdits:
+		cmd := m.setEditsCmd(false)
 		if !m.com.Workspace.PermissionSkipRequests() {
 			m.toggleYoloMode()
 		}
-		return m.setInputMode(uiInputModeCode)
+		return tea.Batch(cmd, autoModeBanner())
 	case permissionModeAuto:
 		m.toggleYoloMode()
-		return manualModeBanner()
+		var cmd tea.Cmd
+		if m.editsModeCached() {
+			cmd = m.setEditsCmd(false)
+		}
+		return tea.Batch(cmd, manualModeBanner())
 	default:
 		return m.setInputMode(uiInputModePlan)
 	}
@@ -4730,6 +4806,9 @@ func (m *UI) toggleAutoMode() tea.Cmd {
 	}
 	if m.toggleYoloMode() {
 		return autoModeBanner()
+	}
+	if m.editsModeCached() {
+		return editsModeBanner()
 	}
 	return manualModeBanner()
 }
@@ -4752,7 +4831,12 @@ const (
 	manualModeBannerMsg = "Ta-Da asks before editing files or running commands."
 	planModeBannerMsg   = "Plan with Ta-Da before generating any code."
 	yoloModeBannerMsg   = "Skip permission prompts. System level commands will be blocked."
+	editsModeBannerMsg  = "Ta-Da edits project files without asking; commands and anything outside the project still ask."
 )
+
+func editsModeBanner() tea.Cmd {
+	return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeEdits, Msg: editsModeBannerMsg})
+}
 
 func manualModeBanner() tea.Cmd {
 	return util.CmdHandler(util.InfoMsg{Type: util.InfoTypeManual, Msg: manualModeBannerMsg})
@@ -4771,6 +4855,7 @@ func (m *UI) setInputMode(target uiInputMode) tea.Cmd {
 	// Auto is orthogonal to the input mode, so report it alongside the mode
 	// instead of treating an Auto coder as Manual.
 	yolo := target == uiInputModeCode && m.com.Workspace.PermissionSkipRequests()
+	edits := target == uiInputModeCode && m.editsModeCached()
 
 	// The agent switch is an HTTP round-trip in client/server mode, so it
 	// runs off the update loop together with the model update. The mode and
@@ -4784,9 +4869,10 @@ func (m *UI) setInputMode(target uiInputMode) tea.Cmd {
 			err = m.com.Workspace.UpdateAgentModel(context.Background())
 		}
 		return modeSwitchedMsg{
-			mode: target,
-			yolo: yolo,
-			err:  err,
+			mode:  target,
+			yolo:  yolo,
+			edits: edits,
+			err:   err,
 		}
 	}
 }
@@ -4809,6 +4895,8 @@ func (m *UI) applyModeSwitch(msg modeSwitchedMsg) []tea.Cmd {
 		cmds = append(cmds, util.CmdHandler(util.InfoMsg{Type: util.InfoTypePlan, Msg: planModeBannerMsg}))
 	case msg.yolo:
 		cmds = append(cmds, autoModeBanner())
+	case msg.edits:
+		cmds = append(cmds, editsModeBanner())
 	default:
 		cmds = append(cmds, manualModeBanner())
 	}
@@ -4821,6 +4909,7 @@ type modeSwitchedMsg struct {
 	continueSessionID string
 	mode              uiInputMode
 	yolo              bool
+	edits             bool
 	err               error
 }
 
