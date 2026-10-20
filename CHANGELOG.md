@@ -7,6 +7,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-20
+
 ### Fixed
 
 - **Windows: freezes on "Waiting for tool response…".** Shell commands,
@@ -255,7 +257,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/ItsCetla/tada/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/ItsCetla/tada/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/ItsCetla/tada/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/ItsCetla/tada/compare/v0.3.1...v0.3.2
