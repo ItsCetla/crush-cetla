@@ -7,18 +7,6 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
-### Security
-
-- **Brace expansions and globbed command names are graded.** The grader
-  expands `{a,b}` the way the shell does, so `{rm,-rf,x}` counts as a
-  delete and `.{g,x}it/hooks/x` as a protected path. A command name with a
-  glob (`/bin/r? -rf x`) counts as a delete.
-- **Paths and git options known only at run time are protected.** A
-  command that writes files and gets an argument from a variable or
-  substitution (`cp h $D/hooks/x`) is graded as touching a protected path,
-  as is `git $SUB`, `git -c` and `git --config-env`, which can set hooks
-  or commands git runs.
-
 ## [0.5.8] - 2026-10-20
 
 ### Added
