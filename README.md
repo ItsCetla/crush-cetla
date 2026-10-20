@@ -1166,10 +1166,19 @@ and run `tada update` from a new terminal (Windows can't replace a running
 
 ## Privacy
 
-This fork collects no telemetry. Apart from the release check described
-below, the only network connections it makes are to the model providers and MCP servers you
-configure (plus model discovery against those providers' `/models`
-endpoints and OAuth refreshes for accounts you signed in with `tada login`).
+This fork collects no telemetry and sends no crash reports. This is every
+connection it can make; if something isn't listed, Ta-Da doesn't do it.
+
+| Connection | When | How to turn it off |
+| --- | --- | --- |
+| Model providers you configure | Every turn, plus a `GET /models` discovery call against the same base URL | Remove the provider |
+| MCP servers you configure | When they start, and their OAuth flow if they use one | Remove or disable the server |
+| OAuth refresh | For accounts you signed in with `tada login` | `tada logout` |
+| Your `claude` CLI | Only when you pick a Claude Code model. Ta-Da starts the CLI on your machine and the CLI talks to Anthropic itself | Pick another model, or `"disable": true` on the provider |
+| Magic Context embeddings | Only if you set an embedding endpoint (`embedding.provider`) | Leave the endpoint unset |
+| Web tools (`fetch`, `download`, `agentic_fetch`, `sourcegraph`) | Only once enabled, and each call asks first | Off by default; `option web-tools false` |
+| Provider catalog refresh | Only when you run `tada update-providers` | Don't run it |
+| Update check (`api.github.com`) | At most every 6 hours, one request for this repo's latest release. Downloads happen only when you run `tada update` | `"options": { "update_check": false }`, `option update-check false` or `TADA_NO_UPDATE_CHECK=1` |
 
 ## Q&A
 

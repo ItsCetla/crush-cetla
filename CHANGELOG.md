@@ -40,6 +40,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   Bedrock/Vertex/Foundry switches, profiles and model overrides. Before,
   only `ANTHROPIC_API_KEY` was removed. If you sign in through one of
   those, set `use_api_key: true` on the provider to keep them.
+- The README's Privacy section is now a table of every connection Ta-Da
+  can make, when it happens and how to turn it off, matching the website.
 
 ### Fixed
 
