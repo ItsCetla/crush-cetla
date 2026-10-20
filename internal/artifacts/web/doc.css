@@ -1,0 +1,203 @@
+/* Ta-Da documents (artifact kind "document").
+   The page body is <main class="tada-doc">…</main>. Every rule sits inside
+   :where(), so it carries zero specificity and any author style wins. */
+
+:where(:root) {
+  --doc-bg: #fbf7f2;
+  --doc-fg: #231c17;
+  --doc-muted: #75675b;
+  --doc-surface: #f3ece4;
+  --doc-border: #e4d8cb;
+  --doc-accent: #c46a12;
+  --doc-accent-2: #c8442a;
+  --doc-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --doc-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :where(:root:not([data-theme="light"])) {
+    --doc-bg: #16120f;
+    --doc-fg: #f2e9e1;
+    --doc-muted: #a8998c;
+    --doc-surface: #1f1a16;
+    --doc-border: #3a3029;
+    --doc-accent: #f0a24a;
+    --doc-accent-2: #e8603c;
+    color-scheme: dark;
+  }
+}
+:where(:root[data-theme="dark"]) {
+  --doc-bg: #16120f;
+  --doc-fg: #f2e9e1;
+  --doc-muted: #a8998c;
+  --doc-surface: #1f1a16;
+  --doc-border: #3a3029;
+  --doc-accent: #f0a24a;
+  --doc-accent-2: #e8603c;
+  color-scheme: dark;
+}
+
+:where(html) { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+:where(body) {
+  margin: 0;
+  background: var(--doc-bg);
+  color: var(--doc-fg);
+  font-family: var(--doc-font);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(.tada-doc) {
+  box-sizing: border-box;
+  max-width: calc(72ch + 32px);
+  margin: 0 auto;
+  padding: 48px 16px 96px;
+  overflow-wrap: break-word;
+}
+:where(.tada-doc) :where(*, *::before, *::after) { box-sizing: border-box; }
+:where(.tada-doc) > :where(:first-child) { margin-top: 0; }
+
+/* ---------- headings ---------- */
+
+:where(.tada-doc) :where(h1, h2, h3, h4, h5, h6) {
+  line-height: 1.25;
+  font-weight: 700;
+  margin: 2em 0 0.6em;
+  scroll-margin-top: 16px;
+}
+:where(.tada-doc) :where(h1) { font-size: 2.25em; letter-spacing: -0.02em; margin-top: 0.4em; }
+:where(.tada-doc) :where(h1)::after {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 4px;
+  margin-top: 0.4em;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--doc-accent), var(--doc-accent-2));
+}
+:where(.tada-doc) :where(h2) { font-size: 1.55em; letter-spacing: -0.01em; padding-bottom: 0.25em; border-bottom: 1px solid var(--doc-border); }
+:where(.tada-doc) :where(h3) { font-size: 1.25em; }
+:where(.tada-doc) :where(h4) { font-size: 1.05em; }
+:where(.tada-doc) :where(h5, h6) { font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.06em; color: var(--doc-muted); }
+:where(.tada-doc) :where(h1 + h2, h2 + h3, h3 + h4) { margin-top: 0.8em; }
+
+/* ---------- text ---------- */
+
+:where(.tada-doc) :where(p, ul, ol, dl, blockquote, pre, table, figure, details) { margin: 0 0 1.1em; }
+:where(.tada-doc) :where(a) { color: var(--doc-accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+:where(.tada-doc) :where(a:hover) { text-decoration-thickness: 2px; }
+:where(.tada-doc) :where(strong, b) { font-weight: 700; }
+:where(.tada-doc) :where(small) { font-size: 0.85em; color: var(--doc-muted); }
+:where(.tada-doc) :where(mark) { background: color-mix(in srgb, var(--doc-accent) 28%, transparent); color: inherit; border-radius: 3px; padding: 0 0.15em; }
+:where(.tada-doc) :where(abbr[title]) { text-decoration: underline dotted; cursor: help; }
+:where(.tada-doc) :where(sub, sup) { font-size: 0.75em; line-height: 0; }
+:where(.tada-doc) :where(kbd) {
+  font-family: var(--doc-mono);
+  font-size: 0.82em;
+  padding: 0.1em 0.4em;
+  border: 1px solid var(--doc-border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--doc-surface);
+}
+
+/* ---------- lists ---------- */
+
+:where(.tada-doc) :where(ul, ol) { padding-left: 1.5em; }
+:where(.tada-doc) :where(li) { margin: 0.3em 0; }
+:where(.tada-doc) :where(li > ul, li > ol) { margin: 0.3em 0 0; }
+:where(.tada-doc) :where(li)::marker { color: var(--doc-muted); }
+:where(.tada-doc) :where(dt) { font-weight: 650; margin-top: 0.6em; }
+:where(.tada-doc) :where(dd) { margin: 0.2em 0 0 1.5em; }
+
+/* Task lists: GitHub-style ".task-list-item" or any li that starts with a checkbox. */
+:where(.tada-doc) :where(li.task-list-item, li:has(> input[type="checkbox"]:first-child)) {
+  list-style: none;
+  position: relative;
+}
+:where(.tada-doc) :where(ul.contains-task-list, ul:has(> li > input[type="checkbox"]:first-child)) { padding-left: 1.6em; }
+:where(.tada-doc) :where(li.task-list-item, li:has(> input[type="checkbox"]:first-child)) > :where(input[type="checkbox"]:first-child) {
+  position: absolute;
+  left: -1.55em;
+  top: 0.32em;
+  margin: 0;
+  width: 1.05em;
+  height: 1.05em;
+  accent-color: var(--doc-accent);
+}
+:where(.tada-doc) :where(li:has(> input[type="checkbox"]:first-child:checked)) { color: var(--doc-muted); }
+
+/* ---------- quotes, rules, code ---------- */
+
+:where(.tada-doc) :where(blockquote) {
+  padding: 0.2em 0 0.2em 1.1em;
+  border-left: 4px solid var(--doc-accent);
+  color: var(--doc-muted);
+}
+:where(.tada-doc) :where(blockquote > :last-child) { margin-bottom: 0; }
+:where(.tada-doc) :where(hr) { border: 0; height: 1px; background: var(--doc-border); margin: 2.4em 0; }
+
+:where(.tada-doc) :where(code, samp) {
+  font-family: var(--doc-mono);
+  font-size: 0.88em;
+  padding: 0.12em 0.35em;
+  border-radius: 5px;
+  background: var(--doc-surface);
+}
+:where(.tada-doc) :where(pre) {
+  font-family: var(--doc-mono);
+  font-size: 0.86em;
+  line-height: 1.55;
+  padding: 14px 16px;
+  border: 1px solid var(--doc-border);
+  border-radius: 10px;
+  background: var(--doc-surface);
+  overflow-x: auto;
+  tab-size: 2;
+}
+:where(.tada-doc) :where(pre code) { padding: 0; background: none; font-size: inherit; border-radius: 0; }
+
+/* ---------- tables ---------- */
+
+:where(.tada-doc) :where(table) {
+  display: block;
+  max-width: 100%;
+  width: max-content;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.94em;
+  font-variant-numeric: tabular-nums;
+}
+:where(.tada-doc) :where(th, td) { padding: 8px 12px; border: 1px solid var(--doc-border); text-align: left; vertical-align: top; }
+:where(.tada-doc) :where(th) { background: var(--doc-surface); font-weight: 650; }
+:where(.tada-doc) :where(tbody tr:nth-child(even) td) { background: color-mix(in srgb, var(--doc-surface) 45%, transparent); }
+:where(.tada-doc) :where(caption) { caption-side: bottom; padding-top: 6px; font-size: 0.88em; color: var(--doc-muted); text-align: left; }
+
+/* ---------- media ---------- */
+
+:where(.tada-doc) :where(img, video, svg, canvas, iframe) { max-width: 100%; height: auto; }
+:where(.tada-doc) :where(img) { border-radius: 8px; }
+:where(.tada-doc) :where(figure) { margin-left: 0; margin-right: 0; }
+:where(.tada-doc) :where(figcaption) { margin-top: 0.5em; font-size: 0.88em; color: var(--doc-muted); text-align: center; }
+
+:where(.tada-doc) :where(details) { border: 1px solid var(--doc-border); border-radius: 10px; padding: 0.6em 1em; }
+:where(.tada-doc) :where(summary) { cursor: pointer; font-weight: 600; }
+:where(.tada-doc) :where(details[open] > summary) { margin-bottom: 0.6em; }
+
+:where(.tada-doc) :where(:focus-visible) { outline: 2px solid var(--doc-accent); outline-offset: 2px; }
+
+@media (max-width: 600px) {
+  :where(body) { font-size: 16px; }
+  :where(.tada-doc) { padding-top: 28px; }
+  :where(.tada-doc) :where(h1) { font-size: 1.9em; }
+  :where(.tada-doc) :where(h2) { font-size: 1.4em; }
+}
+
+@media print {
+  :where(body) { background: #fff; color: #000; font-size: 11pt; }
+  :where(.tada-doc) { max-width: none; padding: 0; }
+  :where(.tada-doc) :where(a) { color: inherit; }
+  :where(.tada-doc) :where(pre, blockquote, table, figure, img) { break-inside: avoid; }
+  :where(.tada-doc) :where(h1, h2, h3, h4) { break-after: avoid; }
+}

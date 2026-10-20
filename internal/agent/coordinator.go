@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/prompt"
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
+	"github.com/charmbracelet/crush/internal/artifacts"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/discover"
 	"github.com/charmbracelet/crush/internal/filetracker"
@@ -808,6 +810,7 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		Questions:            c.questions,
 		PlanMode:             agent.ID == config.AgentPlan,
 		WorkDir:              c.cfg.WorkingDir(),
+		ClaudeCodeArgs:       c.claudeCodeArtifactArgs(isSubAgent),
 	})
 
 	// The readiness goroutines below perform one-time setup — building the
@@ -914,6 +917,14 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 	// Question tool is interactive-only and not available to sub-agents.
 	if !isSubAgent && c.interactive {
 		allTools = append(allTools, tools.NewQuestionTool(c.questions))
+	}
+
+	if opts := c.cfg.Config().Options; opts.ArtifactsEnabled() {
+		if svc, err := c.artifactService(); err != nil {
+			slog.Warn("Artifacts unavailable", "error", err)
+		} else {
+			allTools = append(allTools, tools.NewArtifactTools(svc, c.permissions, c.cfg.WorkingDir())...)
+		}
 	}
 
 	// Add LSP tools if user has configured LSPs or auto_lsp is enabled (nil or true).
@@ -1860,4 +1871,54 @@ func logDiscoveryStats(
 		"prompt_tok_est", skills.ApproxTokenCount(xml),
 		"active_names", activeNames,
 	)
+}
+
+// artifactService returns the artifacts service configured from
+// options.artifacts. New artifacts open in the browser only in an
+// interactive session.
+// claudeCodeArtifactArgs gives the Claude Code CLI the artifact tools by
+// registering this binary's `artifacts mcp` server with --mcp-config. The
+// server gets the merged artifact settings as flags, since it only reads
+// the global config file on its own.
+func (c *coordinator) claudeCodeArtifactArgs(isSubAgent bool) []string {
+	o := c.cfg.Config().Options
+	if isSubAgent || !o.ArtifactsEnabled() {
+		return nil
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return nil
+	}
+	opts := o.ArtifactsOrDefault()
+	args := []string{
+		"artifacts", "mcp",
+		"--port", strconv.Itoa(cmp.Or(opts.Port, artifacts.DefaultPort)),
+		"--allow-cdn=" + strconv.FormatBool(opts.AllowCDN),
+		"--no-open=" + strconv.FormatBool(!c.interactive || !*opts.OpenOnCreate),
+	}
+	cfg, err := json.Marshal(map[string]any{
+		"mcpServers": map[string]any{
+			"tada-artifacts": map[string]any{
+				"type":    "stdio",
+				"command": exe,
+				"args":    args,
+			},
+		},
+	})
+	if err != nil {
+		return nil
+	}
+	return []string{"--mcp-config=" + string(cfg)}
+}
+
+func (c *coordinator) artifactService() (*artifacts.Service, error) {
+	base, err := artifacts.Default()
+	if err != nil {
+		return nil, err
+	}
+	opts := c.cfg.Config().Options.ArtifactsOrDefault()
+	svc := *base
+	svc.Server = artifacts.ServerOptions{Port: opts.Port, AllowCDN: opts.AllowCDN}
+	svc.OpenOnCreate = c.interactive && *opts.OpenOnCreate
+	return &svc, nil
 }

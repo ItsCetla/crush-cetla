@@ -141,6 +141,7 @@ func (a *sessionAgent) runClaudeCode(
 		SessionID:      ccSession,
 		Images:         images,
 		Env:            claudecode.ChildEnv(os.Environ(), model.ClaudeKeepAPIKey),
+		ExtraArgs:      a.ccExtraArgs,
 	}
 	handler := claudecode.Handler{
 		OnEvent:    r.onEvent,

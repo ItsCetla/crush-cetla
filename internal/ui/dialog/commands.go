@@ -571,6 +571,10 @@ func (c *Commands) defaultCommands() []*CommandItem {
 
 	commands = append(commands, NewCommandItem(c.com.Styles, "switch_theme", "Themes", "", ActionOpenDialog{ThemeID}))
 
+	if cfg == nil || cfg.Options.ArtifactsEnabled() {
+		commands = append(commands, NewCommandItem(c.com.Styles, "open_artifacts", "Open Artifacts Gallery", "", ActionOpenArtifacts{}).WithAliases("artifacts"))
+	}
+
 	// Add mouse support toggle.
 	mouseLabel := "Disable Mouse"
 	if cfg != nil && cfg.Options != nil && cfg.Options.TUI.Mouse != nil && !*cfg.Options.TUI.Mouse {

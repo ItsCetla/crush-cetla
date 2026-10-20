@@ -129,6 +129,10 @@
             <p>Have the <code>claude</code> CLI? Pick <strong>Claude Code</strong> in the model picker and Ta-Da runs your own <code>claude</code> each turn, with its edits shown as Ta-Da diffs, its tool calls going through Ta-Da's permission prompts and its questions in Ta-Da's dialog. Ta-Da never touches your Claude login.</p>
           </article>
           <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M14 9v11"/></svg></span>Artifacts, kept local</h3>
+            <p>The agent can publish reports, charts, dashboards, small tools, documents and slide decks to a viewer on <code>127.0.0.1</code>, with versions, comments and a per-page database. Pages make no outside requests unless you allow CDNs. <code>tada artifacts mcp</code> offers the same tools to Claude Desktop.</p>
+          </article>
+          <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4c-4 0-7 2.5-7 6 0 2 1 3.6 2.6 4.7L7 20l4-2.2c.3 0 .7.1 1 .1 4 0 7-2.5 7-6s-3-6-7-6z"/><path d="M9 10h6M9 13h4"/></svg></span>Magic Context, opt-in</h3>
             <p>A Go port of cortexkit/magic-context. A background historian compresses old turns before the window fills, the agent can drop stale tool output, and project memory and notes carry over between sessions. All local; turn it on with <code>options.magic_context.enabled</code>.</p>
           </article>
@@ -235,6 +239,7 @@
           <li><strong>OAuth refresh</strong> for accounts you signed in with <code>tada login</code>.</li>
           <li class="still"><strong>Your <code>claude</code> CLI, only when you pick a Claude Code model.</strong> Ta-Da starts the CLI on your machine; the CLI talks to Anthropic itself.</li>
           <li class="still"><strong>Magic Context embeddings, only if you set an endpoint.</strong> Its historian and memory otherwise use the model providers above.</li>
+          <li class="still"><strong>Artifact pages, only if you allow CDNs.</strong> With <code>options.artifacts.allow_cdn</code>, pages may load pinned scripts from a few CDNs and fonts from Google Fonts. Otherwise they are blocked from every outside request, and the viewer listens on 127.0.0.1 only.</li>
           <li class="still"><strong>Web tools, only once enabled</strong> and only after you approve each request.</li>
           <li class="still"><strong>Catalog refresh, only on request</strong> with <code>tada update-providers</code>.</li>
           <li class="still"><strong>Update check, unless turned off.</strong> At most every 6 hours, one request to <code>api.github.com</code> for this repo's latest release; downloads only when you run <code>tada update</code>. Off with <code>options.update_check: false</code>, <code>option update-check false</code> or <code>TADA_NO_UPDATE_CHECK=1</code>.</li>

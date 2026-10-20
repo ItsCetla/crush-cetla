@@ -2512,6 +2512,9 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 	case dialog.ActionInstallUpdate:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, installUpdateCmd(msg.Version))
+	case dialog.ActionOpenArtifacts:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.openArtifactsCmd())
 	case dialog.ActionToggleMouseSupport:
 		cfg := m.com.Config()
 		if cfg == nil {

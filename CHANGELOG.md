@@ -7,6 +7,23 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Added
+
+- **Artifacts.** The agent can publish a page instead of a wall of text: a
+  report, chart, dashboard, small tool, Markdown document or slide deck.
+  Pages are stored locally and shown in a viewer on 127.0.0.1 with a
+  gallery, versions, comments and a small per-page database (`window.tada`).
+  New tools: `artifact`, `artifact_data` and `artifact_comments`, with their
+  own tool cards in the chat. Open the gallery with "Open Artifacts Gallery"
+  in the command palette or `tada artifacts open`; manage artifacts with
+  `tada artifacts list/serve/rm`. Configure with `options.artifacts`.
+- **Artifacts over MCP.** `tada artifacts mcp` serves the same tools over
+  stdio for Claude Desktop and other MCP clients. Claude Code engine
+  sessions get them automatically.
+- **Offline by default.** Artifact pages run in a sandboxed frame that
+  blocks every outside request. `options.artifacts.allow_cdn` (or
+  `--allow-cdn`) allows pinned scripts from a few CDNs and Google Fonts.
+
 ### Changed
 
 - **Faster releases.** The six binaries now build in parallel on separate

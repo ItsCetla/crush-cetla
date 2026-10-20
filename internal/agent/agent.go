@@ -288,6 +288,7 @@ type sessionAgent struct {
 	questions   question.Service
 	planMode    bool
 	workDir     string
+	ccExtraArgs []string
 }
 
 type SessionAgentOptions struct {
@@ -309,6 +310,9 @@ type SessionAgentOptions struct {
 	Questions            question.Service
 	PlanMode             bool
 	WorkDir              string
+	// ClaudeCodeArgs are extra arguments for the Claude Code CLI, such as
+	// the --mcp-config that gives it the artifact tools.
+	ClaudeCodeArgs []string
 }
 
 func NewSessionAgent(
@@ -340,6 +344,7 @@ func NewSessionAgent(
 		questions:            opts.Questions,
 		planMode:             opts.PlanMode,
 		workDir:              opts.WorkDir,
+		ccExtraArgs:          opts.ClaudeCodeArgs,
 	}
 }
 

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Artifact · Ta-Da</title>
+<link rel="icon" href="/_tada/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/_tada/app.css">
+<script src="/_tada/viewer.js"></script>
+</head>
+<body class="viewer">
+<header class="viewer-bar">
+  <a class="btn icon ghost back" href="/" aria-label="Back to gallery" title="Back to gallery">←</a>
+  <div class="viewer-id">
+    <span id="glyph" class="glyph-slot"></span>
+    <div class="viewer-titles">
+      <h1 class="viewer-title" id="title">Loading…</h1>
+      <div class="viewer-sub" id="subtitle" hidden></div>
+    </div>
+  </div>
+  <label class="sr-only" for="version">Version</label>
+  <select class="version-select" id="version" disabled></select>
+
+  <button class="btn icon more-btn" id="more" type="button" aria-label="More actions" aria-haspopup="true" aria-expanded="false" aria-controls="actions">⋯</button>
+  <div class="actions" id="actions">
+    <button class="btn icon" id="theme" type="button" title="Theme: system" aria-label="Theme: system"><span class="ico" aria-hidden="true">◐</span><span class="label">Theme: system</span></button>
+    <a class="btn icon" id="open" href="#" target="_blank" rel="noopener" title="Open page in new tab" aria-label="Open page in new tab"><span class="ico" aria-hidden="true">↗</span><span class="label">Open in new tab</span></a>
+    <button class="btn icon" id="pin" type="button" aria-pressed="false" title="Pin" aria-label="Pin"><span class="ico" aria-hidden="true">📌</span><span class="label">Pin</span></button>
+    <button class="btn" id="comments-btn" type="button" aria-expanded="false" aria-controls="comments" title="Comments" aria-label="Comments"><span class="ico" aria-hidden="true">💬</span><span class="label">Comments</span><span class="badge" id="badge" hidden>0</span></button>
+    <hr>
+    <button class="btn icon" id="delete" type="button" title="Delete" aria-label="Delete"><span class="ico" aria-hidden="true">🗑</span><span class="label">Delete…</span></button>
+  </div>
+</header>
+
+<div class="stage">
+  <div class="frame-wrap" id="frame-wrap">
+    <div class="loading-bar" id="loading" hidden></div>
+    <div class="notice" id="notice" hidden>
+      <div>
+        <h2 id="notice-title"></h2>
+        <p id="notice-msg"></p>
+        <a class="btn primary" href="/">Back to gallery</a>
+      </div>
+    </div>
+  </div>
+
+  <aside class="comments" id="comments" aria-label="Comments">
+    <div class="comments-head">
+      <h2>Comments</h2>
+      <label class="toggle"><input type="checkbox" id="show-resolved"> Show resolved</label>
+      <button class="btn icon ghost" id="comments-close" type="button" aria-label="Close comments">✕</button>
+    </div>
+    <div class="threads" id="threads" aria-live="polite"></div>
+    <form class="composer" id="composer">
+      <label class="sr-only" for="c-body">New comment</label>
+      <textarea id="c-body" rows="3" placeholder="Leave a comment… (⌘/Ctrl+Enter to send)" required></textarea>
+      <label class="sr-only" for="c-anchor">Anchor (optional)</label>
+      <input id="c-anchor" type="text" placeholder="Anchor (optional) — a quote, or “slide 3”" autocomplete="off">
+      <div class="composer-row">
+        <label class="toggle"><input type="checkbox" id="c-agent" checked> Send to agent</label>
+        <button class="btn primary" type="submit" id="c-send">Comment</button>
+      </div>
+    </form>
+  </aside>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<dialog class="confirm" id="confirm" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-msg"></p>
+    <div class="row">
+      <button class="btn" value="cancel" type="submit">Cancel</button>
+      <button class="btn danger" value="ok" type="submit" id="confirm-ok">Delete</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>

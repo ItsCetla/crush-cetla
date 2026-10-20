@@ -59,6 +59,11 @@ talks to and what it does without asking:
   in the model picker and Ta-Da runs your own `claude` for each turn, with
   its tool calls going through Ta-Da's permission prompts and questions. See
   [Claude Code](#claude-code).
+- **Artifacts.** The agent can publish pages, Markdown documents and slide
+  decks to a local viewer with versions, comments and a per-page database.
+  Pages make no outside requests unless you allow CDNs. `tada artifacts mcp`
+  offers the same tools to Claude Desktop and other MCP clients. See
+  [Artifacts](#artifacts).
 - **Magic Context (opt-in).** A Go port of cortexkit/magic-context that
   compresses old turns in the background and keeps project memory across
   sessions. See [Magic Context](#magic-context).
@@ -860,6 +865,67 @@ cost is only shown with `use_api_key`. Set `"disable": true` on the provider
 to hide it. Session titles come from your first message, so nothing is sent
 to another provider to name a Claude Code session.
 
+### Artifacts
+
+The agent can publish a page instead of a wall of terminal text: a report,
+a chart, a dashboard, a small tool or game, a Markdown document or a slide
+deck. Pages are saved on your machine and shown in a local viewer on
+`http://127.0.0.1:7480` (the next free port if that one is taken), with a
+gallery, version history, comments, and a small database each page can use
+to keep state. A new artifact opens in your browser when it's first
+published.
+
+The agent gets three tools: `artifact` (publish, read, list, open and
+delete), `artifact_data` (the page's database) and `artifact_comments`.
+They're on by default. Open the gallery from the command palette with
+**Open Artifacts Gallery**, or from a shell:
+
+```bash
+tada artifacts list            # newest first; -q to filter, -n to limit
+tada artifacts open [id]       # the gallery, or one artifact
+tada artifacts serve --open    # run the viewer in the foreground
+tada artifacts rm <id>...      # delete for good
+```
+
+**No outside requests by default.** Pages run in a sandboxed frame with a
+content security policy that blocks every external script, stylesheet,
+font, image and fetch, and the agent is told to write everything inline.
+Set `allow_cdn` to let pages load pinned scripts from cdnjs, jsDelivr,
+unpkg, the Tailwind CDN and the jQuery CDN, and fonts from Google Fonts:
+
+```json
+{
+  "options": {
+    "artifacts": {
+      "allow_cdn": false,
+      "open_on_create": true,
+      "port": 7480,
+      "disabled": false
+    }
+  }
+}
+```
+
+Artifacts live in `~/.local/share/tada/artifacts` (or under
+`$XDG_DATA_HOME`, `%LOCALAPPDATA%` on Windows, or `TADA_ARTIFACTS_DIR`). The
+viewer only answers on 127.0.0.1 and rejects requests from other hosts.
+
+**Claude Code and other MCP clients.** Claude Code engine sessions get the
+artifact tools automatically. Any other MCP client can use them through
+`tada artifacts mcp`, a stdio server that starts the viewer if it isn't
+running. For Claude Desktop, add this to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "tada-artifacts": { "command": "tada", "args": ["artifacts", "mcp"] }
+  }
+}
+```
+
+`tada artifacts mcp` reads `options.artifacts` from your global config, and
+takes `--port`, `--allow-cdn` and `--no-open` to override it.
+
 ### Magic Context
 
 Magic Context is a Go port of
@@ -1176,6 +1242,7 @@ connection it can make; if something isn't listed, Ta-Da doesn't do it.
 | OAuth refresh | For accounts you signed in with `tada login` | `tada logout` |
 | Your `claude` CLI | Only when you pick a Claude Code model. Ta-Da starts the CLI on your machine and the CLI talks to Anthropic itself | Pick another model, or `"disable": true` on the provider |
 | Magic Context embeddings | Only if you set an embedding endpoint (`embedding.provider`) | Leave the endpoint unset |
+| Artifact pages (CDNs, Google Fonts) | Only with `options.artifacts.allow_cdn`. Otherwise pages are blocked from every outside request, and the viewer listens on 127.0.0.1 only | Off by default |
 | Web tools (`fetch`, `download`, `agentic_fetch`, `sourcegraph`) | Only once enabled, and each call asks first | Off by default; `option web-tools false` |
 | Provider catalog refresh | Only when you run `tada update-providers` | Don't run it |
 | Update check (`api.github.com`) | At most every 6 hours, one request for this repo's latest release. Downloads happen only when you run `tada update` | `"options": { "update_check": false }`, `option update-check false` or `TADA_NO_UPDATE_CHECK=1` |

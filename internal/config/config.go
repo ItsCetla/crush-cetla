@@ -544,6 +544,8 @@ type Options struct {
 	TrustedPaths []string `json:"trusted_paths,omitempty" jsonschema:"description=Directories whose projects (and every project below them) are trusted without running tada trust. Project-level config (tada.json\\, tadarc\\, .tada/tada.json) can run commands\\, so only list directories you control. Read only from the global config; ~ is expanded.,example=~/code/mine"`
 	// MagicContext is the opt-in Magic Context runtime. See MagicContextOptions.
 	MagicContext *MagicContextOptions `json:"magic_context,omitempty" jsonschema:"description=Magic Context: background historian\\, ctx_reduce drops\\, project memory and search. Replaces auto-summarize when enabled"`
+	// Artifacts configures the artifact tools and their local viewer.
+	Artifacts *ArtifactsOptions `json:"artifacts,omitempty" jsonschema:"description=Artifacts: HTML pages\\, Markdown documents and slide decks the agent publishes to a local viewer on 127.0.0.1"`
 }
 
 // webTools are the built-in tools that make outbound network requests on
@@ -1179,6 +1181,9 @@ func allToolNames() []string {
 		"write",
 		"list_mcp_resources",
 		"read_mcp_resource",
+		"artifact",
+		"artifact_data",
+		"artifact_comments",
 	}
 }
 

@@ -3,6 +3,32 @@
   "$id": "https://github.com/charmbracelet/crush/internal/config/config",
   "$ref": "#/$defs/Config",
   "$defs": {
+    "ArtifactsOptions": {
+      "properties": {
+        "disabled": {
+          "type": "boolean",
+          "description": "Turn off the artifact tools and the local viewer",
+          "default": false
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port of the local viewer on 127.0.0.1. The next free port is used when it's taken",
+          "default": 7480
+        },
+        "open_on_create": {
+          "type": "boolean",
+          "description": "Open a new artifact in the browser when it's first published",
+          "default": true
+        },
+        "allow_cdn": {
+          "type": "boolean",
+          "description": "Let artifact pages load scripts from cdnjs, jsDelivr, unpkg, the Tailwind CDN and the jQuery CDN, and fonts from Google Fonts. Off by default: pages make no outside requests",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "Attribution": {
       "properties": {
         "trailer_style": {
@@ -1008,6 +1034,10 @@
         "magic_context": {
           "$ref": "#/$defs/MagicContextOptions",
           "description": "Magic Context: background historian, ctx_reduce drops, project memory and search. Replaces auto-summarize when enabled"
+        },
+        "artifacts": {
+          "$ref": "#/$defs/ArtifactsOptions",
+          "description": "Artifacts: HTML pages, Markdown documents and slide decks the agent publishes to a local viewer on 127.0.0.1"
         }
       },
       "additionalProperties": false,

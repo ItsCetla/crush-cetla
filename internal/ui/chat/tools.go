@@ -285,7 +285,9 @@ func NewToolMessageItem(
 	case tools.LSPRestartToolName:
 		item = NewLSPRestartToolMessageItem(sty, toolCall, result, canceled)
 	default:
-		if IsDockerMCPTool(toolCall.Name) {
+		if _, ok := artifactToolDisplay(toolCall.Name); ok {
+			item = NewArtifactToolMessageItem(sty, toolCall, result, canceled)
+		} else if IsDockerMCPTool(toolCall.Name) {
 			item = NewDockerMCPToolMessageItem(sty, toolCall, result, canceled)
 		} else if strings.HasPrefix(toolCall.Name, "mcp_") {
 			item = NewMCPToolMessageItem(sty, toolCall, result, canceled)
@@ -1847,6 +1849,9 @@ func prettifyToolName(name string) string {
 	case tools.WriteToolName:
 		return "Write"
 	default:
+		if label, ok := artifactToolDisplay(name); ok {
+			return label
+		}
 		return humanizedToolName(name)
 	}
 }

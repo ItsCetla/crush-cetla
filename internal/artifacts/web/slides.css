@@ -1,0 +1,229 @@
+/* Ta-Da slides (artifact kind "slides").
+   Every top-level <section> is one 1280×720 slide, scaled to fit and
+   letterboxed. Theme tokens and typography use :where() so they carry zero
+   specificity — any rule the author writes wins. Only the stage geometry
+   (position, size, scale) is forced. */
+
+:where(:root) {
+  --slide-bg: #fbf7f2;
+  --slide-fg: #231c17;
+  --slide-muted: #75675b;
+  --slide-accent: #c46a12;
+  --slide-accent-2: #c8442a;
+  --slide-surface: #f3ece4;
+  --slide-border: #e4d8cb;
+  --slide-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --slide-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --slide-letterbox: #0c0a08;
+}
+@media (prefers-color-scheme: dark) {
+  :where(:root:not([data-theme="light"])) {
+    --slide-bg: #16120f;
+    --slide-fg: #f2e9e1;
+    --slide-muted: #a8998c;
+    --slide-accent: #f0a24a;
+    --slide-accent-2: #e8603c;
+    --slide-surface: #1f1a16;
+    --slide-border: #3a3029;
+    --slide-letterbox: #000;
+  }
+}
+:where(:root[data-theme="dark"]) {
+  --slide-bg: #16120f;
+  --slide-fg: #f2e9e1;
+  --slide-muted: #a8998c;
+  --slide-accent: #f0a24a;
+  --slide-accent-2: #e8603c;
+  --slide-surface: #1f1a16;
+  --slide-border: #3a3029;
+  --slide-letterbox: #000;
+}
+
+/* ---------- stage (forced geometry) ---------- */
+
+html.tada-deck,
+html.tada-deck > body {
+  overflow: hidden !important;
+  height: 100% !important;
+}
+html.tada-deck > body {
+  margin: 0 !important;
+  background: var(--slide-letterbox);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tada-slide {
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 1280px !important;
+  height: 720px !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  transform: translate(-50%, -50%) scale(var(--tada-scale, 1)) !important;
+  transform-origin: 50% 50% !important;
+  z-index: 1;
+}
+.tada-slide:not(.tada-current) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* ---------- default look (zero specificity) ---------- */
+
+:where(.tada-slide, .tada-clone) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+  padding: 72px 96px;
+  overflow: hidden;
+  background: var(--slide-bg);
+  color: var(--slide-fg);
+  font-family: var(--slide-font);
+  font-size: 30px;
+  line-height: 1.4;
+  text-align: left;
+}
+:where(.tada-slide, .tada-clone) :where(h1, h2, h3, h4, p, ul, ol, blockquote, pre, figure, table) { margin: 0; }
+:where(.tada-slide, .tada-clone) :where(h1) { font-size: 76px; line-height: 1.05; letter-spacing: -0.02em; font-weight: 750; }
+:where(.tada-slide, .tada-clone) :where(h2) { font-size: 54px; line-height: 1.1; letter-spacing: -0.015em; font-weight: 700; }
+:where(.tada-slide, .tada-clone) :where(h3) { font-size: 38px; line-height: 1.2; font-weight: 650; }
+:where(.tada-slide, .tada-clone) :where(h4) { font-size: 30px; font-weight: 650; color: var(--slide-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+:where(.tada-slide, .tada-clone) :where(ul, ol) { padding-left: 1.2em; display: flex; flex-direction: column; gap: 12px; }
+:where(.tada-slide, .tada-clone) :where(li)::marker { color: var(--slide-accent); }
+:where(.tada-slide, .tada-clone) :where(a) { color: var(--slide-accent); text-underline-offset: 0.15em; }
+:where(.tada-slide, .tada-clone) :where(strong, b) { font-weight: 700; }
+:where(.tada-slide, .tada-clone) :where(em) { color: var(--slide-accent); font-style: normal; }
+:where(.tada-slide, .tada-clone) :where(small) { font-size: 22px; color: var(--slide-muted); }
+:where(.tada-slide, .tada-clone) :where(code, kbd, samp) { font-family: var(--slide-mono); font-size: 0.85em; background: var(--slide-surface); border-radius: 6px; padding: 0.08em 0.3em; }
+:where(.tada-slide, .tada-clone) :where(pre) { font-family: var(--slide-mono); font-size: 22px; line-height: 1.5; background: var(--slide-surface); border: 1px solid var(--slide-border); border-radius: 12px; padding: 24px 28px; overflow: hidden; }
+:where(.tada-slide, .tada-clone) :where(pre code) { background: none; padding: 0; font-size: inherit; }
+:where(.tada-slide, .tada-clone) :where(blockquote) { border-left: 6px solid var(--slide-accent); padding-left: 28px; font-size: 38px; line-height: 1.3; }
+:where(.tada-slide, .tada-clone) :where(img, svg, video, canvas) { max-width: 100%; max-height: 100%; }
+:where(.tada-slide, .tada-clone) :where(img) { object-fit: contain; border-radius: 8px; }
+:where(.tada-slide, .tada-clone) :where(table) { border-collapse: collapse; font-size: 24px; }
+:where(.tada-slide, .tada-clone) :where(th, td) { padding: 10px 18px; border-bottom: 1px solid var(--slide-border); text-align: left; }
+:where(.tada-slide, .tada-clone) :where(th) { color: var(--slide-muted); font-weight: 600; }
+:where(.tada-slide, .tada-clone) :where(hr) { border: 0; height: 4px; width: 96px; background: linear-gradient(90deg, var(--slide-accent), var(--slide-accent-2)); border-radius: 2px; margin: 0; }
+
+/* ---------- counter ---------- */
+
+.tada-counter {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  z-index: 2147483000;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font: 600 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: #f2e9e1;
+  background: rgba(22, 18, 15, 0.72);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.tada-counter.tada-show { opacity: 1; transition-duration: 0.12s; }
+
+/* ---------- overview ---------- */
+
+.tada-overview {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483001;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+  box-sizing: border-box;
+  background: rgba(12, 10, 8, 0.94);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: 18px;
+  align-content: start;
+}
+.tada-overview[hidden] { display: none; }
+.tada-tile {
+  all: unset;
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  transition: outline-color 0.12s ease, transform 0.12s ease;
+}
+.tada-tile:hover { transform: translateY(-2px); }
+.tada-tile:focus-visible,
+.tada-tile.tada-current-tile { outline-color: #f0a24a; }
+.tada-tile-num {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  z-index: 2;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font: 600 12px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #f2e9e1;
+  background: rgba(22, 18, 15, 0.75);
+}
+.tada-clone {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 1280px !important;
+  height: 720px !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  transform: scale(var(--tada-tile-scale, 0.2)) !important;
+  transform-origin: 0 0 !important;
+  visibility: visible !important;
+  pointer-events: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tada-counter, .tada-tile { transition: none; }
+}
+
+/* ---------- print: one landscape page per slide ---------- */
+
+@page { size: 1280px 720px; margin: 0; }
+
+@media print {
+  html.tada-deck,
+  html.tada-deck > body {
+    overflow: visible !important;
+    height: auto !important;
+    background: none !important;
+  }
+  html.tada-deck { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tada-slide,
+  .tada-slide:not(.tada-current) {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    visibility: visible !important;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+  }
+  .tada-slide.tada-last { break-after: auto; page-break-after: auto; }
+  .tada-counter,
+  .tada-overview { display: none !important; }
+}

@@ -63,6 +63,7 @@ type (
 	}
 	ActionToggleTransparentBackground struct{}
 	ActionToggleMouseSupport          struct{}
+	ActionOpenArtifacts               struct{}
 	ActionSwitchTheme                 struct {
 		Theme string
 	}

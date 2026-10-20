@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Ta-Da artifacts</title>
+<link rel="icon" href="/_tada/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/_tada/app.css">
+<script src="/_tada/gallery.js"></script>
+</head>
+<body class="gallery">
+<header class="topbar">
+  <div class="gallery-head">
+    <a class="wordmark" href="/" aria-label="Ta-Da artifacts, home"><span class="brand">Ta-Da</span><span class="sub">artifacts</span></a>
+    <div class="search" role="search">
+      <label class="sr-only" for="q">Search artifacts</label>
+      <input id="q" type="search" placeholder="Search artifacts" autocomplete="off" spellcheck="false">
+    </div>
+    <button class="btn icon ghost" id="theme" type="button" aria-label="Theme: system"><span class="ico" aria-hidden="true">◐</span></button>
+  </div>
+</header>
+
+<main class="gallery-main" id="main">
+  <div class="error-banner" id="error" role="alert" hidden></div>
+  <nav class="filters" id="filters" aria-label="Filter by project" hidden></nav>
+
+  <section class="section" id="pinned-section" aria-labelledby="pinned-title" hidden>
+    <h2 class="section-title" id="pinned-title">Pinned <span class="count" id="pinned-count"></span></h2>
+    <div class="grid" id="pinned-grid"></div>
+  </section>
+
+  <section class="section" id="all-section" aria-labelledby="all-title" hidden>
+    <h2 class="section-title" id="all-title">All <span class="count" id="all-count"></span></h2>
+    <div class="grid" id="all-grid"></div>
+  </section>
+
+  <div class="empty" id="no-match" hidden>
+    <h2>No matches</h2>
+    <p>Nothing matches your search or filter.</p>
+  </div>
+
+  <div class="empty" id="empty" hidden>
+    <div class="mark" aria-hidden="true">✦</div>
+    <h2>No artifacts yet</h2>
+    <p>Artifacts appear here when the agent publishes one — a page, document or slide deck it built for you.</p>
+    <p>Ask Ta-Da to make one (it uses the <code>artifact</code> tool), or connect another client with <code>tada artifacts mcp</code>.</p>
+  </div>
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<dialog class="confirm" id="confirm" aria-labelledby="confirm-title">
+  <form method="dialog">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-msg"></p>
+    <div class="row">
+      <button class="btn" value="cancel" type="submit">Cancel</button>
+      <button class="btn danger" value="ok" type="submit" id="confirm-ok">Delete</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>
