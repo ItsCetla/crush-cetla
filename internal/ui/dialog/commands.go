@@ -205,6 +205,12 @@ func (c *Commands) HandleMsg(msg tea.Msg) Action {
 			}
 			c.list.ScrollToSelected()
 		case key.Matches(msg, c.keyMap.Select):
+			// The palette opens on "/", so "/resume auth bug" arrives here
+			// as "resume auth bug".
+			typed := "/" + strings.TrimPrefix(strings.TrimSpace(c.input.Value()), "/")
+			if query, ok := ResumeQuery(typed); ok && query != "" {
+				return ActionOpenResume{Query: query}
+			}
 			if selectedItem := c.list.SelectedItem(); selectedItem != nil {
 				if item, ok := selectedItem.(*CommandItem); ok && item != nil {
 					return item.Action()
@@ -453,6 +459,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 	commands := []*CommandItem{
 		NewCommandItem(c.com.Styles, "new_session", "New Session", "ctrl+n", ActionNewSession{}).WithAliases("clear"),
 		NewCommandItem(c.com.Styles, "switch_session", "Sessions", "ctrl+s", ActionOpenDialog{SessionsID}),
+		NewCommandItem(c.com.Styles, "resume", "Resume Conversation", "", ActionOpenResume{}).WithAliases("resume", "continue", "history"),
 		NewCommandItem(c.com.Styles, "switch_model", "Switch Model", "ctrl+l", ActionOpenDialog{ModelsID}),
 	}
 

@@ -102,6 +102,11 @@ type (
 	ActionSummarize         struct {
 		SessionID string
 	}
+	// ActionOpenResume opens the resume conversation dialog, prefiltered
+	// with Query.
+	ActionOpenResume struct {
+		Query string
+	}
 	// ActionMagicContext runs a /ctx-* command without arguments.
 	ActionMagicContext struct {
 		SessionID string

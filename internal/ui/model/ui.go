@@ -212,6 +212,10 @@ type UI struct {
 	initialSessionID string
 	// continueLastSession is set to continue the most recent session on startup.
 	continueLastSession bool
+	// resumeOnStart opens the resume picker on startup, filtered by
+	// resumeQuery.
+	resumeOnStart bool
+	resumeQuery   string
 
 	lastUserMessageTime int64
 
@@ -665,6 +669,13 @@ func (m *UI) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// ResumeOnStart makes the UI open the resume picker on startup, with
+// query prefilled as the search.
+func (m *UI) ResumeOnStart(query string) {
+	m.resumeOnStart = true
+	m.resumeQuery = query
+}
+
 // loadInitialSession loads the initial session if one was specified on startup.
 func (m *UI) loadInitialSession() tea.Cmd {
 	switch {
@@ -673,6 +684,8 @@ func (m *UI) loadInitialSession() tea.Cmd {
 		return nil
 	case m.initialSessionID != "":
 		return m.loadSession(m.initialSessionID)
+	case m.resumeOnStart:
+		return m.openResumeDialog(m.resumeQuery)
 	case m.continueLastSession:
 		return func() tea.Msg {
 			sessions, err := m.com.Workspace.ListSessions(context.Background())
@@ -1463,6 +1476,12 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.seq == m.sidebarScrollbarSeq && m.focus != uiFocusSidebar {
 			m.sidebarScrollbarVisible = false
 		}
+	case dialog.ResumeIndexMsg:
+		// The prompt index lands in the background; deliver it even when
+		// another dialog sits in front of the resume dialog.
+		if d, ok := m.dialog.Dialog(dialog.ResumeID).(*dialog.Resume); ok {
+			d.SetIndex(msg.Prompts)
+		}
 	case spinner.TickMsg:
 		if m.dialog.HasDialogs() {
 			// route to dialog
@@ -2195,7 +2214,14 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 	// Session dialog messages.
 	case dialog.ActionSelectSession:
 		m.dialog.CloseDialog(dialog.SessionsID)
+		m.dialog.CloseDialog(dialog.ResumeID)
 		cmds = append(cmds, m.loadSession(msg.Session.ID))
+
+	case dialog.ActionOpenResume:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		if cmd := m.openResumeDialog(msg.Query); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 
 	// Open dialog message.
 	case dialog.ActionOpenDialog:
@@ -3272,6 +3298,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				value = strings.TrimSpace(value)
 				if value == "exit" || value == "quit" {
 					return m.openQuitDialog()
+				}
+
+				if query, ok := dialog.ResumeQuery(value); ok && !m.bangMode {
+					m.randomizePlaceholders()
+					m.historyReset()
+					return m.openResumeDialog(query)
 				}
 
 				if name, args, ok := m.parseMagicContextCommand(value); ok {
@@ -5735,6 +5767,10 @@ func (m *UI) openDialog(id string) tea.Cmd {
 		if cmd := m.openSessionsDialog(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case dialog.ResumeID:
+		if cmd := m.openResumeDialog(""); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case dialog.ModelsID:
 		if cmd := m.openModelsDialog(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -5884,6 +5920,22 @@ func (m *UI) openSessionsDialog() tea.Cmd {
 
 	m.dialog.OpenDialog(dialog)
 	return nil
+}
+
+// openResumeDialog opens the resume conversation dialog prefiltered with
+// query, replacing one that is already open so the new query applies.
+func (m *UI) openResumeDialog(query string) tea.Cmd {
+	m.dialog.CloseDialog(dialog.ResumeID)
+	currentID := ""
+	if m.session != nil {
+		currentID = m.session.ID
+	}
+	d, load, err := dialog.NewResume(m.com, currentID, query)
+	if err != nil {
+		return util.ReportError(err)
+	}
+	m.dialog.OpenDialog(d)
+	return load
 }
 
 // openFilesDialog opens the file picker dialog.

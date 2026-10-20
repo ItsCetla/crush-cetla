@@ -39,6 +39,37 @@ func TestClassifyCommand(t *testing.T) {
 		"terraform plan":                     ClassWrite,
 		"cat README | xargs rm":              ClassDelete,
 		"go build -o bin/tada . && ./tada x": ClassWrite,
+		// Deletes hidden behind a path, quotes, escapes or wrappers.
+		"/bin/rm -rf build":             ClassDelete,
+		`\rm x`:                         ClassDelete,
+		`"rm" x`:                        ClassDelete,
+		"'rm' x":                        ClassDelete,
+		"env FOO=1 rm x":                ClassDelete,
+		"nice -n 5 unlink x":            ClassDelete,
+		"bash -c 'cd /tmp; rm -r x'":    ClassDelete,
+		"echo $(rm x)":                  ClassDelete,
+		"find . -exec /usr/bin/rm {} +": ClassDelete,
+		"/usr/bin/curl example.com":     ClassNetwork,
+		"python3 -c 'import shutil; shutil.rmtree(\"x\")'":         ClassDelete,
+		"python -c \"import os; os.remove('a')\"":                  ClassDelete,
+		"perl -e 'unlink glob q{*.txt}'":                           ClassDelete,
+		"node -e \"require('fs').rmSync('x', {recursive: true})\"": ClassDelete,
+		"ruby -e 'FileUtils.rm_rf(%q{x})'":                         ClassDelete,
+		"python3.12 - <<'PY'\nimport os\nos.unlink('x')\nPY":       ClassDelete,
+		"python3 -c 'import urllib.request'":                       ClassNetwork,
+		"python3 -c 'print(1)'":                                    ClassWrite,
+		"python3 script.py":                                        ClassWrite,
+		// A script that doesn't parse can't be checked, so it asks.
+		"echo 'unterminated": ClassDelete,
+		"FOO=1":              ClassWrite,
+		// Commands that touch protected project paths.
+		"cat > .git/hooks/pre-commit <<'EOF'\nx\nEOF": ClassOutside,
+		"cp evil.yml .github/workflows/ci.yml":        ClassOutside,
+		"echo '{}' > tada.json":                       ClassOutside,
+		"git config core.hooksPath hooks":             ClassOutside,
+		"git -C sub config core.fsmonitor x":          ClassOutside,
+		"git commit -m 'update config'":               ClassWrite,
+		"cat .gitignore":                              ClassWrite,
 	}
 	for cmd, want := range cases {
 		require.Equal(t, want, ClassifyCommand(cmd), cmd)
@@ -68,6 +99,15 @@ func TestClassify(t *testing.T) {
 		{"artifact delete", CreatePermissionRequest{ToolName: "artifact", Action: "delete"}, ClassDelete},
 		{"machines add", CreatePermissionRequest{ToolName: "machines", Action: "add"}, ClassNetwork},
 		{"machines remove", CreatePermissionRequest{ToolName: "machines", Action: "remove"}, ClassNetwork},
+		{"edit git hook", CreatePermissionRequest{ToolName: "write", Params: fileParams{".git/hooks/pre-commit"}}, ClassOutside},
+		{"edit workflow", CreatePermissionRequest{ToolName: "write", Params: fileParams{".github/workflows/ci.yml"}}, ClassOutside},
+		{"edit project config", CreatePermissionRequest{ToolName: "edit", Params: fileParams{"sub/tada.json"}}, ClassOutside},
+		{"edit tadarc", CreatePermissionRequest{ToolName: "edit", Params: fileParams{".tadarc"}}, ClassOutside},
+		{"edit claude settings", CreatePermissionRequest{ToolName: "edit", Params: fileParams{".claude/settings.json"}}, ClassOutside},
+		{"edit case trick", CreatePermissionRequest{ToolName: "edit", Params: fileParams{".GIT/config"}}, ClassOutside},
+		{"edit trailing dot", CreatePermissionRequest{ToolName: "edit", Params: fileParams{"tada.json."}}, ClassOutside},
+		{"edit gitignore", CreatePermissionRequest{ToolName: "edit", Params: fileParams{".gitignore"}}, ClassWrite},
+		{"edit docs config", CreatePermissionRequest{ToolName: "edit", Params: fileParams{"docs/tada.json.md"}}, ClassWrite},
 	}
 	for _, c := range cases {
 		require.Equal(t, c.want, Classify(c.opts, root), c.name)
@@ -164,6 +204,13 @@ func TestEditsModeApprovesOnlyProjectEdits(t *testing.T) {
 	require.NoError(t, os.Symlink(outside, filepath.Join(root, "link-out")))
 	got = answer(t, s, true)
 	ok, err = s.Request(ctx, CreatePermissionRequest{SessionID: "s", ToolName: "edit", Params: fileParams{filepath.Join(root, "link-out", "x.go")}})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, ClassOutside, (<-got).Class)
+
+	// A git hook is inside the project but runs later, so it asks too.
+	got = answer(t, s, true)
+	ok, err = s.Request(ctx, CreatePermissionRequest{SessionID: "s", ToolName: "write", Params: fileParams{filepath.Join(root, ".git", "hooks", "pre-commit")}})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, ClassOutside, (<-got).Class)

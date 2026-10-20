@@ -7,6 +7,33 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-10-20
+
+### Added
+
+- **Resume old conversations.** `/resume` (or `/continue`) opens a picker
+  of this project's saved conversations, newest first, with a preview of
+  each one's first and last prompt, message count, cost and dates. Type to
+  search titles and the text of every prompt; title matches come first.
+  `/resume auth bug` opens it already searching, and it's also in the
+  command palette as "Resume Conversation".
+- **`tada --resume` (`-r`).** Starts Ta-Da in the resume picker.
+  `tada -r auth bug` starts with a search, and `tada -r <id>` opens that
+  session directly (the short ID from the exit banner works).
+
+### Security
+
+- **Deletes can't hide from the permission grader.** Shell commands are now
+  parsed as well as pattern-matched, so `/bin/rm`, `\rm`, `"rm"`, wrappers
+  (`env`, `nice`, `sh -c`, `find -exec`) and interpreter one-liners such as
+  `python -c 'shutil.rmtree(...)'` or `node -e 'fs.rmSync(...)'` are graded
+  as deletes and always ask. A command that can't be parsed asks too.
+- **Edits mode no longer auto-approves protected project files.** Writes to
+  `.git/`, `.github/`, `.tada/`, `.claude/`, `.vscode/`, `.idea/`, `.husky/`,
+  `tadarc`, `tada.json`, `.mcp.json` and `.envrc`, and shell commands that
+  touch them or run `git config`, are graded "outside or protected" and ask,
+  even for tools allowed inside the project.
+
 ## [0.5.5] - 2026-10-20
 
 ### Added
@@ -355,7 +382,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.6...HEAD
+[0.5.6]: https://github.com/ItsCetla/tada/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/ItsCetla/tada/compare/v0.5.1...v0.5.5
 [0.5.1]: https://github.com/ItsCetla/tada/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ItsCetla/tada/compare/v0.4.3...v0.5.0

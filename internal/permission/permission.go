@@ -233,7 +233,7 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 	// file they write resolves, symlinks included, inside the working
 	// directory. Anything else falls through to the normal prompt.
 	if slices.Contains(s.projectAllowedTools, opts.ToolName) {
-		if target, ok := opts.Params.(FileTarget); ok && withinDir(s.workingDir, target.TargetFile()) {
+		if target, ok := opts.Params.(FileTarget); ok && editableInProject(s.workingDir, target.TargetFile()) {
 			s.record(opts, class, DecisionAllowed, ViaProject)
 			return true, nil
 		}
@@ -440,23 +440,71 @@ type FileTarget interface {
 // point the check somewhere else. A relative path resolves against the
 // process working directory, as the file system calls that write it do.
 func withinDir(root, path string) bool {
+	_, ok := projectRel(root, path)
+	return ok
+}
+
+// projectRel returns path relative to the real project root, and false when
+// it resolves outside root.
+func projectRel(root, path string) (string, bool) {
 	if root == "" || path == "" {
-		return false
+		return "", false
 	}
 	path, err := filepath.Abs(path)
 	if err != nil {
-		return false
+		return "", false
 	}
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		return false
+		return "", false
 	}
 	realPath, err := resolveExisting(path)
 	if err != nil {
-		return false
+		return "", false
 	}
 	rel, err := filepath.Rel(realRoot, realPath)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return rel, true
+}
+
+// protectedDirs and protectedNames are project paths that decide what runs
+// later or with more trust: git hooks and config, CI workflows, editor tasks,
+// agent settings and Ta-Da's own project config. A write there always asks,
+// even in Edits mode or for a tool allowed inside the project.
+var (
+	protectedDirs  = []string{".git", ".tada", ".claude", ".github", ".vscode", ".idea", ".husky"}
+	protectedNames = []string{".tadarc", "tadarc", ".tada.json", "tada.json", ".mcp.json", ".envrc"}
+)
+
+// editableInProject reports whether path resolves inside root and isn't a
+// protected path.
+func editableInProject(root, path string) bool {
+	rel, ok := projectRel(root, path)
+	return ok && !protectedRel(rel)
+}
+
+// protectedRel reports whether a project-relative path is protected. Names
+// are compared without case and without trailing dots, spaces or a ":stream"
+// suffix, since case-insensitive and Windows file systems treat those
+// spellings as the same file.
+func protectedRel(rel string) bool {
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	for i, part := range parts {
+		part, _, _ = strings.Cut(part, ":")
+		part = strings.ToLower(strings.TrimRight(part, ". "))
+		if part == "" {
+			continue
+		}
+		if slices.Contains(protectedDirs, part) {
+			return true
+		}
+		if i == len(parts)-1 && slices.Contains(protectedNames, part) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveExisting resolves symlinks in the longest existing prefix of an

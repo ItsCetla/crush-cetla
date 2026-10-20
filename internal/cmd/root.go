@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -65,7 +66,9 @@ func init() {
 	_ = rootCmd.PersistentFlags().MarkHidden("channels")
 	rootCmd.Flags().StringP("session", "s", "", "Continue a previous session by ID")
 	rootCmd.Flags().BoolP("continue", "C", false, "Continue the most recent session")
-	rootCmd.MarkFlagsMutuallyExclusive("session", "continue")
+	rootCmd.Flags().StringP("resume", "r", "", "Pick a previous session to resume, optionally filtered by a search or ID")
+	rootCmd.Flags().Lookup("resume").NoOptDefVal = resumePickerFlag
+	rootCmd.MarkFlagsMutuallyExclusive("session", "continue", "resume")
 
 	rootCmd.AddCommand(
 		runCmd,
@@ -81,6 +84,9 @@ func init() {
 		updateCmd,
 	)
 }
+
+// resumePickerFlag is the value --resume takes when given without one.
+const resumePickerFlag = " "
 
 var rootCmd = &cobra.Command{
 	Use:   "tada",
@@ -110,10 +116,16 @@ tada --session {session-id}
 
 # Continue the most recent session
 tada --continue
+
+# Pick a session to resume, optionally searching titles and prompts
+tada --resume
+tada --resume auth bug
   `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		sessionID, _ := cmd.Flags().GetString("session")
 		continueLast, _ := cmd.Flags().GetBool("continue")
+		resume, _ := cmd.Flags().GetString("resume")
+		resumeSet := cmd.Flags().Changed("resume")
 
 		ws, cleanup, err := setupWorkspaceWithProgressBar(cmd)
 		if err != nil {
@@ -129,8 +141,21 @@ tada --continue
 			sessionID = sess.ID
 		}
 
+		// A --resume value that names exactly one session opens it
+		// directly; anything else opens the picker with it as the search.
+		resumeQuery := strings.TrimSpace(resume)
+		if resumeSet && looksLikeSessionID(resumeQuery) {
+			if sess, err := resolveWorkspaceSessionID(cmd.Context(), ws, resumeQuery); err == nil {
+				sessionID = sess.ID
+				resumeSet = false
+			}
+		}
+
 		com := common.DefaultCommon(ws)
 		model := ui.New(com, sessionID, continueLast)
+		if resumeSet {
+			model.ResumeOnStart(resumeQuery)
+		}
 
 		inputFilter := ui.NewFilter()
 		var env uv.Environ = os.Environ()
@@ -229,6 +254,7 @@ func Execute() {
 		_, _ = w.WriteString(heartbit.String())
 		rootCmd.SetVersionTemplate(b.String() + "\n" + defaultVersionTemplate)
 	}
+	rootCmd.SetArgs(joinResumeArgs(os.Args[1:]))
 	if err := fang.Execute(
 		context.Background(),
 		rootCmd,
@@ -938,6 +964,53 @@ func MaybePrependStdin(prompt string) (string, error) {
 // UUID, full hash, or hash prefix. Works against the Workspace
 // interface so both local and client/server paths get hash prefix
 // support.
+// joinResumeArgs folds the words after -r or --resume into the flag's
+// value, so "tada -r auth bug" searches for "auth bug". Without this the
+// first word would be taken as a subcommand ("artifact" finds
+// "artifacts"). Arguments after a subcommand are left alone.
+func joinResumeArgs(args []string) []string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" || isSubcommand(a) {
+			return append(out, args[i:]...)
+		}
+		if a != "-r" && a != "--resume" {
+			out = append(out, a)
+			continue
+		}
+		var words []string
+		for i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			i++
+			words = append(words, args[i])
+		}
+		if len(words) == 0 {
+			out = append(out, a)
+			continue
+		}
+		out = append(out, "--resume="+strings.Join(words, " "))
+	}
+	return out
+}
+
+// isSubcommand reports whether name is one of the root's subcommands or
+// their aliases.
+func isSubcommand(name string) bool {
+	for _, c := range rootCmd.Commands() {
+		if c.Name() == name || slices.Contains(c.Aliases, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeSessionID reports whether a --resume value should be tried as
+// a session ID before searching: one word of at least seven characters,
+// the length of the short hash the exit banner prints.
+func looksLikeSessionID(s string) bool {
+	return len(s) >= 7 && !strings.ContainsAny(s, " \t")
+}
+
 func resolveWorkspaceSessionID(ctx context.Context, ws workspace.Workspace, id string) (session.Session, error) {
 	if sess, err := ws.GetSession(ctx, id); err == nil {
 		return sess, nil

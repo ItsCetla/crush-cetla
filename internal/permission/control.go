@@ -7,6 +7,9 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/crush/internal/shell"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // Class grades how much a permission request can change. Classes are
@@ -19,7 +22,8 @@ const (
 	ClassRead Class = "read"
 	// ClassWrite changes files inside the project or runs a local command.
 	ClassWrite Class = "write"
-	// ClassOutside writes outside the project.
+	// ClassOutside writes outside the project, or to a protected path
+	// inside it such as .git, CI workflows or Ta-Da's project config.
 	ClassOutside Class = "outside"
 	// ClassNetwork talks to another machine.
 	ClassNetwork Class = "network"
@@ -51,7 +55,7 @@ func (c Class) Label() string {
 	case ClassWrite:
 		return "edit"
 	case ClassOutside:
-		return "outside project"
+		return "outside or protected"
 	case ClassNetwork:
 		return "network"
 	case ClassDelete:
@@ -116,15 +120,92 @@ var readTools = []string{"view", "ls", "glob", "grep", "list_mcp_resources", "re
 // any other tool name is matched by keywords.
 var builtinTools = []string{"bash", "edit", "multiedit", "write", "lsp_rename", "lsp_replace_symbol", "artifact", "artifact_data", "artifact_comments", "mission"}
 
-// ClassifyCommand grades a shell command.
+var (
+	deleteCommands = []string{
+		"rm", "rmdir", "unlink", "shred", "dd", "truncate", "kill", "pkill",
+		"killall", "srm", "wipefs", "fdisk", "diskutil",
+	}
+	networkCommands = []string{
+		"curl", "wget", "ssh", "scp", "sftp", "ftp", "rsync", "nc", "ncat",
+		"telnet", "gh", "aws", "gcloud", "az", "kubectl", "flyctl", "vercel",
+		"netlify", "heroku", "npx", "bunx",
+	}
+	interpreters = []string{
+		"python", "python2", "python3", "perl", "ruby", "node", "deno", "bun",
+		"php", "osascript", "pwsh", "powershell",
+	}
+
+	// deleteCodeRE and networkCodeRE spot deletes and network calls in
+	// code handed to an interpreter, such as `python -c` or a heredoc.
+	deleteCodeRE = regexp.MustCompile(`(?i)\b(?:os\.(?:remove|unlink|rmdir|removedirs)|shutil\.rmtree|rmtree|unlink(?:Sync)?|rm(?:Sync|dir|dirSync)?\s*\(|fs\.(?:promises\.)?rm|rm_r[f]?|rm_rf|File\.delete|FileUtils\.rm|Remove-Item|send2trash|\.unlink\(|kill\s*\()`)
+	// protectedCommandRE spots a command that touches a protected project
+	// path (see protectedDirs) or changes git config, which can point git
+	// at hooks that run later.
+	protectedCommandRE = regexp.MustCompile(`(?i)(?:^|[\s'"=:/<>(])\.(?:git|tada|claude|github|vscode|idea|husky)(?:[/\\'"\s;&|)]|$)` +
+		`|(?:^|[\s'"=:/<>(])\.?tada(?:rc|\.json)\b|\.mcp\.json\b|\.envrc\b|\bgit\s+(?:-C\s+\S+\s+)?config\b`)
+	networkCodeRE = regexp.MustCompile(`(?i)(?:urllib|requests\.|httpx|http\.client|aiohttp|socket\.|fetch\s*\(|XMLHttpRequest|https?\.(?:get|request)|Net::HTTP|LWP::|Invoke-WebRequest|Invoke-RestMethod|https?://)`)
+)
+
+// ClassifyCommand grades a shell command. It matches the raw text and also
+// parses the script, so a delete can't hide behind a path (/bin/rm), quotes
+// ("rm"), a backslash (\rm), a wrapper (sudo, env, xargs, sh -c) or an
+// interpreter one-liner. A script that doesn't parse grades as a delete so
+// it always asks.
 func ClassifyCommand(command string) Class {
+	class := ClassWrite
 	switch {
 	case deleteCommandRE.MatchString(command):
 		return ClassDelete
 	case networkCommandRE.MatchString(command):
-		return ClassNetwork
+		class = ClassNetwork
 	}
-	return ClassWrite
+	if strings.TrimSpace(command) == "" {
+		return class
+	}
+	if _, err := syntax.NewParser().Parse(strings.NewReader(command), ""); err != nil {
+		return ClassDelete
+	}
+	cmds := shell.ScriptCommands(command)
+	interpreted := false
+	for _, argv := range cmds {
+		for _, variant := range shell.CommandVariants(argv) {
+			name := strings.ToLower(shell.CommandName(variant[0]))
+			switch {
+			case slices.Contains(deleteCommands, name) || strings.HasPrefix(name, "mkfs"):
+				return ClassDelete
+			case slices.Contains(networkCommands, name):
+				class = ClassNetwork
+			case isInterpreter(name):
+				interpreted = true
+			}
+		}
+	}
+	if protectedCommandRE.MatchString(command) {
+		class = Stricter(class, ClassOutside)
+	}
+	if interpreted {
+		// The code may sit in an argument or in a heredoc, so check the
+		// whole command.
+		if deleteCodeRE.MatchString(command) {
+			return ClassDelete
+		}
+		if networkCodeRE.MatchString(command) {
+			class = ClassNetwork
+		}
+	}
+	return class
+}
+
+// isInterpreter reports whether name runs code it is given, including
+// versioned names such as python3.12.
+func isInterpreter(name string) bool {
+	for _, i := range interpreters {
+		if name == i || (strings.HasPrefix(name, i) &&
+			strings.Trim(name[len(i):], "0123456789.") == "") {
+			return true
+		}
+	}
+	return false
 }
 
 // Classify grades a request from the tool's declared kind and from the
@@ -145,7 +226,7 @@ func Classify(opts CreatePermissionRequest, workingDir string) Class {
 	}
 
 	if t, ok := opts.Params.(FileTarget); ok && t.TargetFile() != "" {
-		if !withinDir(workingDir, absUnder(workingDir, t.TargetFile())) {
+		if !editableInProject(workingDir, absUnder(workingDir, t.TargetFile())) {
 			declared = Stricter(declared, ClassOutside)
 		}
 	}
