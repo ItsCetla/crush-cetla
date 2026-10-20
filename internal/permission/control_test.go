@@ -101,9 +101,37 @@ func TestClassifyCommand(t *testing.T) {
 		"git $SUB core.hooksPath h":            ClassOutside,
 		"git -c core.fsmonitor=x status":       ClassOutside,
 		"git --config-env=core.pager=X log":    ClassOutside,
-		"git log --oneline":                    ClassWrite,
-		"cp a{1,2}.txt dst/":                   ClassWrite,
-		"echo hi > out.txt":                    ClassWrite,
+		// Scripts run by sh -c and eval are checked like the outer one.
+		`sh -c 'cp h $D/hooks/x'`:                 ClassOutside,
+		`bash -c 'echo evil > $F'`:                ClassOutside,
+		`sh -c 'cp h .g?t/hooks/x'`:               ClassOutside,
+		`eval 'cp h $D/hooks/x'`:                  ClassOutside,
+		`sudo sh -c "sh -c 'cp h \$D'"`:           ClassOutside,
+		`sh -c "$SCRIPT"`:                         ClassOutside,
+		`sh -c 'go test ./...'`:                   ClassWrite,
+		`bash -c "cd internal && go build ./..."`: ClassWrite,
+		// Git config set through the environment.
+		"GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=h git commit": ClassOutside,
+		`env GIT_CONFIG_PARAMETERS="'core.hookspath'='h'" git commit`:                        ClassOutside,
+		`export GIT_CONFIG_PARAMETERS="'core.hookspath'='h'"`:                                ClassOutside,
+		`export GIT_"CONFIG_GLOBAL"=h`:                                                       ClassOutside,
+		`export "$NAME"=h`:                                                                   ClassOutside,
+		"GIT_DIR=/tmp/evil git status":                                                       ClassOutside,
+		"GOOS=linux go build .":                                                              ClassWrite,
+		"export PATH=$PATH:~/go/bin":                                                         ClassWrite,
+		// A globbed git subcommand could be config.
+		"git con?ig core.hooksPath h": ClassOutside,
+		"git c*g core.hooksPath h":    ClassOutside,
+		// Paths find and xargs only pick at run time.
+		`find . -name pre-commit.sample -execdir cp evil pre-commit \;`: ClassOutside,
+		`find . -name '*.go' -exec cp h {} \;`:                          ClassOutside,
+		`printf '%s/hooks/x' "$D" | xargs cp h`:                         ClassOutside,
+		`find . -name '*.go' -exec grep -l foo {} +`:                    ClassWrite,
+		"git ls-files | xargs wc -l":                                    ClassWrite,
+		"ls $DIR":                                                       ClassWrite,
+		"git log --oneline":                                             ClassWrite,
+		"cp a{1,2}.txt dst/":                                            ClassWrite,
+		"echo hi > out.txt":                                             ClassWrite,
 	}
 	for cmd, want := range cases {
 		require.Equal(t, want, ClassifyCommand(cmd), cmd)

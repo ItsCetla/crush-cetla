@@ -55,14 +55,69 @@ func collectVariants(args []string, depth int, out *[][]string) {
 			collectVariants(inner, depth+1, out)
 		}
 	case name == "find":
-		for _, inner := range findExecCommands(args[1:]) {
-			collectVariants(inner, depth+1, out)
+		for _, e := range FindExecs(args[1:]) {
+			collectVariants(e.Argv, depth+1, out)
 		}
 	default:
 		if spec, ok := wrapperCommands[name]; ok {
 			collectVariants(spec.unwrap(args[1:]), depth+1, out)
 		}
 	}
+}
+
+// InlineScripts returns the shell scripts that args runs as code: a
+// `sh -c` script or an `eval` line, also when run through a wrapper (sudo,
+// env, xargs, ...) or find -exec. Only the first level is returned; a
+// caller that inspects a script finds the scripts nested in it. A script
+// whose text is only known at run time is returned as "".
+func InlineScripts(args []string) []string {
+	var out []string
+	collectScripts(args, 0, &out)
+	return out
+}
+
+func collectScripts(args []string, depth int, out *[]string) {
+	if len(args) == 0 {
+		return
+	}
+	if depth > maxUnwrapDepth {
+		*out = append(*out, "")
+		return
+	}
+	name := CommandName(args[0])
+	switch {
+	case shellNames[name]:
+		if script, ok := shellScriptArg(args[1:]); ok {
+			*out = append(*out, script)
+		}
+	case name == "eval":
+		if slices.Contains(args[1:], "") {
+			*out = append(*out, "")
+		} else {
+			*out = append(*out, strings.Join(args[1:], " "))
+		}
+	case name == "find":
+		for _, e := range FindExecs(args[1:]) {
+			collectScripts(e.Argv, depth+1, out)
+		}
+	default:
+		if spec, ok := wrapperCommands[name]; ok {
+			collectScripts(spec.unwrap(args[1:]), depth+1, out)
+		}
+	}
+}
+
+// UnwrapCommand returns the command that the wrapper command args runs
+// (sudo, env, xargs, ...), or nil when args isn't a wrapper or runs none.
+func UnwrapCommand(args []string) []string {
+	if len(args) == 0 {
+		return nil
+	}
+	spec, ok := wrapperCommands[CommandName(args[0])]
+	if !ok {
+		return nil
+	}
+	return spec.unwrap(args[1:])
 }
 
 // ScriptCommands parses script as shell code and returns the argv of every
@@ -224,23 +279,33 @@ func shellScriptArg(args []string) (string, bool) {
 	return "", false
 }
 
-// findExecCommands returns the commands find runs via -exec, -execdir, -ok
-// and -okdir.
-func findExecCommands(args []string) [][]string {
-	var cmds [][]string
+// FindExec is a command that find runs for each match.
+type FindExec struct {
+	// Argv is the command, with {} standing for the matched path.
+	Argv []string
+	// Dir is set for -execdir and -okdir, which run the command in the
+	// matched file's directory.
+	Dir bool
+}
+
+// FindExecs returns the commands find runs via -exec, -execdir, -ok and
+// -okdir.
+func FindExecs(args []string) []FindExec {
+	var cmds []FindExec
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "-exec", "-execdir", "-ok", "-okdir":
 		default:
 			continue
 		}
+		dir := strings.HasSuffix(args[i], "dir")
 		start := i + 1
 		end := start
 		for end < len(args) && args[end] != ";" && args[end] != "+" {
 			end++
 		}
 		if end > start {
-			cmds = append(cmds, args[start:end])
+			cmds = append(cmds, FindExec{Argv: args[start:end], Dir: dir})
 		}
 		i = end
 	}

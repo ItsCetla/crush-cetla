@@ -80,3 +80,38 @@ func TestBlockHandlerChecksWrappedCommands(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestInlineScripts(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"sh", "-c", "echo hi"}, []string{"echo hi"}},
+		{[]string{"sudo", "bash", "-lc", "make"}, []string{"make"}},
+		{[]string{"eval", "cp", "a", "b"}, []string{"cp a b"}},
+		{[]string{"eval", ""}, []string{""}},
+		{[]string{"sh", "-c", ""}, []string{""}},
+		{[]string{"find", ".", "-exec", "sh", "-c", "x {}", ";"}, []string{"x {}"}},
+		{[]string{"ls", "-c"}, nil},
+	}
+	for _, c := range cases {
+		require.Equal(t, c.want, InlineScripts(c.args), "%q", c.args)
+	}
+}
+
+func TestFindExecs(t *testing.T) {
+	t.Parallel()
+	got := FindExecs([]string{".", "-exec", "cat", "{}", ";", "-execdir", "cp", "a", "b", "+"})
+	require.Equal(t, []FindExec{
+		{Argv: []string{"cat", "{}"}},
+		{Argv: []string{"cp", "a", "b"}, Dir: true},
+	}, got)
+}
+
+func TestUnwrapCommand(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, []string{"cp", "h"}, UnwrapCommand([]string{"xargs", "-n", "1", "cp", "h"}))
+	require.Nil(t, UnwrapCommand([]string{"ls", "-la"}))
+	require.Nil(t, UnwrapCommand(nil))
+}

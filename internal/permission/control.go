@@ -210,10 +210,23 @@ func ClassifyCommand(command string) Class {
 
 // touchesProtected parses a script and reports whether it names a protected
 // project path once quoting is removed (.gi”t, ".git"/hooks, .g?t), assigns
-// one to a variable, runs `git config` or `git -c`, or passes a command an
-// argument or redirect target that is only known at run time and so could
-// be one. Brace expansions are expanded first, so .{g,x}it counts.
+// one to a variable, changes git config (`git config`, `git -c`, or the
+// GIT_CONFIG* variables), or passes a command an argument or redirect
+// target that is only known at run time and so could be one. Brace
+// expansions are expanded first, so .{g,x}it counts, and scripts run by
+// `sh -c` or `eval` are checked the same way.
 func touchesProtected(script string) bool {
+	return touchesProtectedAt(script, 0)
+}
+
+// maxScriptDepth bounds how deeply nested `sh -c` and `eval` scripts are
+// followed; anything deeper counts as protected.
+const maxScriptDepth = 8
+
+func touchesProtectedAt(script string, depth int) bool {
+	if depth > maxScriptDepth {
+		return true
+	}
 	file, err := syntax.NewParser().Parse(strings.NewReader(script), "")
 	if err != nil {
 		return true
@@ -230,29 +243,46 @@ func touchesProtected(script string) bool {
 					found = true
 				}
 			}
-		case *syntax.CallExpr:
-			if len(n.Args) > 0 {
-				var argv []string
-				for _, w := range n.Args {
-					argv = append(argv, shell.ExpandedWords(w)...)
-				}
-				if len(argv) == 0 {
-					return true
-				}
-				if !slices.Contains(noPathCommands, argv[0]) &&
-					slices.Contains(argv[1:], "") {
+		case *syntax.Assign:
+			if n.Name != nil && gitEnvName(n.Name.Value) {
+				found = true
+			}
+			// A naked export or declare argument names its variable
+			// itself, so one known only at run time could be any.
+			if n.Naked && n.Value != nil {
+				if _, ok := shell.LiteralWord(n.Value); !ok {
 					found = true
 				}
-				for _, v := range shell.CommandVariants(argv) {
-					if strings.ToLower(shell.CommandName(v[0])) == "git" &&
-						gitChangesConfig(v[1:]) {
-						found = true
-					}
+			}
+		case *syntax.CallExpr:
+			var argv []string
+			for _, w := range n.Args {
+				argv = append(argv, shell.ExpandedWords(w)...)
+			}
+			if len(argv) == 0 {
+				return true
+			}
+			for _, v := range shell.CommandVariants(argv) {
+				if runTimePath(v) {
+					found = true
+				}
+				if strings.ToLower(shell.CommandName(v[0])) == "git" &&
+					gitChangesConfig(v[1:]) {
+					found = true
+				}
+			}
+			for _, inner := range shell.InlineScripts(argv) {
+				if inner == "" || touchesProtectedAt(inner, depth+1) {
+					found = true
 				}
 			}
 		case *syntax.Word:
 			for _, lit := range shell.ExpandedWords(n) {
-				if lit != "" && protectedWord(lit) {
+				if lit == "" {
+					continue
+				}
+				name, _, _ := strings.Cut(lit, "=")
+				if protectedWord(lit) || gitEnvName(name) {
 					found = true
 				}
 			}
@@ -260,6 +290,50 @@ func touchesProtected(script string) bool {
 		return !found
 	})
 	return found
+}
+
+// runTimePath reports whether a command may write to a path that is only
+// known at run time: an argument that is an expansion, a path find
+// substitutes for {} or a directory it runs -execdir in, or the arguments
+// xargs reads from its input. Commands in noPathCommands never count.
+func runTimePath(argv []string) bool {
+	name := strings.ToLower(shell.CommandName(argv[0]))
+	if slices.Contains(noPathCommands, name) {
+		return false
+	}
+	if slices.Contains(argv[1:], "") {
+		return true
+	}
+	switch name {
+	case "xargs":
+		inner := shell.UnwrapCommand(argv)
+		return len(inner) > 0 && !slices.Contains(noPathCommands,
+			strings.ToLower(shell.CommandName(inner[0])))
+	case "find":
+		for _, e := range shell.FindExecs(argv[1:]) {
+			if slices.Contains(noPathCommands,
+				strings.ToLower(shell.CommandName(e.Argv[0]))) {
+				continue
+			}
+			if e.Dir || slices.ContainsFunc(e.Argv, func(a string) bool {
+				return strings.Contains(a, "{}")
+			}) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// gitEnvName reports whether an environment variable changes which config,
+// repository or helper programs git uses, the way `git -c` does.
+func gitEnvName(name string) bool {
+	name = strings.ToUpper(name)
+	switch name {
+	case "GIT_DIR", "GIT_EXEC_PATH", "GIT_TEMPLATE_DIR":
+		return true
+	}
+	return strings.HasPrefix(name, "GIT_CONFIG")
 }
 
 // writesTo reports whether a redirect writes to its target.
@@ -273,17 +347,26 @@ func writesTo(op syntax.RedirOperator) bool {
 }
 
 // noPathCommands never write to a path named in their arguments, so an
-// argument known only at run time doesn't make them protected.
-var noPathCommands = []string{"echo", "printf", "test", "[", "true", "false", ":"}
+// argument known only at run time doesn't make them protected. Commands
+// that can run another command (rg --pre) or write a file (sort -o) don't
+// belong here.
+var noPathCommands = []string{
+	"echo", "printf", "test", "[", "true", "false", ":",
+	"cat", "head", "tail", "wc", "grep", "egrep", "fgrep", "ls", "stat",
+	"diff", "cmp", "du", "basename", "dirname", "realpath", "readlink",
+}
 
 // gitChangesConfig reports whether a git command line changes config: the
 // config subcommand, a -c or --config-env option (which can set hooks or
-// commands git runs), or a subcommand only known at run time.
+// commands git runs), or a subcommand or option that is a glob.
 func gitChangesConfig(args []string) bool {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
 		case a == "-c" || a == "--config-env" || strings.HasPrefix(a, "--config-env="):
+			return true
+		case strings.ContainsAny(a, "*?["):
+			// A glob (con?ig, -[c]) could match anything.
 			return true
 		case a == "-C" || a == "--git-dir" || a == "--work-tree" ||
 			a == "--namespace" || a == "--exec-path":

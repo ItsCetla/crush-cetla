@@ -7,6 +7,21 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Security
+
+- **Scripts run by `sh -c` and `eval` are graded like the outer command.**
+  A protected path, glob or run-time path inside `sh -c '...'` (also behind
+  `sudo`, `env`, `xargs` or `find -exec`) now asks, as does a script whose
+  text is only known at run time.
+- **Git config set through the environment is protected.** `GIT_CONFIG_*`,
+  `GIT_DIR`, `GIT_EXEC_PATH` and `GIT_TEMPLATE_DIR`, set before a command,
+  with `env` or with `export`, are graded like `git -c`. So is a globbed
+  git subcommand such as `git con?ig`.
+- **Paths that `find` and `xargs` pick at run time are protected.**
+  `find -execdir`, `find -exec ... {}` and `xargs` running a command that
+  can write files now ask. Read-only tools (`cat`, `grep`, `wc`, `ls`, and
+  similar) still run without asking.
+
 ## [0.5.9] - 2026-10-20
 
 ### Added
