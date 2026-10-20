@@ -468,6 +468,15 @@ func (t *baseToolMessageItem) computeStatus() ToolStatus {
 	return t.status
 }
 
+// EffectiveToolStatus is the tool's status once its result is taken into
+// account: Status alone stays Running after a result arrives.
+func EffectiveToolStatus(item ToolMessageItem) ToolStatus {
+	if c, ok := item.(interface{ computeStatus() ToolStatus }); ok {
+		return c.computeStatus()
+	}
+	return item.Status()
+}
+
 // isSpinning returns true if the tool should show animation.
 func (t *baseToolMessageItem) isSpinning() bool {
 	if t.spinningFunc != nil {

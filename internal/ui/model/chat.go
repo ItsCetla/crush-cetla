@@ -433,6 +433,7 @@ func (m *Chat) InvalidateVisibleRenderCaches() {
 func (m *Chat) SetMessages(msgs ...chat.MessageItem) tea.Cmd {
 	m.idInxMap = make(map[string]int)
 	m.scrollbarVisible = false // Reset scrollbar visibility on new session load
+	msgs = m.withFolds(msgs)
 
 	items := make([]list.Item, len(msgs))
 	for i, msg := range msgs {
@@ -446,6 +447,7 @@ func (m *Chat) SetMessages(msgs ...chat.MessageItem) tea.Cmd {
 		items[i] = msg
 	}
 	m.list.SetItems(items...)
+	m.refoldFrom(0)
 	m.ScrollToBottom()
 	return nil
 }
@@ -460,6 +462,7 @@ func (m *Chat) AppendMessages(msgs ...chat.MessageItem) {
 		m.RemoveMessage(chat.PendingAssistantID)
 		msgs = append(append(make([]chat.MessageItem, 0, len(msgs)+1), msgs...), pending)
 	}
+	msgs = m.withFolds(msgs)
 
 	items := make([]list.Item, len(msgs))
 	indexOffset := m.list.Len()
@@ -474,6 +477,7 @@ func (m *Chat) AppendMessages(msgs ...chat.MessageItem) {
 		items[i] = msg
 	}
 	m.list.AppendItems(items...)
+	m.refoldFrom(indexOffset)
 }
 
 // containsMessage reports whether any of msgs carries the given id.
@@ -937,6 +941,9 @@ func (m *Chat) RemoveMessage(id string) {
 		return
 	}
 
+	// A turn's fold header goes with its prompt.
+	_, isUser := m.list.ItemAt(idx).(*chat.UserMessageItem)
+
 	// Remove from list
 	m.list.RemoveItem(idx)
 
@@ -949,6 +956,10 @@ func (m *Chat) RemoveMessage(id string) {
 			m.idInxMap[item.ID()] = i
 		}
 	}
+	if isUser {
+		m.RemoveMessage(chat.TurnFoldID(id))
+	}
+	m.refoldFrom(idx)
 }
 
 // MessageItem returns the message item with the given ID, or nil if not found.
@@ -967,11 +978,22 @@ func (m *Chat) MessageItem(id string) chat.MessageItem {
 // ToggleExpandedSelectedItem expands the selected message item if it is expandable.
 func (m *Chat) ToggleExpandedSelectedItem() {
 	if expandable, ok := m.list.SelectedItem().(chat.Expandable); ok {
-		wasFollowing := m.follow
-		expandable.ToggleExpanded()
-		if wasFollowing {
-			m.ScrollToBottom()
+		m.toggleExpandable(expandable)
+	}
+}
+
+// toggleExpandable flips an item's expanded state, applying a fold header's
+// new state to its turn and keeping the view at the bottom when following.
+func (m *Chat) toggleExpandable(expandable chat.Expandable) {
+	wasFollowing := m.follow
+	expandable.ToggleExpanded()
+	if fold, ok := expandable.(*chat.TurnFoldItem); ok {
+		if idx, ok := m.idInxMap[fold.ID()]; ok {
+			m.refoldFrom(idx)
 		}
+	}
+	if wasFollowing {
+		m.ScrollToBottom()
 	}
 }
 
@@ -1096,11 +1118,7 @@ func (m *Chat) HandleDelayedClick(msg DelayedClickMsg) bool {
 		// toggling expansion for clicks outside the clickable area.
 		if handled {
 			if expandable, ok := selectedItem.(chat.Expandable); ok {
-				wasFollowing := m.follow
-				expandable.ToggleExpanded()
-				if wasFollowing {
-					m.ScrollToBottom()
-				}
+				m.toggleExpandable(expandable)
 			}
 		}
 		return handled

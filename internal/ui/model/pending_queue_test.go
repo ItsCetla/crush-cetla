@@ -32,6 +32,9 @@ func hasPending(m *UI) bool {
 func transcriptIDs(m *UI) []string {
 	ids := make([]string, 0, m.chat.list.Len())
 	for i := range m.chat.list.Len() {
+		if m.chat.list.IsHidden(i) {
+			continue
+		}
 		if item, ok := m.chat.list.ItemAt(i).(chat.MessageItem); ok {
 			ids = append(ids, item.ID())
 		}

@@ -219,6 +219,174 @@
       },
       "type": "object"
     },
+    "MCAutoSearchOptions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "score_threshold": {
+          "type": "number",
+          "default": 0.6
+        },
+        "min_prompt_chars": {
+          "type": "integer",
+          "default": 20
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCCommitClusterOptions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "min_clusters": {
+          "type": "integer",
+          "default": 3
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCDreamerOptions": {
+      "properties": {
+        "disable": {
+          "type": "boolean",
+          "description": "Turn off the dreamer (also turns off smart notes)",
+          "default": false
+        },
+        "model": {
+          "type": "string",
+          "default": "small"
+        },
+        "tasks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MCDreamerTaskOpts"
+          },
+          "type": "object"
+        },
+        "inject_docs": {
+          "type": "boolean",
+          "description": "Inject ARCHITECTURE.md and STRUCTURE.md into the cached history block",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCDreamerTaskOpts": {
+      "properties": {
+        "schedule": {
+          "type": "string",
+          "description": "5-field cron or empty to disable"
+        },
+        "promotion_threshold": {
+          "type": "integer"
+        },
+        "recency_days": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCEmbeddingOptions": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "off",
+            "openai-compatible"
+          ],
+          "description": "off or openai-compatible",
+          "default": "off"
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "Base URL of an OpenAI-compatible API",
+          "examples": [
+            "http://localhost:1234/v1"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "examples": [
+            "text-embedding-nomic-embed-text-v1.5"
+          ]
+        },
+        "api_key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCGitIndexOptions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "since_days": {
+          "type": "integer",
+          "default": 365
+        },
+        "max_commits": {
+          "type": "integer",
+          "default": 2000
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCHistorianOptions": {
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Historian model: large (session model), small, or provider/model",
+          "default": "large",
+          "examples": [
+            "small"
+          ]
+        },
+        "two_pass": {
+          "type": "boolean",
+          "description": "Run a second editor pass over each historian draft",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCMemoryOptions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "injection_budget_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 4000
+        },
+        "auto_promote": {
+          "type": "boolean",
+          "description": "Promote historian facts to project memory",
+          "default": true
+        },
+        "auto_search": {
+          "$ref": "#/$defs/MCAutoSearchOptions"
+        },
+        "git_commit_indexing": {
+          "$ref": "#/$defs/MCGitIndexOptions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "MCPChannelReply": {
       "properties": {
         "user": {
@@ -408,6 +576,103 @@
       "additionalProperties": {
         "$ref": "#/$defs/MCPConfig"
       },
+      "type": "object"
+    },
+    "MCToggle": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MagicContextOptions": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Turn on Magic Context for the main agent. Replaces auto-summarize",
+          "default": false
+        },
+        "execute_threshold_percentage": {
+          "type": "integer",
+          "maximum": 90,
+          "minimum": 20,
+          "description": "Context usage percentage at which queued drops apply and the historian runs (20-90)",
+          "default": 65
+        },
+        "execute_threshold_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Absolute token threshold that overrides execute_threshold_percentage (min 5000)"
+        },
+        "protected_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Newest tokens that are never dropped. Default is derived from the context window (min 4000)"
+        },
+        "keep_reasoning_tokens": {
+          "type": "integer",
+          "description": "Reasoning tokens kept in the live tail",
+          "default": 10000
+        },
+        "history_budget_percentage": {
+          "type": "number",
+          "description": "Fraction of usable context the session history may use (0.05-0.5)",
+          "default": 0.15
+        },
+        "cache_ttl": {
+          "type": "string",
+          "description": "Provider prompt-cache lifetime. Queued drops wait for it to expire unless usage passes the threshold. Like 5m, 1h or never",
+          "default": "5m"
+        },
+        "historian_timeout_ms": {
+          "type": "integer",
+          "description": "Historian run timeout in milliseconds (min 60000)",
+          "default": 600000
+        },
+        "temporal_awareness": {
+          "type": "boolean",
+          "description": "Add time-gap markers and dates to history",
+          "default": true
+        },
+        "protected_tools": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object",
+          "description": "Keep the newest N results of these tools out of drops (merged with todos:1 and ctx_reduce:3)"
+        },
+        "commit_cluster_trigger": {
+          "$ref": "#/$defs/MCCommitClusterOptions"
+        },
+        "historian": {
+          "$ref": "#/$defs/MCHistorianOptions"
+        },
+        "memory": {
+          "$ref": "#/$defs/MCMemoryOptions"
+        },
+        "embedding": {
+          "$ref": "#/$defs/MCEmbeddingOptions"
+        },
+        "smart_notes": {
+          "$ref": "#/$defs/MCToggle"
+        },
+        "dreamer": {
+          "$ref": "#/$defs/MCDreamerOptions"
+        },
+        "system_prompt_injection": {
+          "$ref": "#/$defs/MCToggle"
+        },
+        "language": {
+          "type": "string",
+          "description": "ISO 639-1 language for historian prose",
+          "examples": [
+            "en"
+          ]
+        }
+      },
+      "additionalProperties": false,
       "type": "object"
     },
     "Model": {
@@ -739,6 +1004,10 @@
           },
           "type": "array",
           "description": "Directories whose projects (and every project below them) are trusted without running tada trust. Project-level config (tada.json, tadarc, .tada/tada.json) can run commands, so only list directories you control. Read only from the global config; ~ is expanded."
+        },
+        "magic_context": {
+          "$ref": "#/$defs/MagicContextOptions",
+          "description": "Magic Context: background historian, ctx_reduce drops, project memory and search. Replaces auto-summarize when enabled"
         }
       },
       "additionalProperties": false,
@@ -1022,6 +1291,11 @@
         "rich_blocks": {
           "type": "boolean",
           "description": "Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off",
+          "default": true
+        },
+        "fold_tools": {
+          "type": "boolean",
+          "description": "Fold a finished turn's tool calls and intermediate notes into one 'Worked for …' line that expands on click. The final answer, errors and approval requests stay visible",
           "default": true
         }
       },

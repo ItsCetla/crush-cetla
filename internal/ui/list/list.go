@@ -57,6 +57,12 @@ type List struct {
 	// per-line highlight overlays land on the latest content. Cleared
 	// on EndSelectionDrag.
 	freezeSuppressed map[Item]struct{}
+
+	// hidden holds items that take up no space: they render nothing,
+	// get no gap and are skipped by selection. The chat uses it to fold
+	// a finished turn's tool calls behind a one-line summary while the
+	// items themselves stay in place (indices and IDs do not move).
+	hidden map[Item]struct{}
 }
 
 // listCacheEntry is the per-item entry in the list-level render memo.
@@ -85,7 +91,95 @@ func NewList(items ...Item) *List {
 	l.selectedIdx = -1
 	l.cache = make(map[Item]*listCacheEntry)
 	l.freezeSuppressed = make(map[Item]struct{})
+	l.hidden = make(map[Item]struct{})
 	return l
+}
+
+// SetHidden hides or shows an item. A hidden item keeps its index but
+// has zero height, no gap and cannot be selected.
+func (l *List) SetHidden(item Item, hidden bool) {
+	if item == nil {
+		return
+	}
+	if l.hidden == nil {
+		l.hidden = make(map[Item]struct{})
+	}
+	_, was := l.hidden[item]
+	if was == hidden {
+		return
+	}
+	if hidden {
+		l.hidden[item] = struct{}{}
+	} else {
+		delete(l.hidden, item)
+	}
+	l.totalHeightValid = false
+	l.fixOffset()
+	l.fixSelection()
+}
+
+// IsHidden reports whether the item at idx is hidden.
+func (l *List) IsHidden(idx int) bool {
+	if idx < 0 || idx >= len(l.items) || len(l.hidden) == 0 {
+		return false
+	}
+	_, ok := l.hidden[l.items[idx]]
+	return ok
+}
+
+// fixOffset moves the scroll anchor off a hidden item, to the next shown
+// item (or the previous one when nothing below is shown).
+func (l *List) fixOffset() {
+	if !l.IsHidden(l.offsetIdx) {
+		return
+	}
+	for i := l.offsetIdx + 1; i < len(l.items); i++ {
+		if !l.IsHidden(i) {
+			l.offsetIdx, l.offsetLine = i, 0
+			return
+		}
+	}
+	for i := l.offsetIdx - 1; i >= 0; i-- {
+		if !l.IsHidden(i) {
+			l.offsetIdx, l.offsetLine = i, 0
+			return
+		}
+	}
+}
+
+// fixSelectionForward is fixSelection preferring the next shown item.
+func (l *List) fixSelectionForward() {
+	if l.selectedIdx < 0 || !l.IsHidden(l.selectedIdx) {
+		return
+	}
+	for i := l.selectedIdx + 1; i < len(l.items); i++ {
+		if !l.IsHidden(i) {
+			l.selectedIdx = i
+			return
+		}
+	}
+	l.fixSelection()
+}
+
+// fixSelection moves the selection off a hidden item, to the nearest
+// shown item above it (or below when nothing above is shown).
+func (l *List) fixSelection() {
+	if l.selectedIdx < 0 || !l.IsHidden(l.selectedIdx) {
+		return
+	}
+	for i := l.selectedIdx - 1; i >= 0; i-- {
+		if !l.IsHidden(i) {
+			l.selectedIdx = i
+			return
+		}
+	}
+	for i := l.selectedIdx + 1; i < len(l.items); i++ {
+		if !l.IsHidden(i) {
+			l.selectedIdx = i
+			return
+		}
+	}
+	l.selectedIdx = -1
 }
 
 // RenderCallback defines a function that can modify an item before it is
@@ -136,6 +230,9 @@ func (l *List) AtBottom() bool {
 			// No need to calculate further, we're already past the viewport height
 			return false
 		}
+		if l.IsHidden(idx) {
+			continue
+		}
 		item := l.getItem(idx)
 		itemHeight := item.height
 		if l.gap > 0 && idx > l.offsetIdx {
@@ -176,6 +273,9 @@ func (l *List) TotalHeight() int {
 	}
 	total := 0
 	for idx := range l.items {
+		if l.IsHidden(idx) {
+			continue
+		}
 		entry := l.renderItemEntry(idx)
 		if entry == nil {
 			continue
@@ -201,6 +301,9 @@ func (l *List) Prewarm(from, batch int) int {
 	}
 	end := min(from+batch, len(l.items))
 	for idx := from; idx < end; idx++ {
+		if l.IsHidden(idx) {
+			continue
+		}
 		l.renderItemEntry(idx)
 	}
 	return end
@@ -215,6 +318,9 @@ func (l *List) Prewarm(from, batch int) int {
 func (l *List) Overflows(height int) bool {
 	total := 0
 	for idx := len(l.items) - 1; idx >= 0; idx-- {
+		if l.IsHidden(idx) {
+			continue
+		}
 		total += l.getItem(idx).height
 		if l.gap > 0 && idx < len(l.items)-1 {
 			total += l.gap
@@ -252,6 +358,9 @@ func (l *List) ScrollPosition() (offsetIdx, offsetLine int) {
 func (l *List) Offset() int {
 	offset := 0
 	for idx := 0; idx < l.offsetIdx; idx++ {
+		if l.IsHidden(idx) {
+			continue
+		}
 		item := l.getItem(idx)
 		offset += item.height
 		if l.gap > 0 && idx < len(l.items)-1 {
@@ -268,6 +377,9 @@ func (l *List) lastOffsetItem() (int, int, int) {
 	var totalHeight int
 	var idx int
 	for idx = len(l.items) - 1; idx >= 0; idx-- {
+		if l.IsHidden(idx) {
+			continue
+		}
 		item := l.getItem(idx)
 		itemHeight := item.height
 		if l.gap > 0 && idx < len(l.items)-1 {
@@ -282,6 +394,10 @@ func (l *List) lastOffsetItem() (int, int, int) {
 	// Calculate line offset within the item
 	lineOffset := max(totalHeight-l.height, 0)
 	idx = max(idx, 0)
+	// Everything fits: anchor on the first shown item, not a hidden one.
+	for idx < len(l.items)-1 && l.IsHidden(idx) {
+		idx++
+	}
 
 	return idx, lineOffset, totalHeight
 }
@@ -407,7 +523,7 @@ func (l *List) InvalidateFrozen(item Item) {
 // item set. Used by SetItems to keep entries for stable items while
 // dropping entries for removed ones.
 func (l *List) retainCacheFor(items []Item) {
-	if len(l.cache) == 0 {
+	if len(l.cache) == 0 && len(l.hidden) == 0 {
 		return
 	}
 	keep := make(map[Item]struct{}, len(items))
@@ -417,6 +533,11 @@ func (l *List) retainCacheFor(items []Item) {
 	for k := range l.cache {
 		if _, ok := keep[k]; !ok {
 			delete(l.cache, k)
+		}
+	}
+	for k := range l.hidden {
+		if _, ok := keep[k]; !ok {
+			delete(l.hidden, k)
 		}
 	}
 }
@@ -471,6 +592,7 @@ func (l *List) ScrollToIndex(index int) {
 	}
 	l.offsetIdx = index
 	l.offsetLine = 0
+	l.fixOffset()
 }
 
 // ScrollBy scrolls the list by the given number of lines.
@@ -498,8 +620,11 @@ func (l *List) ScrollBy(lines int) {
 				l.offsetLine = max(0, l.offsetLine-l.gap)
 			}
 
-			// Move to next item
+			// Move to next shown item
 			l.offsetIdx++
+			for l.offsetIdx < len(l.items) && l.IsHidden(l.offsetIdx) {
+				l.offsetIdx++
+			}
 			if l.offsetIdx > len(l.items)-1 {
 				// Reached bottom
 				l.ScrollToBottom()
@@ -518,8 +643,11 @@ func (l *List) ScrollBy(lines int) {
 		// Scroll up
 		l.offsetLine += lines // lines is negative
 		for l.offsetLine < 0 {
-			// Move to previous item
+			// Move to previous shown item
 			l.offsetIdx--
+			for l.offsetIdx >= 0 && l.IsHidden(l.offsetIdx) {
+				l.offsetIdx--
+			}
 			if l.offsetIdx < 0 {
 				// Reached top
 				l.ScrollToTop()
@@ -547,6 +675,10 @@ func (l *List) VisibleItemIndices() (startIdx, endIdx int) {
 	visibleHeight := -l.offsetLine
 
 	for currentIdx < len(l.items) {
+		if l.IsHidden(currentIdx) {
+			currentIdx++
+			continue
+		}
 		item := l.getItem(currentIdx)
 		visibleHeight += item.height
 		if l.gap > 0 {
@@ -592,6 +724,10 @@ func (l *List) Render() string {
 			break
 		}
 
+		if l.IsHidden(currentIdx) {
+			currentIdx++
+			continue
+		}
 		entry := l.renderItemEntry(currentIdx)
 		if entry == nil {
 			break
@@ -695,6 +831,7 @@ func (l *List) RemoveItem(idx int) {
 	// items stay valid because they are keyed by pointer, not index.
 	delete(l.cache, removed)
 	delete(l.freezeSuppressed, removed)
+	delete(l.hidden, removed)
 
 	// Adjust selection if needed
 	if l.selectedIdx == idx {
@@ -773,6 +910,9 @@ func (l *List) ScrollToSelected() {
 		// Scroll so that the selected item is at the bottom
 		var totalHeight int
 		for i := l.selectedIdx; i >= 0; i-- {
+			if l.IsHidden(i) {
+				continue
+			}
 			item := l.getItem(i)
 			totalHeight += item.height
 			if l.gap > 0 && i < l.selectedIdx {
@@ -827,37 +967,32 @@ func (l *List) IsSelectedLast() bool {
 }
 
 // SelectPrev selects the visually previous item (moves toward visual top).
-// It returns whether the selection changed.
+// Hidden items are skipped. It returns whether the selection changed.
 func (l *List) SelectPrev() bool {
+	step := -1
 	if l.reverse {
 		// In reverse, visual up = higher index
-		if l.selectedIdx < len(l.items)-1 {
-			l.selectedIdx++
-			return true
-		}
-	} else {
-		// Normal: visual up = lower index
-		if l.selectedIdx > 0 {
-			l.selectedIdx--
-			return true
-		}
+		step = 1
 	}
-	return false
+	return l.selectStep(step)
 }
 
-// SelectNext selects the next item in the list.
+// SelectNext selects the next item in the list. Hidden items are skipped.
 // It returns whether the selection changed.
 func (l *List) SelectNext() bool {
+	step := 1
 	if l.reverse {
 		// In reverse, visual down = lower index
-		if l.selectedIdx > 0 {
-			l.selectedIdx--
-			return true
-		}
-	} else {
-		// Normal: visual down = higher index
-		if l.selectedIdx < len(l.items)-1 {
-			l.selectedIdx++
+		step = -1
+	}
+	return l.selectStep(step)
+}
+
+// selectStep moves the selection by step to the next shown item.
+func (l *List) selectStep(step int) bool {
+	for i := l.selectedIdx + step; i >= 0 && i < len(l.items); i += step {
+		if !l.IsHidden(i) {
+			l.selectedIdx = i
 			return true
 		}
 	}
@@ -871,6 +1006,7 @@ func (l *List) SelectFirst() bool {
 		return false
 	}
 	l.selectedIdx = 0
+	l.fixSelectionForward()
 	return true
 }
 
@@ -881,6 +1017,7 @@ func (l *List) SelectLast() bool {
 		return false
 	}
 	l.selectedIdx = len(l.items) - 1
+	l.fixSelection()
 	return true
 }
 
@@ -892,8 +1029,10 @@ func (l *List) WrapToStart() bool {
 	}
 	if l.reverse {
 		l.selectedIdx = len(l.items) - 1
+		l.fixSelection()
 	} else {
 		l.selectedIdx = 0
+		l.fixSelectionForward()
 	}
 	return true
 }
@@ -906,8 +1045,10 @@ func (l *List) WrapToEnd() bool {
 	}
 	if l.reverse {
 		l.selectedIdx = 0
+		l.fixSelectionForward()
 	} else {
 		l.selectedIdx = len(l.items) - 1
+		l.fixSelection()
 	}
 	return true
 }
@@ -925,12 +1066,14 @@ func (l *List) SelectedItem() Item {
 func (l *List) SelectFirstInView() {
 	startIdx, _ := l.VisibleItemIndices()
 	l.selectedIdx = startIdx
+	l.fixSelectionForward()
 }
 
 // SelectLastInView selects the last item currently in view.
 func (l *List) SelectLastInView() {
 	_, endIdx := l.VisibleItemIndices()
 	l.selectedIdx = endIdx
+	l.fixSelection()
 }
 
 // ItemAt returns the item at the given index.
@@ -961,6 +1104,10 @@ func (l *List) findItemAtY(_, y int) (itemIdx int, itemY int) {
 	currentLine := -l.offsetLine // Negative because offsetLine is how many lines are hidden
 
 	for currentIdx < len(l.items) && currentLine < l.height {
+		if l.IsHidden(currentIdx) {
+			currentIdx++
+			continue
+		}
 		item := l.getItem(currentIdx)
 		itemEndLine := currentLine + item.height
 

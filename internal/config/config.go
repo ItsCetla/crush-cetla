@@ -362,6 +362,13 @@ type TUIOptions struct {
 	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Ta-Da,enum=default,enum=compact,enum=none,default=default"`
 	Intro       *bool       `json:"intro,omitempty" jsonschema:"description=Play the short animated intro when the TUI starts. Any key skips it. TADA_NO_INTRO=1 also turns it off,default=true"`
 	RichBlocks  *bool       `json:"rich_blocks,omitempty" jsonschema:"description=Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off,default=true"`
+	FoldTools   *bool       `json:"fold_tools,omitempty" jsonschema:"description=Fold a finished turn's tool calls and intermediate notes into one 'Worked for …' line that expands on click. The final answer\\, errors and approval requests stay visible,default=true"`
+}
+
+// FoldToolsEnabled reports whether finished turns fold their tool calls
+// into one summary line. It is on unless options.tui.fold_tools is false.
+func (t *TUIOptions) FoldToolsEnabled() bool {
+	return t == nil || t.FoldTools == nil || *t.FoldTools
 }
 
 // RichBlocksEnabled reports whether markdown tables and chart blocks in

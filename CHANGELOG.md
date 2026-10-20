@@ -7,6 +7,19 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Added
+
+- **Folded turns.** Once a turn ends, its tool calls and in-between notes
+  fold into one line, such as "▸ Worked for 1m 12s · 8 tool calls · 4 view,
+  3 bash, 1 edit". Click it, or select it and press space, to see
+  everything. The final answer, errors and approval requests always stay in
+  view, and a running turn stays open so you can watch it. Turn it off with
+  `options.tui.fold_tools: false`.
+
+### Fixed
+
+- `schema.json` now includes the Magic Context options.
+
 ## [0.4.0] - 2026-10-19
 
 ### Added

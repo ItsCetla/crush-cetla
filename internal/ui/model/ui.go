@@ -1897,6 +1897,7 @@ func (m *UI) appendSessionMessage(msg message.Message) tea.Cmd {
 				}
 			}
 		}
+		m.chat.Refold()
 	}
 	return tea.Sequence(cmds...)
 }
@@ -5875,6 +5876,7 @@ func (m *UI) handlePermissionNotification(notification permission.PermissionNoti
 			} else {
 				permItem.SetStatus(chat.ToolStatusAwaitingPermission)
 			}
+			m.chat.Refold()
 		}
 	}
 

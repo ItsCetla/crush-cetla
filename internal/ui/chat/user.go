@@ -187,3 +187,8 @@ func (m *UserMessageItem) HandleKeyEvent(key tea.KeyMsg) (bool, tea.Cmd) {
 	}
 	return false, nil
 }
+
+// Message returns the message this item draws.
+func (m *UserMessageItem) Message() *message.Message {
+	return m.message
+}

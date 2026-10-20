@@ -954,3 +954,8 @@ func (a *AssistantMessageItem) HandleKeyEvent(key tea.KeyMsg) (bool, tea.Cmd) {
 	}
 	return false, nil
 }
+
+// Message returns the message this item draws.
+func (a *AssistantMessageItem) Message() *message.Message {
+	return a.message
+}
