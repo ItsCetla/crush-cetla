@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -66,9 +67,10 @@ func collectVariants(args []string, depth int, out *[][]string) {
 
 // ScriptCommands parses script as shell code and returns the argv of every
 // simple command in it, including those in pipelines, lists, subshells and
-// command or process substitutions. Words that are not plain literals
-// (parameter expansions, substitutions) are returned as empty strings. A
-// script that does not parse yields nil.
+// command or process substitutions. Brace expansions are expanded the way
+// the shell does, so {rm,-rf,x} yields rm -rf x. Words that are not plain
+// literals (parameter expansions, substitutions) are returned as empty
+// strings. A script that does not parse yields nil.
 func ScriptCommands(script string) [][]string {
 	file, err := syntax.NewParser().Parse(strings.NewReader(script), "")
 	if err != nil {
@@ -80,15 +82,38 @@ func ScriptCommands(script string) [][]string {
 		if !ok || len(call.Args) == 0 {
 			return true
 		}
-		argv := make([]string, 0, len(call.Args))
+		var argv []string
 		for _, w := range call.Args {
-			lit, _ := LiteralWord(w)
-			argv = append(argv, lit)
+			argv = append(argv, ExpandedWords(w)...)
 		}
 		cmds = append(cmds, argv)
 		return true
 	})
 	return cmds
+}
+
+// maxBraceWords caps how many words a brace expansion may produce before
+// the analysis gives up on it.
+const maxBraceWords = 1024
+
+// ExpandedWords brace-expands w and returns the literal value of each
+// resulting word, with "" for a word that isn't a plain literal. An
+// expansion too large to follow yields a single "".
+func ExpandedWords(w *syntax.Word) []string {
+	word := &syntax.Word{Parts: slices.Clone(w.Parts)}
+	if !syntax.SplitBraces(word) {
+		lit, _ := LiteralWord(w)
+		return []string{lit}
+	}
+	var out []string
+	for exp, err := range expand.BracesSeq(nil, word) {
+		if err != nil || len(out) >= maxBraceWords {
+			return []string{""}
+		}
+		lit, _ := LiteralWord(exp)
+		out = append(out, lit)
+	}
+	return out
 }
 
 // LiteralWord returns the value of a word made only of unquoted literals,

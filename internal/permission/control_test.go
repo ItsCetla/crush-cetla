@@ -78,6 +78,9 @@ func TestClassifyCommand(t *testing.T) {
 		"command $CMD x":                     ClassDelete,
 		"f() { \"$@\"; }; f rm x":            ClassDelete,
 		"echo $HOME":                         ClassWrite,
+		"{rm,-rf,build}":                     ClassDelete,
+		"/bin/r? -rf build":                  ClassDelete,
+		"[ -f x ] && echo y":                 ClassWrite,
 		`awk 'BEGIN { system("rm -rf x") }'`: ClassDelete,
 		`lua -e 'os.remove("x")'`:            ClassDelete,
 		// Protected paths hidden behind quoting, globs or variables.
@@ -91,6 +94,15 @@ func TestClassifyCommand(t *testing.T) {
 		"git -c x=y con''fig core.hooksPath h": ClassOutside,
 		"cp a 'tad'a.json":                     ClassOutside,
 		"ls *.go":                              ClassWrite,
+		"cp hook .{g,x}it/hooks/pre-commit":    ClassOutside,
+		"cp hook {.git,x}/hooks/pre-commit":    ClassOutside,
+		"cp hook \"$(echo .gi)t/hooks/x\"":     ClassOutside,
+		"cp hook $D/hooks/pre-commit":          ClassOutside,
+		"git $SUB core.hooksPath h":            ClassOutside,
+		"git -c core.fsmonitor=x status":       ClassOutside,
+		"git --config-env=core.pager=X log":    ClassOutside,
+		"git log --oneline":                    ClassWrite,
+		"cp a{1,2}.txt dst/":                   ClassWrite,
 		"echo hi > out.txt":                    ClassWrite,
 	}
 	for cmd, want := range cases {

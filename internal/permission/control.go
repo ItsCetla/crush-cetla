@@ -175,7 +175,10 @@ func ClassifyCommand(command string) Class {
 	interpreted := false
 	for _, argv := range cmds {
 		for _, variant := range shell.CommandVariants(argv) {
-			if variant[0] == "" {
+			// A name only known at run time, or a glob that picks one
+			// (/bin/r?), could be anything.
+			if variant[0] == "" || variant[0] != "[" &&
+				strings.ContainsAny(variant[0], "*?[") {
 				return ClassDelete
 			}
 			name := strings.ToLower(shell.CommandName(variant[0]))
@@ -207,8 +210,9 @@ func ClassifyCommand(command string) Class {
 
 // touchesProtected parses a script and reports whether it names a protected
 // project path once quoting is removed (.gi”t, ".git"/hooks, .g?t), assigns
-// one to a variable, runs `git config`, or redirects output to a path that
-// is only known at run time.
+// one to a variable, runs `git config` or `git -c`, or passes a command an
+// argument or redirect target that is only known at run time and so could
+// be one. Brace expansions are expanded first, so .{g,x}it counts.
 func touchesProtected(script string) bool {
 	file, err := syntax.NewParser().Parse(strings.NewReader(script), "")
 	if err != nil {
@@ -228,20 +232,29 @@ func touchesProtected(script string) bool {
 			}
 		case *syntax.CallExpr:
 			if len(n.Args) > 0 {
-				argv := make([]string, len(n.Args))
-				for i, w := range n.Args {
-					argv[i], _ = shell.LiteralWord(w)
+				var argv []string
+				for _, w := range n.Args {
+					argv = append(argv, shell.ExpandedWords(w)...)
+				}
+				if len(argv) == 0 {
+					return true
+				}
+				if !slices.Contains(noPathCommands, argv[0]) &&
+					slices.Contains(argv[1:], "") {
+					found = true
 				}
 				for _, v := range shell.CommandVariants(argv) {
 					if strings.ToLower(shell.CommandName(v[0])) == "git" &&
-						gitSubcommand(v[1:]) == "config" {
+						gitChangesConfig(v[1:]) {
 						found = true
 					}
 				}
 			}
 		case *syntax.Word:
-			if lit, ok := shell.LiteralWord(n); ok && protectedWord(lit) {
-				found = true
+			for _, lit := range shell.ExpandedWords(n) {
+				if lit != "" && protectedWord(lit) {
+					found = true
+				}
 			}
 		}
 		return !found
@@ -259,21 +272,28 @@ func writesTo(op syntax.RedirOperator) bool {
 	return false
 }
 
-// gitSubcommand returns the first argument of a git command line that
-// isn't a global option.
-func gitSubcommand(args []string) string {
+// noPathCommands never write to a path named in their arguments, so an
+// argument known only at run time doesn't make them protected.
+var noPathCommands = []string{"echo", "printf", "test", "[", "true", "false", ":"}
+
+// gitChangesConfig reports whether a git command line changes config: the
+// config subcommand, a -c or --config-env option (which can set hooks or
+// commands git runs), or a subcommand only known at run time.
+func gitChangesConfig(args []string) bool {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
-		case a == "-C" || a == "-c" || a == "--git-dir" || a == "--work-tree" ||
+		case a == "-c" || a == "--config-env" || strings.HasPrefix(a, "--config-env="):
+			return true
+		case a == "-C" || a == "--git-dir" || a == "--work-tree" ||
 			a == "--namespace" || a == "--exec-path":
 			i++
 		case strings.HasPrefix(a, "-"):
 		default:
-			return a
+			return a == "config"
 		}
 	}
-	return ""
+	return false
 }
 
 // protectedWord reports whether an unquoted shell word names a protected
