@@ -7,6 +7,29 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-10-20
+
+### Added
+
+- **`/context` screen.** Turn Magic Context on or off from inside Ta-Da
+  (also **Context Settings** in the command palette). It's saved to your
+  global config and applies from the next message, with no restart.
+- **Magic Context in `tadarc`.** `option magic-context on` turns it on and
+  `option magic-context-threshold N` (20 to 90) sets when it compresses
+  older turns. The threshold applies on the next start.
+
+### Security
+
+- **Brace expansions and globbed command names are graded.** The grader
+  expands `{a,b}` the way the shell does, so `{rm,-rf,x}` counts as a
+  delete and `.{g,x}it/hooks/x` as a protected path. A command name with a
+  glob (`/bin/r? -rf x`) counts as a delete.
+- **Paths and git options known only at run time are protected.** A
+  command that writes files and gets an argument from a variable or
+  substitution (`cp h $D/hooks/x`) is graded as touching a protected path,
+  as is `git $SUB`, `git -c` and `git --config-env`, which can set hooks
+  or commands git runs.
+
 ## [0.5.8] - 2026-10-20
 
 ### Added
@@ -406,7 +429,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.8...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.9...HEAD
+[0.5.9]: https://github.com/ItsCetla/tada/compare/v0.5.8...v0.5.9
 [0.5.8]: https://github.com/ItsCetla/tada/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/ItsCetla/tada/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/ItsCetla/tada/compare/v0.5.5...v0.5.6
