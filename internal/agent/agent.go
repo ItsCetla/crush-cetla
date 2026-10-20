@@ -280,8 +280,9 @@ type sessionAgent struct {
 	acceptSeqGen uint64
 
 	// mc is the Magic Context engine. Nil (or disabled) means the
-	// classic auto-summarize path. Sub-agents never get one.
-	mc *magiccontext.Engine
+	// classic auto-summarize path. Sub-agents never get one. It can be
+	// swapped while the agent runs when the setting changes.
+	mc atomic.Pointer[magiccontext.Engine]
 
 	// Claude Code engine settings. See claude_code.go.
 	permissions permission.Service
@@ -322,7 +323,7 @@ type SessionAgentOptions struct {
 func NewSessionAgent(
 	opts SessionAgentOptions,
 ) SessionAgent {
-	return &sessionAgent{
+	a := &sessionAgent{
 		largeModel:           csync.NewValue(opts.LargeModel),
 		smallModel:           csync.NewValue(opts.SmallModel),
 		systemPromptPrefix:   csync.NewValue(opts.SystemPromptPrefix),
@@ -343,7 +344,6 @@ func NewSessionAgent(
 		dispatchMu:           csync.NewMap[string, *sync.Mutex](),
 		acceptedRuns:         csync.NewMap[string, int](),
 		cancelMark:           csync.NewMap[string, uint64](),
-		mc:                   opts.MagicContext,
 		permissions:          opts.Permissions,
 		questions:            opts.Questions,
 		planMode:             opts.PlanMode,
@@ -351,6 +351,8 @@ func NewSessionAgent(
 		ccExtraArgs:          opts.ClaudeCodeArgs,
 		control:              opts.Control,
 	}
+	a.mc.Store(opts.MagicContext)
+	return a
 }
 
 // AcceptedRun owns exactly one accept reservation taken by
@@ -846,6 +848,11 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	}
 	if m := a.missionContext(call.SessionID); m != "" {
 		systemPrompt += "\n\n" + m
+	}
+	if mc := a.mc.Load(); !a.isSubAgent {
+		if section := mc.SystemPromptSection(systemPrompt, false); section != "" {
+			systemPrompt += "\n\n" + section
+		}
 	}
 
 	if len(agentTools) > 0 {

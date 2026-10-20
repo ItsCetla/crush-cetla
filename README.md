@@ -1038,7 +1038,19 @@ tada status --actions 20
 
 Magic Context is a Go port of
 [cortexkit/magic-context](https://github.com/cortexkit/magic-context) (MIT).
-It is off by default:
+It is off by default. The quickest way to turn it on is the `/context`
+screen (or **Context Settings** in the commands palette): press space to
+switch it on or off. The change is saved to your global config and applies
+from the next message, with no restart.
+
+You can also set it in `tadarc`:
+
+```bash
+option magic-context on
+option magic-context-threshold 70   # optional, 20 to 90
+```
+
+or in `tada.json`:
 
 ```json
 {
@@ -1047,6 +1059,9 @@ It is off by default:
   }
 }
 ```
+
+Only the on/off switch applies live. Other Magic Context settings, such as
+the threshold or the historian model, apply the next time Ta-Da starts.
 
 When on, it replaces auto-summarize for the main agent. A background
 historian compresses older turns into short history sections once context use

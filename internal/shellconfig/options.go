@@ -109,6 +109,30 @@ func handleOption(ctx context.Context, args []string, stdin io.Reader, stdout, s
 		return nil
 	}
 
+	if key == "magic-context" {
+		bv := true
+		if val != "" {
+			parsed, err := parseBool(val)
+			if err != nil {
+				return usage(stderr, fmt.Sprintf("option: magic-context expects true/false, got %q", val))
+			}
+			bv = parsed
+		}
+		childMap(o, "magic_context")["enabled"] = bv
+		slog.Info("Option set in shell config", "key", key, "value", bv)
+		return nil
+	}
+
+	if key == "magic-context-threshold" {
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 20 || n > 90 {
+			return usage(stderr, fmt.Sprintf("option: magic-context-threshold expects a percentage from 20 to 90, got %q", val))
+		}
+		childMap(o, "magic_context")["execute_threshold_percentage"] = n
+		slog.Info("Option set in shell config", "key", key, "value", n)
+		return nil
+	}
+
 	// "metrics" toggled telemetry, which this build does not have. Accept it
 	// as a no-op so configs that turned it off keep loading.
 	if key == "metrics" {
@@ -288,9 +312,9 @@ func optionUI(options map[string]any, args []string, stderr io.Writer) error {
 
 func parseBool(s string) (bool, error) {
 	switch strings.ToLower(s) {
-	case "true", "1", "yes":
+	case "true", "1", "yes", "on":
 		return true, nil
-	case "false", "0", "no":
+	case "false", "0", "no", "off":
 		return false, nil
 	default:
 		return false, fmt.Errorf("invalid boolean %q", s)

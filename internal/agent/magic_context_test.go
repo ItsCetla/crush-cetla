@@ -223,3 +223,50 @@ func TestMagicContextSubAgentStaysPlain(t *testing.T) {
 	env.agent.isSubAgent = true
 	require.False(t, env.agent.magicContextActive())
 }
+
+func TestMagicContextSwitchesLive(t *testing.T) {
+	t.Parallel()
+	env := newMagicContextTestAgent(t, true)
+	require.True(t, env.agent.magicContextActive())
+
+	env.agent.SetMagicContext(nil)
+	require.False(t, env.agent.magicContextActive())
+	sess, err := env.sessions.Create(t.Context(), "off")
+	require.NoError(t, err)
+	_, err = env.agent.Run(t.Context(), SessionAgentCall{SessionID: sess.ID, Prompt: "hello there"})
+	require.NoError(t, err)
+	require.NotContains(t, env.model.lastPromptText(), "§")
+
+	env.agent.SetMagicContext(env.engine)
+	require.True(t, env.agent.magicContextActive())
+}
+
+func TestCoordinatorSyncMagicContext(t *testing.T) {
+	env := testEnv(t)
+	cfg, err := config.Init(env.workingDir, "", false)
+	require.NoError(t, err)
+	conn, err := db.Connect(t.Context(), t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	sa := testSessionAgentWithMC(nil, nil, &mcRecordingModel{}, nil, nil)
+	c := &coordinator{cfg: cfg, mcDB: conn, agents: map[string]SessionAgent{config.AgentCoder: sa}}
+	opts := cfg.Config().Options
+
+	require.False(t, c.syncMagicContext(t.Context()), "off stays off")
+	require.Nil(t, c.mc.Load())
+
+	opts.MagicContext = &config.MagicContextOptions{Enabled: true}
+	require.True(t, c.syncMagicContext(t.Context()))
+	e := c.mc.Load()
+	require.NotNil(t, e)
+	require.Same(t, e, sa.mc.Load(), "the agent gets the new engine")
+	require.False(t, c.syncMagicContext(t.Context()), "no change, no rebuild")
+	require.Same(t, e, c.mc.Load())
+
+	opts.MagicContext.Enabled = false
+	require.True(t, c.syncMagicContext(t.Context()))
+	require.Nil(t, c.mc.Load())
+	require.Nil(t, sa.mc.Load())
+	require.Nil(t, c.mcStop, "the dreamer schedule stops with the engine")
+}

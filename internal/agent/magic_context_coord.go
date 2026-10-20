@@ -66,10 +66,45 @@ func (c *coordinator) newMagicContextEngine(ctx context.Context, db *sql.DB) *ma
 	if settings.Dreamer {
 		e.Dreamer = c.magicContextGenerator(settings.DreamerModel)
 	}
-	// The dreamer schedule lives for the whole process, like the
-	// coordinator.
-	go e.RunDreamTicker(context.WithoutCancel(ctx))
 	return e
+}
+
+// syncMagicContext builds or drops the Magic Context engine when the
+// setting was turned on or off since the last call, and hands the result
+// to the main agents, so the switch applies from their next step without
+// a restart. Other Magic Context settings apply on the next start: a
+// rebuild would lose the engine's in-flight historian runs. It reports
+// whether the engine changed.
+func (c *coordinator) syncMagicContext(ctx context.Context) bool {
+	c.mcMu.Lock()
+	defer c.mcMu.Unlock()
+	on := c.cfg.Config().Options.MagicContextEnabled()
+	if on == (c.mc.Load() != nil) {
+		return false
+	}
+	e := c.newMagicContextEngine(ctx, c.mcDB)
+	if on && e == nil {
+		// No database to keep it in; stay off.
+		return false
+	}
+	if c.mcStop != nil {
+		c.mcStop()
+		c.mcStop = nil
+	}
+	if e != nil {
+		// The dreamer schedule lives until the engine is replaced or
+		// the process ends.
+		tickCtx, stop := context.WithCancel(context.WithoutCancel(ctx))
+		c.mcStop = stop
+		go e.RunDreamTicker(tickCtx)
+	}
+	c.mc.Store(e)
+	for _, a := range c.agents {
+		if s, ok := a.(interface{ SetMagicContext(*magiccontext.Engine) }); ok {
+			s.SetMagicContext(e)
+		}
+	}
+	return true
 }
 
 // magicContextNotice shows a Magic Context notice for a session.
@@ -188,7 +223,7 @@ func (c *coordinator) magicContextGenerator(spec string) magiccontext.Generator 
 // when compaction is on, ctx_expand, ctx_note and ctx_search always, and
 // ctx_memory when project memory is on.
 func (c *coordinator) magicContextTools() []fantasy.AgentTool {
-	e := c.mc
+	e := c.mc.Load()
 	if !e.Enabled() {
 		return nil
 	}
@@ -253,10 +288,11 @@ func (c *coordinator) magicContextTools() []fantasy.AgentTool {
 
 // mainMagicContext returns the engine for a main agent, nil for sub-agents.
 func (c *coordinator) mainMagicContext(isSubAgent bool) *magiccontext.Engine {
-	if isSubAgent || !c.mc.Enabled() {
+	e := c.mc.Load()
+	if isSubAgent || !e.Enabled() {
 		return nil
 	}
-	return c.mc
+	return e
 }
 
 // MagicContextCommander is implemented by coordinators that can run the
@@ -283,7 +319,7 @@ func (c *coordinator) MagicContextCommand(ctx context.Context, sessionID, name, 
 	if m := c.Model(); m.CatwalkCfg.ContextWindow > 0 {
 		limit = int(m.CatwalkCfg.ContextWindow)
 	}
-	return c.mc.RunCommand(ctx, magiccontext.CommandInput{
+	return c.mc.Load().RunCommand(ctx, magiccontext.CommandInput{
 		Name:         name,
 		Args:         args,
 		SessionID:    sessionID,

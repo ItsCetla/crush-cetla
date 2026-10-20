@@ -582,6 +582,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		NewCommandItem(c.com.Styles, "open_control", "Open Control Cockpit", "ctrl+\\", ActionOpenControl{}).WithAliases("control", "cockpit", "cost", "missions", "actions"),
 		NewCommandItem(c.com.Styles, "take_back", "Take Back Control", "ctrl+q", ActionTakeBack{}).WithAliases("stop", "manual"),
 		NewCommandItem(c.com.Styles, "open_machines", "Machines", "", ActionOpenMachines{}).WithAliases("machines", "machine", "fleet", "ollama", "local models"),
+		NewCommandItem(c.com.Styles, "open_context", "Context Settings", "", ActionOpenContext{}).WithAliases("context", "magic context", "magic-context", "auto-summarize"),
 	)
 
 	if cfg == nil || cfg.Options.ArtifactsEnabled() {

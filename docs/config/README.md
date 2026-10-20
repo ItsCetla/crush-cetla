@@ -546,6 +546,8 @@ Boolean Keys:
   web-tools                      let the agent use fetch, agentic_fetch,
                                  download and sourcegraph (off by default)
   auto-summarize                 automatically summarize long conversations
+  magic-context                  turn on Magic Context (off by default; also
+                                 accepts on/off)
   provider-auto-update           deprecated; has no effect
   default-providers              include built-in providers
   attribution-generated-with     add the Generated with Ta-Da line
@@ -563,6 +565,9 @@ Integer Keys:
                                    streaming responses are only aborted after
                                    this much inactivity; 0 waits forever
                                    (default 60)
+  magic-context-threshold int      context use, in percent from 20 to 90, at
+                                   which Magic Context compresses older turns
+                                   (default 65)
 
 List Keys:
   context-path string             append a project context path
@@ -575,7 +580,13 @@ List Keys:
 option progress false
 option skill-path ./skills
 option attribution-trailer-style assisted-by
+option magic-context on
 ```
+
+> [!TIP]
+> You can also switch Magic Context on or off from the `/context` screen.
+> That applies from the next message; a threshold change applies on the
+> next start.
 
 #### `option reset`
 

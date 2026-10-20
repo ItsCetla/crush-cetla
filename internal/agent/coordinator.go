@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"charm.land/catwalk/pkg/catwalk"
@@ -176,8 +177,12 @@ type coordinator struct {
 	skillTracker *skills.Tracker
 
 	// mc is the Magic Context engine shared by the main agents (nil when
-	// Magic Context is off).
-	mc *magiccontext.Engine
+	// Magic Context is off). syncMagicContext swaps it when the setting
+	// changes; mcMu serializes those swaps.
+	mc     atomic.Pointer[magiccontext.Engine]
+	mcMu   sync.Mutex
+	mcDB   *sql.DB
+	mcStop context.CancelFunc
 
 	// control is the control hub (nil turns budgets, the usage ledger
 	// and missions off).
@@ -240,9 +245,10 @@ func NewCoordinator(ctx context.Context, opts CoordinatorOptions) (Coordinator, 
 		skillTracker: skillTracker,
 		interactive:  opts.Interactive,
 		control:      opts.Control,
+		mcDB:         opts.DB,
 	}
 
-	c.mc = c.newMagicContextEngine(ctx, opts.DB)
+	c.syncMagicContext(ctx)
 
 	agentCfg, ok := opts.Config.Config().Agents[config.AgentCoder]
 	if !ok {
@@ -845,11 +851,6 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		systemPrompt = withRichBlocksHint(systemPrompt, c.interactive, isSubAgent, richOn)
 		if !isSubAgent && !large.ClaudeCode {
 			if section := fleet.PromptSection(c.cfg.Config(), "the agent tool's machine parameter"); section != "" {
-				systemPrompt += "\n\n" + section
-			}
-		}
-		if mc := c.mainMagicContext(isSubAgent); mc != nil {
-			if section := mc.SystemPromptSection(systemPrompt, false); section != "" {
 				systemPrompt += "\n\n" + section
 			}
 		}
@@ -1473,6 +1474,18 @@ func (c *coordinator) UpdateModels(ctx context.Context) error {
 	c.cfg.RefetchGrokModels(ctx)
 
 	agent, name := c.activeAgent()
+	if c.syncMagicContext(ctx) {
+		// The ctx_* tools come and go with Magic Context, so the other
+		// main agents need them refreshed too.
+		for otherName, other := range c.agents {
+			if otherName == name {
+				continue
+			}
+			if err := c.refreshAgentTools(ctx, other, otherName); err != nil {
+				return err
+			}
+		}
+	}
 	return c.updateAgentModels(ctx, agent, name)
 }
 
@@ -1485,12 +1498,15 @@ func (c *coordinator) updateAgentModels(ctx context.Context, agent SessionAgent,
 		return err
 	}
 	agent.SetModels(large, small)
+	return c.refreshAgentTools(ctx, agent, name)
+}
 
+// refreshAgentTools rebuilds a main agent's tools from the current config.
+func (c *coordinator) refreshAgentTools(ctx context.Context, agent SessionAgent, name string) error {
 	agentCfg, ok := c.cfg.Config().Agents[name]
 	if !ok {
 		return fmt.Errorf("%w: %s", errMainAgentNotFound, name)
 	}
-
 	tools, err := c.buildTools(ctx, agentCfg, false)
 	if err != nil {
 		return err

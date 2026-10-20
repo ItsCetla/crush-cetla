@@ -13,16 +13,35 @@ import (
 	"github.com/charmbracelet/crush/internal/message"
 )
 
+// activeMagicContext returns the engine when Magic Context rewrites this
+// agent's prompts, or nil. Sub-agents always use the plain path. Callers
+// keep the returned engine for the whole step, since the setting can
+// change while the agent runs.
+func (a *sessionAgent) activeMagicContext() *magiccontext.Engine {
+	mc := a.mc.Load()
+	if !mc.Enabled() || a.isSubAgent || a.largeModel.Get().ClaudeCode {
+		return nil
+	}
+	return mc
+}
+
+// SetMagicContext swaps the Magic Context engine. Nil turns it off. It
+// applies from the agent's next step.
+func (a *sessionAgent) SetMagicContext(e *magiccontext.Engine) {
+	a.mc.Store(e)
+}
+
 // magicContextActive reports whether Magic Context rewrites this agent's
-// prompts. Sub-agents always use the plain path.
+// prompts.
 func (a *sessionAgent) magicContextActive() bool {
-	return a.mc.Enabled() && !a.isSubAgent && !a.largeModel.Get().ClaudeCode
+	return a.activeMagicContext() != nil
 }
 
 // magicContextCompaction reports whether Magic Context owns compaction, in
 // which case auto-summarize stays off.
 func (a *sessionAgent) magicContextCompaction() bool {
-	return a.magicContextActive() && a.mc.Compaction()
+	mc := a.activeMagicContext()
+	return mc != nil && mc.Compaction()
 }
 
 // systemHash fingerprints the system prompt so the engine can tell when the
@@ -54,30 +73,34 @@ func (a *sessionAgent) magicContextMessages(
 	model Model,
 	systemPrompt string,
 ) ([]fantasy.Message, bool) {
+	mc := a.activeMagicContext()
+	if mc == nil {
+		return nil, false
+	}
 	// Channel 2: a persisted, hidden user reminder asking for ctx_reduce.
-	if text, ok := a.mc.TakeChannel2(ctx, sessionID); ok && text != "" {
+	if text, ok := mc.TakeChannel2(ctx, sessionID); ok && text != "" {
 		if _, err := a.createUserMessage(ctx, SessionAgentCall{
 			SessionID:         sessionID,
 			Prompt:            text,
 			HiddenUserMessage: true,
 		}); err != nil {
-			slog.Warn("magic-context: failed to store channel-2 reminder", "error", err)
+			slog.Warn("Magic Context: failed to store channel-2 reminder", "error", err)
 		}
 	}
 	if err := a.messages.FlushAll(ctx); err != nil {
-		slog.Warn("magic-context: flush before transform failed", "error", err)
+		slog.Warn("Magic Context: flush before transform failed", "error", err)
 	}
 	sess, err := a.sessions.Get(ctx, sessionID)
 	if err != nil {
-		slog.Warn("magic-context: failed to load session", "error", err)
+		slog.Warn("Magic Context: failed to load session", "error", err)
 		return nil, false
 	}
 	msgs, err := a.getSessionMessages(ctx, sess)
 	if err != nil {
-		slog.Warn("magic-context: failed to load messages", "error", err)
+		slog.Warn("Magic Context: failed to load messages", "error", err)
 		return nil, false
 	}
-	res := a.mc.Transform(ctx, magiccontext.TransformInput{
+	res := mc.Transform(ctx, magiccontext.TransformInput{
 		SessionID:    sessionID,
 		Messages:     msgs,
 		ContextLimit: int(model.CatwalkCfg.ContextWindow),
@@ -99,21 +122,23 @@ func (a *sessionAgent) magicContextMessages(
 // magicContextToolResult appends a tool-output reminder to a successful
 // tool result and feeds the result to the note triggers.
 func (a *sessionAgent) magicContextToolResult(ctx context.Context, sessionID string, tr *message.ToolResult) {
-	if !a.magicContextActive() || tr == nil {
+	mc := a.activeMagicContext()
+	if mc == nil || tr == nil {
 		return
 	}
 	if !tr.IsError {
-		if nudge := a.mc.ToolOutputNudge(ctx, sessionID, tr.Name, tr.Content); nudge != "" {
+		if nudge := mc.ToolOutputNudge(ctx, sessionID, tr.Name, tr.Content); nudge != "" {
 			tr.Content += nudge
 		}
 	}
-	a.mc.ObserveToolResult(ctx, sessionID, tr.Name, tr.Metadata, tr.IsError, false)
+	mc.ObserveToolResult(ctx, sessionID, tr.Name, tr.Metadata, tr.IsError, false)
 }
 
 // magicContextStepFinish strips §N§ tags the model echoed into its reply
 // and records the prompt size for the next pass.
 func (a *sessionAgent) magicContextStepFinish(ctx context.Context, sessionID string, msg *message.Message, usage fantasy.Usage, contextWindow int64) {
-	if !a.magicContextActive() || msg == nil {
+	mc := a.activeMagicContext()
+	if mc == nil || msg == nil {
 		return
 	}
 	for i, p := range msg.Parts {
@@ -122,7 +147,7 @@ func (a *sessionAgent) magicContextStepFinish(ctx context.Context, sessionID str
 			msg.Parts[i] = tc
 		}
 	}
-	if err := a.mc.RecordResponse(ctx, sessionID, contextTokens(usage), int(contextWindow)); err != nil {
-		slog.Warn("magic-context: failed to record response", "error", err)
+	if err := mc.RecordResponse(ctx, sessionID, contextTokens(usage), int(contextWindow)); err != nil {
+		slog.Warn("Magic Context: failed to record response", "error", err)
 	}
 }

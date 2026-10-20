@@ -296,3 +296,43 @@ func TestOption_UIIntro(t *testing.T) {
 	ui := result["options"].(map[string]any)["tui"].(map[string]any)
 	require.Equal(t, false, ui["intro"])
 }
+
+func TestOption_MagicContext(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "tadarc")
+	script := `option magic-context
+option magic-context-threshold 70`
+	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(script))
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &result))
+
+	mc := result["options"].(map[string]any)["magic_context"].(map[string]any)
+	require.Equal(t, true, mc["enabled"])
+	require.Equal(t, float64(70), mc["execute_threshold_percentage"])
+}
+
+func TestOption_MagicContextOff(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "tadarc")
+	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(`option magic-context off`))
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &result))
+
+	mc := result["options"].(map[string]any)["magic_context"].(map[string]any)
+	require.Equal(t, false, mc["enabled"])
+}
+
+func TestOption_MagicContextThresholdRange(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "tadarc")
+	_, err := LoadShellConfig(t.Context(), path, []byte(`option magic-context-threshold 95`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "20 to 90")
+}
