@@ -410,45 +410,68 @@ func shadowingVar(name string) bool {
 }
 
 // setsCodeVar reports whether a command assigns a riskyName by name, as in
-// read PS4, read -aPS4 or printf -v 'PS4[0]'. A mapfile callback (-C) runs
-// code, so it counts too.
+// read PS4, read -raPS4 or printf -v 'PS4[0]', or names a variable only
+// at run time. A mapfile callback (-C) runs code, so it counts too.
 func setsCodeVar(argv []string) bool {
 	switch strings.ToLower(shell.CommandName(argv[0])) {
 	case "printf":
-		for i := 1; i < len(argv); i++ {
-			switch a := argv[i]; {
-			case a == "-v" && i+1 < len(argv):
-				return riskyName(argv[i+1])
-			case strings.HasPrefix(a, "-v"):
-				return riskyName(a[2:])
-			case a == "--" || !strings.HasPrefix(a, "-"):
-				return false
-			}
-		}
+		return setsName(argv[1:], "v", "v", "", false)
+	case "read":
+		return setsName(argv[1:], "adinNptu", "a", "", true)
 	case "mapfile", "readarray":
-		if slices.ContainsFunc(argv[1:], func(a string) bool {
-			return strings.HasPrefix(a, "-C")
-		}) {
-			return true
-		}
-		fallthrough
-	case "read", "getopts":
-		for _, a := range argv[1:] {
-			if !strings.HasPrefix(a, "-") {
-				if riskyName(a) {
-					return true
-				}
-				continue
-			}
-			// An option can carry its value attached, as in -aPS4.
-			for i := range a {
-				if riskyName(a[i:]) {
-					return true
-				}
-			}
-		}
+		return setsName(argv[1:], "dnOsuCc", "", "C", true)
+	case "getopts":
+		// The usage is getopts optstring name [arg ...].
+		return len(argv) > 2 && (argv[2] == "" || riskyName(argv[2]))
 	}
 	return false
+}
+
+// setsName parses options the way bash's getopt does and reports whether
+// any variable they assign could be a riskyName. argOpts take a value,
+// attached or in the next word; nameOpts are those whose value is a
+// variable name; codeOpts run code. When positional is set, the words
+// after the options are variable names too. A word or name known only at
+// run time ("") counts as risky.
+func setsName(args []string, argOpts, nameOpts, codeOpts string, positional bool) bool {
+	risky := func(name string) bool { return name == "" || riskyName(name) }
+	i := 0
+	for ; i < len(args); i++ {
+		a := args[i]
+		if a == "" {
+			return true
+		}
+		if a == "--" {
+			i++
+			break
+		}
+		if a == "-" || !strings.HasPrefix(a, "-") {
+			break
+		}
+		for j := 1; j < len(a); j++ {
+			c := a[j]
+			if strings.IndexByte(codeOpts, c) >= 0 {
+				return true
+			}
+			if strings.IndexByte(argOpts, c) < 0 {
+				continue
+			}
+			val, next := a[j+1:], false
+			if val == "" {
+				if i+1 >= len(args) {
+					return false
+				}
+				i++
+				val, next = args[i], true
+			}
+			if strings.IndexByte(nameOpts, c) >= 0 &&
+				((next && val == "") || riskyName(val)) {
+				return true
+			}
+			break
+		}
+	}
+	return positional && slices.ContainsFunc(args[i:], risky)
 }
 
 // riskyName reports whether assigning the variable name, or an element of
@@ -517,8 +540,21 @@ func declaresRunTimeRef(d *syntax.DeclClause) bool {
 			continue
 		}
 		lit, ok := shell.LiteralWord(a.Value)
-		if !ok || (!a.Naked && riskyName(lit)) {
+		switch {
+		case !ok:
 			return true
+		case !a.Naked:
+			if riskyName(lit) {
+				return true
+			}
+		case strings.HasPrefix(lit, "-"):
+			// An option such as -n.
+		default:
+			// A quoted "r=PS4" or "r" arrives as one bare word.
+			_, target, found := strings.Cut(lit, "=")
+			if !found || riskyName(target) {
+				return true
+			}
 		}
 	}
 	return false
@@ -576,6 +612,7 @@ var noPathCommands = []string{
 	"echo", "printf", "test", "[", "true", "false", ":",
 	"cat", "head", "tail", "wc", "grep", "egrep", "fgrep", "ls", "stat",
 	"diff", "cmp", "du", "basename", "dirname", "realpath", "readlink",
+	"read", "mapfile", "readarray", "getopts",
 }
 
 // gitChangesConfig reports whether a git command line changes config: the
