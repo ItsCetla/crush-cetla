@@ -888,6 +888,12 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.handleControlReply(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case machinesStatusMsg:
+		m.handleMachinesStatus(msg)
+	case machinesResultMsg:
+		if cmd := m.handleMachinesResult(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case promptQueueMsg:
 		cmds = append(cmds, m.applyPromptQueue(msg)...)
 	case lspStatesMsg:
@@ -2565,6 +2571,13 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, m.openControlDialog(dialog.ControlPageOverview))
 	case dialog.ActionControl:
 		cmds = append(cmds, m.runControlCmds(msg.Cmds))
+	case dialog.ActionOpenMachines:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.openMachinesDialog())
+	case dialog.ActionCheckMachines:
+		cmds = append(cmds, m.machinesCheckCmd())
+	case dialog.ActionSaveMachine:
+		cmds = append(cmds, m.machinesSaveCmd(msg.Params))
 	case dialog.ActionTakeBack:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, m.takeBackCmd())
@@ -3304,6 +3317,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					m.randomizePlaceholders()
 					m.historyReset()
 					return m.openResumeDialog(query)
+				}
+
+				if dialog.MachinesQuery(value) && !m.bangMode {
+					m.randomizePlaceholders()
+					m.historyReset()
+					return m.openMachinesDialog()
 				}
 
 				if name, args, ok := m.parseMagicContextCommand(value); ok {

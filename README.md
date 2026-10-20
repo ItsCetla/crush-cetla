@@ -1192,6 +1192,12 @@ machine add pc --url "http://192.168.1.30:11434/v1" --type ollama \
   --slots 2 --hardware "RTX 3060 Ti"
 ```
 
+The easiest way is inside Ta-Da: type `/machines` (or pick **Machines**
+from the command palette). It shows every machine with whether it's online
+and how many slots are free, and lets you add (`a`), change (`e`), switch
+off (`space`) and remove (`x`) machines. Typing just an IP like
+`192.168.1.20` means Ollama on its usual port.
+
 Or from the shell: `tada machines add pc --url ... --slots 2`. Run
 `tada machines` to see which machines are online and how many slots are
 free. You can also just tell the AI ("we have an M1 over here with 4
