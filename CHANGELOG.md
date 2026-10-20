@@ -7,6 +7,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-20
+
 ### Added
 
 - **Artifacts.** The agent can publish a page instead of a wall of text: a
@@ -23,6 +25,13 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 - **Offline by default.** Artifact pages run in a sandboxed frame that
   blocks every outside request. `options.artifacts.allow_cdn` (or
   `--allow-cdn`) allows pinned scripts from a few CDNs and Google Fonts.
+- **A private viewer.** The viewer on 127.0.0.1 needs a per-machine key
+  (`.viewer-key` in the artifacts folder), so other local programs and web
+  pages can't read or change your artifacts. Ta-Da signs the browser in
+  when it opens the viewer. Pages get their own derived key and can't
+  reach the API. Ta-Da checks that a viewer already on the port is its own
+  with a signed reply before reusing it, and the `artifact` tool follows
+  symlinks before deciding whether a file is outside the project.
 
 ### Changed
 
@@ -295,7 +304,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/ItsCetla/tada/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/ItsCetla/tada/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/ItsCetla/tada/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/ItsCetla/tada/compare/v0.4.0...v0.4.1
