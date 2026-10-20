@@ -9,7 +9,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ### Security
 
-- **Scripts run by `sh -c` and `eval` are graded like the outer command.**
+- **Scripts run by `sh -c`, `eval` and `trap` are graded like the outer
+  command.**
   A protected path, glob or run-time path inside `sh -c '...'` (also behind
   `sudo`, `env`, `xargs` or `find -exec`) now asks, as does a script whose
   text is only known at run time.
@@ -23,7 +24,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   similar) still run without asking, but only by bare name: `./cat`, or any
   command after the script changes `PATH` (also by name, as in `read PATH`),
   defines an alias or function, uses `hash`, `enable` or `source`, or sets
-  `BASH_ENV` or an exported bash function, is graded like any other
+  `BASH_ENV`, an exported bash function or a loader variable such as
+  `LD_PRELOAD` or `DYLD_INSERT_LIBRARIES`, is graded like any other
   program. This includes changes made inside `eval` or `sh -c`.
 - **More git environment is protected.** `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
   `GIT_COMMON_DIR` and the object directory variables now ask. So do

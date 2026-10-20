@@ -54,6 +54,12 @@ func collectVariants(args []string, depth int, out *[][]string) {
 		for _, inner := range ScriptCommands(strings.Join(args[1:], " ")) {
 			collectVariants(inner, depth+1, out)
 		}
+	case name == "trap":
+		if action, ok := trapAction(args[1:]); ok {
+			for _, inner := range ScriptCommands(action) {
+				collectVariants(inner, depth+1, out)
+			}
+		}
 	case name == "find":
 		for _, e := range FindExecs(args[1:]) {
 			collectVariants(e.Argv, depth+1, out)
@@ -96,6 +102,10 @@ func collectScripts(args []string, depth int, out *[]string) {
 		} else {
 			*out = append(*out, strings.Join(args[1:], " "))
 		}
+	case name == "trap":
+		if action, ok := trapAction(args[1:]); ok {
+			*out = append(*out, action)
+		}
 	case name == "find":
 		for _, e := range FindExecs(args[1:]) {
 			collectScripts(e.Argv, depth+1, out)
@@ -105,6 +115,21 @@ func collectScripts(args []string, depth int, out *[]string) {
 			collectScripts(spec.unwrap(args[1:]), depth+1, out)
 		}
 	}
+}
+
+// trapAction returns the code that trap args sets to run on a signal. It
+// returns false for trap -p, trap -l, a bare trap and a reset (trap - SIG
+// or trap SIG).
+func trapAction(args []string) (string, bool) {
+	if len(args) > 0 && args[0] == "--" {
+		args = args[1:]
+	} else if len(args) > 0 && strings.HasPrefix(args[0], "-") && args[0] != "-" {
+		return "", false
+	}
+	if len(args) < 2 || args[0] == "-" {
+		return "", false
+	}
+	return args[0], true
 }
 
 // UnwrapCommand returns the command that the wrapper command args runs
@@ -419,7 +444,8 @@ options:
 
 // isAssignment reports whether env takes a as a NAME=VALUE assignment.
 // Like env itself, any = after the first byte counts, so names such as
-// BASH_FUNC_name%% (an exported bash function) are assignments too.
+// BASH_FUNC_name%% (an exported bash function) are assignments too. A word
+// starting with - is an option (--split-string=...), not an assignment.
 func isAssignment(a string) bool {
-	return strings.IndexByte(a, '=') > 0
+	return !strings.HasPrefix(a, "-") && strings.IndexByte(a, '=') > 0
 }

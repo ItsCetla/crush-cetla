@@ -172,6 +172,16 @@ func TestClassifyCommand(t *testing.T) {
 		`env 'BASH_FUNC_cat%%=() { cp h "$1"; }' bash -c 'cat $D'`: ClassOutside,
 		"BASH_ENV=./x bash -c 'cat $D'":                            ClassOutside,
 		"echo $PATH; cat $D":                                       ClassWrite,
+		// env options aren't assignments, even with an = in them.
+		`env --split-string="sh -c 'cp h \$D'"`: ClassOutside,
+		// The dynamic loader can load code into any program.
+		"LD_PRELOAD=./evil.so cat $D":            ClassOutside,
+		"DYLD_INSERT_LIBRARIES=./e.dylib cat $D": ClassOutside,
+		// Code a trap runs later is graded now.
+		`trap 'cp h "$D/hooks/x"' EXIT`:            ClassOutside,
+		`trap -- 'cp h .git/hooks/x' EXIT`:         ClassOutside,
+		"trap 'rm -f tmp.txt' EXIT; go test ./...": ClassDelete,
+		"trap - EXIT": ClassWrite,
 	}
 	for cmd, want := range cases {
 		require.Equal(t, want, ClassifyCommand(cmd), cmd)

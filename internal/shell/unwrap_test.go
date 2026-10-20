@@ -94,6 +94,13 @@ func TestInlineScripts(t *testing.T) {
 		{[]string{"sh", "-c", ""}, []string{""}},
 		{[]string{"find", ".", "-exec", "sh", "-c", "x {}", ";"}, []string{"x {}"}},
 		{[]string{"ls", "-c"}, nil},
+		{[]string{"trap", "rm x", "EXIT"}, []string{"rm x"}},
+		{[]string{"trap", "--", "rm x", "EXIT"}, []string{"rm x"}},
+		{[]string{"trap", "-", "EXIT"}, nil},
+		{[]string{"trap", "-p"}, nil},
+		{[]string{"trap", "EXIT"}, nil},
+		{[]string{"env", "--split-string=sh -c x"}, []string{"x"}},
+		{[]string{"env", "BASH_FUNC_f%%=() { :; }", "sh", "-c", "f"}, []string{"f"}},
 	}
 	for _, c := range cases {
 		require.Equal(t, c.want, InlineScripts(c.args), "%q", c.args)

@@ -399,13 +399,15 @@ func shadowsCommands(file *syntax.File, depth int) bool {
 }
 
 // shadowingVar reports whether a variable (or a bare word naming one, as
-// read and printf -v take) changes which program a command name runs:
-// PATH, the files bash loads at start (BASH_ENV, ENV) and exported bash
-// functions (BASH_FUNC_name%%).
+// read and printf -v take) changes what a command name runs: PATH, the
+// files bash loads at start (BASH_ENV, ENV), exported bash functions
+// (BASH_FUNC_name%%) and the dynamic loader variables (LD_PRELOAD,
+// DYLD_INSERT_LIBRARIES and the rest), which load code into any program.
 func shadowingVar(name string) bool {
 	name = strings.ToUpper(name)
 	return name == "PATH" || name == "BASH_ENV" || name == "ENV" ||
-		strings.HasPrefix(name, "BASH_FUNC_")
+		strings.HasPrefix(name, "BASH_FUNC_") ||
+		strings.HasPrefix(name, "LD_") || strings.HasPrefix(name, "DYLD_")
 }
 
 // setsRunTimeVar reports whether printf assigns to a variable named only
