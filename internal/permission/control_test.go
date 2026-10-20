@@ -132,6 +132,30 @@ func TestClassifyCommand(t *testing.T) {
 		"git log --oneline":                                             ClassWrite,
 		"cp a{1,2}.txt dst/":                                            ClassWrite,
 		"echo hi > out.txt":                                             ClassWrite,
+		// Read-only commands lose their exemption when the name may not be
+		// the real program.
+		"./cat $D/hooks/x":                                  ClassOutside,
+		"PATH=.:$PATH cat $D/hooks/x":                       ClassOutside,
+		"export PATH=./bin:$PATH; cat $D":                   ClassOutside,
+		"shopt -s expand_aliases; alias cat='cp h'; cat $D": ClassOutside,
+		"hash -p ./evil cat; cat $D":                        ClassOutside,
+		"cat() { cp h \"$1\"; }; cat $D":                    ClassOutside,
+		"env PATH=./bin cat $D":                             ClassOutside,
+		// Variables named only at run time.
+		`set -a; printf -v "$N" '%s' h; git commit`: ClassOutside,
+		`declare -n r="$N"; r=h; git commit`:        ClassOutside,
+		`printf '%s\n' "$x"`:                        ClassWrite,
+		`printf -v out '%s' "$x"`:                   ClassWrite,
+		// Git env that picks the repository or a program git runs.
+		"GIT_SSH_COMMAND=./evil git status":     ClassOutside,
+		"export GIT_PAGER=./evil":               ClassOutside,
+		`GIT_EDITOR="$E" git commit`:            ClassOutside,
+		"GIT_WORK_TREE=/tmp/x git status":       ClassOutside,
+		"GIT_INDEX_FILE=/tmp/i git add .":       ClassOutside,
+		"GIT_PAGER=cat git log":                 ClassWrite,
+		"GIT_EDITOR=true git rebase --continue": ClassWrite,
+		"GIT_TERMINAL_PROMPT=0 git status":      ClassWrite,
+		"GIT_PAGER= git log":                    ClassWrite,
 	}
 	for cmd, want := range cases {
 		require.Equal(t, want, ClassifyCommand(cmd), cmd)

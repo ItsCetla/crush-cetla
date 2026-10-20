@@ -216,14 +216,17 @@ func ClassifyCommand(command string) Class {
 // expansions are expanded first, so .{g,x}it counts, and scripts run by
 // `sh -c` or `eval` are checked the same way.
 func touchesProtected(script string) bool {
-	return touchesProtectedAt(script, 0)
+	return touchesProtectedAt(script, 0, false)
 }
 
 // maxScriptDepth bounds how deeply nested `sh -c` and `eval` scripts are
 // followed; anything deeper counts as protected.
 const maxScriptDepth = 8
 
-func touchesProtectedAt(script string, depth int) bool {
+// touchesProtectedAt checks a script nested depth levels deep. shadowed is
+// set when an enclosing script may have changed what a command name runs,
+// so read-only commands get no exemption.
+func touchesProtectedAt(script string, depth int, shadowed bool) bool {
 	if depth > maxScriptDepth {
 		return true
 	}
@@ -231,6 +234,7 @@ func touchesProtectedAt(script string, depth int) bool {
 	if err != nil {
 		return true
 	}
+	shadowed = shadowed || shadowsCommands(file)
 	found := false
 	syntax.Walk(file, func(node syntax.Node) bool {
 		if found {
@@ -244,8 +248,14 @@ func touchesProtectedAt(script string, depth int) bool {
 				}
 			}
 		case *syntax.Assign:
-			if n.Name != nil && gitEnvName(n.Name.Value) {
-				found = true
+			if n.Name != nil {
+				value, known := "", true
+				if n.Value != nil {
+					value, known = shell.LiteralWord(n.Value)
+				}
+				if gitEnvRisky(n.Name.Value, value, known) {
+					found = true
+				}
 			}
 			// A naked export or declare argument names its variable
 			// itself, so one known only at run time could be any.
@@ -263,7 +273,7 @@ func touchesProtectedAt(script string, depth int) bool {
 				return true
 			}
 			for _, v := range shell.CommandVariants(argv) {
-				if runTimePath(v) {
+				if runTimePath(v, shadowed) || setsRunTimeVar(v) {
 					found = true
 				}
 				if strings.ToLower(shell.CommandName(v[0])) == "git" &&
@@ -272,7 +282,7 @@ func touchesProtectedAt(script string, depth int) bool {
 				}
 			}
 			for _, inner := range shell.InlineScripts(argv) {
-				if inner == "" || touchesProtectedAt(inner, depth+1) {
+				if inner == "" || touchesProtectedAt(inner, depth+1, shadowed) {
 					found = true
 				}
 			}
@@ -281,10 +291,16 @@ func touchesProtectedAt(script string, depth int) bool {
 				if lit == "" {
 					continue
 				}
-				name, _, _ := strings.Cut(lit, "=")
-				if protectedWord(lit) || gitEnvName(name) {
+				// NAME=VALUE (env, export) or a bare NAME (printf -v,
+				// read, declare -n), whose value is then unknown.
+				name, value, known := strings.Cut(lit, "=")
+				if protectedWord(lit) || gitEnvRisky(name, value, known) {
 					found = true
 				}
+			}
+		case *syntax.DeclClause:
+			if declaresRunTimeRef(n) {
+				found = true
 			}
 		}
 		return !found
@@ -295,24 +311,22 @@ func touchesProtectedAt(script string, depth int) bool {
 // runTimePath reports whether a command may write to a path that is only
 // known at run time: an argument that is an expansion, a path find
 // substitutes for {} or a directory it runs -execdir in, or the arguments
-// xargs reads from its input. Commands in noPathCommands never count.
-func runTimePath(argv []string) bool {
-	name := strings.ToLower(shell.CommandName(argv[0]))
-	if slices.Contains(noPathCommands, name) {
+// xargs reads from its input. Read-only commands don't count (see
+// readOnly).
+func runTimePath(argv []string, shadowed bool) bool {
+	if readOnly(argv[0], shadowed) {
 		return false
 	}
 	if slices.Contains(argv[1:], "") {
 		return true
 	}
-	switch name {
+	switch strings.ToLower(shell.CommandName(argv[0])) {
 	case "xargs":
 		inner := shell.UnwrapCommand(argv)
-		return len(inner) > 0 && !slices.Contains(noPathCommands,
-			strings.ToLower(shell.CommandName(inner[0])))
+		return len(inner) > 0 && !readOnly(inner[0], shadowed)
 	case "find":
 		for _, e := range shell.FindExecs(argv[1:]) {
-			if slices.Contains(noPathCommands,
-				strings.ToLower(shell.CommandName(e.Argv[0]))) {
+			if readOnly(e.Argv[0], shadowed) {
 				continue
 			}
 			if e.Dir || slices.ContainsFunc(e.Argv, func(a string) bool {
@@ -325,15 +339,121 @@ func runTimePath(argv []string) bool {
 	return false
 }
 
-// gitEnvName reports whether an environment variable changes which config,
-// repository or helper programs git uses, the way `git -c` does.
-func gitEnvName(name string) bool {
-	name = strings.ToUpper(name)
-	switch name {
-	case "GIT_DIR", "GIT_EXEC_PATH", "GIT_TEMPLATE_DIR":
+// readOnly reports whether name is a bare command name in noPathCommands.
+// A path (./cat) could be any program, and so could any name once shadowed
+// is set.
+func readOnly(name string, shadowed bool) bool {
+	return !shadowed && !strings.ContainsAny(name, `/\`) &&
+		slices.Contains(noPathCommands, strings.ToLower(name))
+}
+
+// shadowsCommands reports whether a script may change what a command name
+// runs: it sets PATH, defines an alias or a function, or uses hash or
+// enable to bind a name to a program.
+func shadowsCommands(file *syntax.File) bool {
+	shadows := false
+	syntax.Walk(file, func(node syntax.Node) bool {
+		switch n := node.(type) {
+		case *syntax.FuncDecl:
+			shadows = true
+		case *syntax.Assign:
+			if n.Name != nil && strings.EqualFold(n.Name.Value, "PATH") {
+				shadows = true
+			}
+		case *syntax.Word:
+			for _, lit := range shell.ExpandedWords(n) {
+				name, _, ok := strings.Cut(lit, "=")
+				if ok && strings.EqualFold(name, "PATH") {
+					shadows = true
+				}
+			}
+		case *syntax.CallExpr:
+			for _, w := range n.Args[:min(1, len(n.Args))] {
+				lit, _ := shell.LiteralWord(w)
+				switch strings.ToLower(shell.CommandName(lit)) {
+				case "alias", "hash", "enable":
+					shadows = true
+				}
+			}
+		}
+		return !shadows
+	})
+	return shadows
+}
+
+// setsRunTimeVar reports whether printf assigns to a variable named only
+// at run time (printf -v "$name"), which could be one git reads. A format
+// known only at run time counts too, since it could be -v.
+func setsRunTimeVar(argv []string) bool {
+	if strings.ToLower(shell.CommandName(argv[0])) != "printf" {
+		return false
+	}
+	if len(argv) > 1 && argv[1] == "" {
 		return true
 	}
-	return strings.HasPrefix(name, "GIT_CONFIG")
+	i := slices.Index(argv, "-v")
+	return i > 0 && (i+1 == len(argv) || argv[i+1] == "")
+}
+
+// declaresRunTimeRef reports whether a declare, typeset, local or nameref
+// makes a name reference to a variable named only at run time, so later
+// assignments could set one git reads.
+func declaresRunTimeRef(d *syntax.DeclClause) bool {
+	ref := d.Variant.Value == "nameref"
+	for _, a := range d.Args {
+		if a.Naked && a.Value != nil {
+			if lit, ok := shell.LiteralWord(a.Value); ok &&
+				strings.HasPrefix(lit, "-") && strings.Contains(lit, "n") {
+				ref = true
+			}
+		}
+	}
+	if !ref {
+		return false
+	}
+	for _, a := range d.Args {
+		if a.Value == nil {
+			continue
+		}
+		if _, ok := shell.LiteralWord(a.Value); !ok {
+			return true
+		}
+	}
+	return false
+}
+
+var (
+	// gitRepoEnv picks the repository, config or programs git uses.
+	gitRepoEnv = []string{
+		"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+		"GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+		"GIT_EXEC_PATH", "GIT_TEMPLATE_DIR",
+	}
+	// gitCommandEnv names a program that git (or another tool) runs.
+	gitCommandEnv = []string{
+		"GIT_PAGER", "GIT_EDITOR", "GIT_SEQUENCE_EDITOR", "GIT_EXTERNAL_DIFF",
+		"GIT_SSH", "GIT_SSH_COMMAND", "GIT_ASKPASS", "GIT_PROXY_COMMAND",
+		"SSH_ASKPASS", "PAGER", "EDITOR", "VISUAL",
+	}
+	// harmlessHelpers are values for gitCommandEnv that run nothing new,
+	// as in GIT_PAGER=cat or GIT_EDITOR=true.
+	harmlessHelpers = []string{"", "cat", "true", "false", ":", "less", "more"}
+)
+
+// gitEnvRisky reports whether setting the environment variable name to
+// value changes which config, repository or helper programs git uses, the
+// way `git -c` does. known is false when the value is only known at run
+// time.
+func gitEnvRisky(name, value string, known bool) bool {
+	name = strings.ToUpper(name)
+	switch {
+	case strings.HasPrefix(name, "GIT_CONFIG"), slices.Contains(gitRepoEnv, name):
+		return true
+	case slices.Contains(gitCommandEnv, name):
+		helper, _, _ := strings.Cut(strings.TrimSpace(value), " ")
+		return !known || !slices.Contains(harmlessHelpers, helper)
+	}
+	return false
 }
 
 // writesTo reports whether a redirect writes to its target.
