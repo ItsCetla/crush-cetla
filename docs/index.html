@@ -121,12 +121,20 @@
             <p>Only a single, parsed, read-only command runs without a prompt. Wrappers such as <code>env</code> and <code>timeout</code>, redirections, pipes into writes and multi-line commands always ask.</p>
           </article>
           <article class="card">
-            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>Manual, Plan or Auto</h3>
-            <p><kbd>shift+tab</kbd> cycles three permission modes, always shown in the status bar. <strong>Manual</strong> asks before edits and commands, <strong>Plan</strong> talks it through before any code, and <strong>Auto</strong> skips prompts while system level commands stay blocked. Start in Auto with <code>tada --auto</code>.</p>
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>Manual, Plan, Edits or Auto</h3>
+            <p><kbd>shift+tab</kbd> cycles four permission modes, always shown in the status bar. <strong>Manual</strong> asks before edits and commands, <strong>Plan</strong> talks it through before any code, <strong>Edits</strong> approves file edits inside the project and asks for the rest, and <strong>Auto</strong> skips prompts while system level commands stay blocked. Every prompt says what kind of action it is, deletes always ask, and <kbd>ctrl+q</kbd> takes back control from any screen.</p>
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13.5 6l-3 12"/></svg></span>Claude Code inside Ta-Da</h3>
             <p>Have the <code>claude</code> CLI? Pick <strong>Claude Code</strong> in the model picker and Ta-Da runs your own <code>claude</code> each turn, with its edits shown as Ta-Da diffs, its tool calls going through Ta-Da's permission prompts and its questions in Ta-Da's dialog. Ta-Da never touches your Claude login.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="9" height="7" rx="1"/><rect x="13" y="4" width="9" height="7" rx="1"/><rect x="7.5" y="15" width="9" height="6" rx="1"/><path d="M6.5 11v2h11v-2M12 13v2"/></svg></span>Your other computers, put to work</h3>
+            <p>Got an M1 with room for 4 agents and a 3060 Ti with room for 2? Add them with <code>machine add</code> in <code>tadarc</code>, <code>tada machines add</code>, or just tell the AI. It hands them side work in parallel, falls back to your main model when one drops, and <code>tada machines</code> shows which are online and how many slots are free.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-5"/><path d="M4 18h16"/></svg></span>Cockpit, budgets and missions</h3>
+            <p><kbd>ctrl+\</kbd> opens a cockpit with spend, every action and who approved it, and missions: goals with a checklist that outlive a session. <code>options.budget</code> sets daily, monthly and per-session dollar limits; hitting one asks before the next model call. <code>tada status</code> prints it all once.</p>
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M14 9v11"/></svg></span>Artifacts, kept local</h3>
@@ -235,6 +243,7 @@
         </div>
         <ul class="checks">
           <li><strong>Model providers you configure.</strong> Chat completions, plus a <code>GET /models</code> discovery call against the same base URL.</li>
+          <li><strong>Machines you add.</strong> The same chat and <code>GET /models</code> calls to the URL you gave each machine, which receives the prompts and files the AI sends it.</li>
           <li><strong>MCP servers you configure.</strong> Local processes, HTTP or SSE endpoints, and their OAuth flows if they use one.</li>
           <li><strong>OAuth refresh</strong> for accounts you signed in with <code>tada login</code>.</li>
           <li class="still"><strong>Your <code>claude</code> CLI, only when you pick a Claude Code model.</strong> Ta-Da starts the CLI on your machine; the CLI talks to Anthropic itself.</li>
