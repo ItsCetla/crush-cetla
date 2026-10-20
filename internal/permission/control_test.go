@@ -193,6 +193,21 @@ func TestClassifyCommand(t *testing.T) {
 		"LD_LIBRARY_PATH=./lib ./build/app":                ClassWrite,
 		"grep -rn ENV .":                                   ClassWrite,
 		"echo $PS4":                                        ClassWrite,
+		`printf -vPS4 '%s' '$(cp h "$D")'; set -x; true`:   ClassOutside,
+		"read -aPS4 < f; set -x":                           ClassOutside,
+		"printf -v 'PS4[0]' x; set -x":                     ClassOutside,
+		`declare -n r=PS4; r='$(cp h "$D")'; set -x; true`: ClassOutside,
+		"declare -n r; r=PS4; r=x; set -x":                 ClassOutside,
+		"local -n r=GIT_DIR; r=/tmp/x; git status":         ClassOutside,
+		"declare -n r=PATH; r=.; cat $D":                   ClassOutside,
+		`PS1='$(cp h "$D")' bash -i`:                       ClassOutside,
+		`mapfile -C 'cp h "$D"' -c 1 a < f`:                ClassOutside,
+		"read MYVAR < f":                                   ClassWrite,
+		"printf -v out '%s' x":                             ClassWrite,
+		"declare -n r=out; r=1":                            ClassWrite,
+		"mapfile -t lines < f":                             ClassWrite,
+		`while read -r line; do echo "$line"; done < f`:    ClassWrite,
+		"printf '%s\\n' PATH":                              ClassWrite,
 	}
 	for cmd, want := range cases {
 		require.Equal(t, want, ClassifyCommand(cmd), cmd)

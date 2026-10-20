@@ -409,14 +409,55 @@ func shadowingVar(name string) bool {
 		strings.HasPrefix(name, "LD_") || strings.HasPrefix(name, "DYLD_")
 }
 
-// setsCodeVar reports whether a command assigns a codeVar by name, as in
-// read PS4 or printf -v PS4.
+// setsCodeVar reports whether a command assigns a riskyName by name, as in
+// read PS4, read -aPS4 or printf -v 'PS4[0]'. A mapfile callback (-C) runs
+// code, so it counts too.
 func setsCodeVar(argv []string) bool {
 	switch strings.ToLower(shell.CommandName(argv[0])) {
-	case "read", "printf", "mapfile", "readarray", "getopts":
-		return slices.ContainsFunc(argv[1:], codeVar)
+	case "printf":
+		for i := 1; i < len(argv); i++ {
+			switch a := argv[i]; {
+			case a == "-v" && i+1 < len(argv):
+				return riskyName(argv[i+1])
+			case strings.HasPrefix(a, "-v"):
+				return riskyName(a[2:])
+			case a == "--" || !strings.HasPrefix(a, "-"):
+				return false
+			}
+		}
+	case "mapfile", "readarray":
+		if slices.ContainsFunc(argv[1:], func(a string) bool {
+			return strings.HasPrefix(a, "-C")
+		}) {
+			return true
+		}
+		fallthrough
+	case "read", "getopts":
+		for _, a := range argv[1:] {
+			if !strings.HasPrefix(a, "-") {
+				if riskyName(a) {
+					return true
+				}
+				continue
+			}
+			// An option can carry its value attached, as in -aPS4.
+			for i := range a {
+				if riskyName(a[i:]) {
+					return true
+				}
+			}
+		}
 	}
 	return false
+}
+
+// riskyName reports whether assigning the variable name, or an element of
+// it (name[i]), could run code or change what git or a command name uses.
+func riskyName(name string) bool {
+	if i := strings.IndexByte(name, '['); i >= 0 {
+		name = name[:i]
+	}
+	return name != "" && (shadowingVar(name) || gitEnvRisky(name, "", false))
 }
 
 // codeVars make a shell or program run or load code taken from the value:
@@ -424,9 +465,9 @@ func setsCodeVar(argv []string) bool {
 // sources at start, shell options that turn those on, and libraries the
 // loader injects.
 var codeVars = []string{
-	"PS4", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS", "BASH_ENV", "ENV",
-	"BASH_LOADABLES_PATH", "LD_PRELOAD", "LD_AUDIT", "DYLD_INSERT_LIBRARIES",
-	"GCONV_PATH",
+	"PS0", "PS1", "PS2", "PS4", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS",
+	"BASH_ENV", "ENV", "BASH_LOADABLES_PATH", "LD_PRELOAD", "LD_AUDIT",
+	"DYLD_INSERT_LIBRARIES", "GCONV_PATH",
 }
 
 // codeVar reports whether setting the variable name could run code, so it
@@ -452,8 +493,9 @@ func setsRunTimeVar(argv []string) bool {
 }
 
 // declaresRunTimeRef reports whether a declare, typeset, local or nameref
-// makes a name reference to a variable named only at run time, so later
-// assignments could set one git reads.
+// makes a name reference whose target could be a riskyName: one named
+// only at run time, a risky name itself, or a reference with no target
+// yet, which a later r=PS4 sets.
 func declaresRunTimeRef(d *syntax.DeclClause) bool {
 	ref := d.Variant.Value == "nameref"
 	for _, a := range d.Args {
@@ -469,9 +511,13 @@ func declaresRunTimeRef(d *syntax.DeclClause) bool {
 	}
 	for _, a := range d.Args {
 		if a.Value == nil {
+			if a.Name != nil {
+				return true
+			}
 			continue
 		}
-		if _, ok := shell.LiteralWord(a.Value); !ok {
+		lit, ok := shell.LiteralWord(a.Value)
+		if !ok || (!a.Naked && riskyName(lit)) {
 			return true
 		}
 	}

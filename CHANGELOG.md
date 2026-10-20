@@ -33,11 +33,14 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   `GIT_ASKPASS` and similar), unless set to exactly `cat`, `true`, `false`
   or `:`. Setting a variable whose name is only known at run time
   (`printf -v "$name"`, `declare -n`) asks too.
-- **Variables that run or load code ask.** Setting `PS4`,
-  `PROMPT_COMMAND`, `SHELLOPTS`, `BASHOPTS`, `BASH_ENV`, `ENV`, an exported
-  bash function, `LD_PRELOAD`, `LD_AUDIT`, `DYLD_INSERT_LIBRARIES` or
-  `GCONV_PATH` is graded like a protected write. Library search paths such
-  as `LD_LIBRARY_PATH` don't ask on their own.
+- **Variables that run or load code ask.** Setting `PS0`, `PS1`, `PS2`,
+  `PS4`, `PROMPT_COMMAND`, `SHELLOPTS`, `BASHOPTS`, `BASH_ENV`, `ENV`, an
+  exported bash function, `LD_PRELOAD`, `LD_AUDIT`, `DYLD_INSERT_LIBRARIES`
+  or `GCONV_PATH` is graded like a protected write. That includes setting
+  one through `read -aPS4`, `printf -vPS4`, an array element, or a name
+  reference (`declare -n r=PS4`, or `declare -n r` with no target yet), and
+  a `mapfile -C` callback. Library search paths such as `LD_LIBRARY_PATH`
+  don't ask on their own.
 
 ## [0.5.9] - 2026-10-20
 
