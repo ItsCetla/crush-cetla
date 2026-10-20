@@ -101,6 +101,11 @@ type (
 	ActionSummarize         struct {
 		SessionID string
 	}
+	// ActionMagicContext runs a /ctx-* command without arguments.
+	ActionMagicContext struct {
+		SessionID string
+		Name      string
+	}
 	// ActionSelectReasoningEffort is a message indicating a reasoning effort
 	// has been selected.
 	ActionSelectReasoningEffort struct {

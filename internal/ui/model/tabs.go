@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/charmbracelet/crush/internal/session"
-	"github.com/charmbracelet/crush/internal/ui/util"
 )
 
 // Session tabs: every session opened during this run gets a tab in a
@@ -176,9 +175,6 @@ func (m *UI) closeTab(i int) tea.Cmd {
 	}
 	next := neighbourTab(i, len(m.tabs))
 	if next < 0 {
-		if m.isAgentBusy() {
-			return util.ReportWarn("Agent is busy, please wait before closing the last tab...")
-		}
 		m.removeTab(i)
 		return m.newSession()
 	}
@@ -195,9 +191,6 @@ func (m *UI) closeActiveTab() tea.Cmd {
 func (m *UI) newSessionFromTabs() tea.Cmd {
 	if !m.hasSession() {
 		return nil
-	}
-	if m.isAgentBusy() {
-		return util.ReportWarn("Agent is busy, please wait before starting a new session...")
 	}
 	m.focus = uiFocusEditor
 	return m.newSession()

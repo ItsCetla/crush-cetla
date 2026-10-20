@@ -30,6 +30,8 @@ func TestMain(m *testing.M) {
 // runIsolated runs the tests with the global config and data paths in a
 // temp dir, so no test can rewrite the developer's real config.
 func runIsolated(m *testing.M) int {
+	// Never auto-add the developer's own Claude Code install.
+	findClaudeBinary = func() string { return "" }
 	home, err := os.MkdirTemp("", "tada-config-test")
 	if err != nil {
 		panic(err)

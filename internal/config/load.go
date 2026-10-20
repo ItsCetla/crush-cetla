@@ -361,6 +361,8 @@ func (c *Config) configureProviders(ctx context.Context, store *ConfigStore, env
 		c.Providers.Set(string(p.ID), prepared)
 	}
 
+	c.addClaudeCodeProvider()
+
 	// Discover models concurrently for custom providers that need it.
 	// A provider needs discovery when discover_models is explicitly true,
 	// or when the models list is empty (auto-trigger, unless opted out).
@@ -378,7 +380,7 @@ func (c *Config) configureProviders(ctx context.Context, store *ConfigStore, env
 		if knownProviderNames[id] {
 			continue
 		}
-		if pc.Disable || pc.BaseURL == "" {
+		if pc.Disable || pc.BaseURL == "" || pc.IsClaudeCode() {
 			continue
 		}
 		wantsDiscovery := pc.AutoDiscoverModels != nil && *pc.AutoDiscoverModels
@@ -413,6 +415,15 @@ func (c *Config) configureProviders(ctx context.Context, store *ConfigStore, env
 	// Validate the custom providers.
 	for id, providerConfig := range c.Providers.Seq2() {
 		if knownProviderNames[id] {
+			continue
+		}
+
+		if providerConfig.IsClaudeCode() {
+			if providerConfig.Disable {
+				c.Providers.Del(id)
+				continue
+			}
+			c.Providers.Set(id, prepareClaudeCodeProvider(id, providerConfig))
 			continue
 		}
 

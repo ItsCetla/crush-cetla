@@ -45,6 +45,11 @@ linters:
         text: "SA1019.*LoggingMessageHandler"
         linters:
           - staticcheck
+      # Magic Context errors are shown to users verbatim (ported text).
+      - path: internal/magiccontext/
+        text: "ST1005"
+        linters:
+          - staticcheck
       # SA4023 false positive: RemoveConfigField returns non-nil errors.
       - path: internal/cmd/logout.go
         text: "SA4023"

@@ -79,12 +79,7 @@ func (m *merger) applyExtras(doc document, source string) {
 		}
 	}
 	if raw, ok := doc["plugin"]; ok {
-		var list []string
-		if err := json.Unmarshal(raw, &list); err != nil {
-			m.warnf("%s: plugin: %v", source, err)
-		} else {
-			m.cfg.Plugins = appendUnique(m.cfg.Plugins, list...)
-		}
+		m.cfg.Plugins = appendUnique(m.cfg.Plugins, m.pluginSpecs(source, raw)...)
 	}
 	if raw, ok := doc["skills"]; ok {
 		var skills struct {
@@ -581,6 +576,34 @@ func isDir(p string) bool {
 func isFile(p string) bool {
 	info, err := os.Stat(p)
 	return err == nil && info.Mode().IsRegular()
+}
+
+// pluginSpecs reads a "plugin" list. An entry is a spec string or a
+// [spec, options] pair. Entries it can't read are kept as their raw JSON,
+// so a plugin is still known to be there: plugins can take over jobs
+// such as compaction that Ta-Da would otherwise switch off.
+func (m *merger) pluginSpecs(source string, raw json.RawMessage) []string {
+	var entries []json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		m.warnf("%s: plugin: %v", source, err)
+		return []string{strings.TrimSpace(string(raw))}
+	}
+	specs := make([]string, 0, len(entries))
+	for _, e := range entries {
+		var spec string
+		if json.Unmarshal(e, &spec) == nil {
+			specs = append(specs, spec)
+			continue
+		}
+		var pair []json.RawMessage
+		if json.Unmarshal(e, &pair) == nil && len(pair) > 0 && json.Unmarshal(pair[0], &spec) == nil {
+			specs = append(specs, spec)
+			continue
+		}
+		m.warnf("%s: plugin: unreadable entry %s", source, e)
+		specs = append(specs, strings.TrimSpace(string(e)))
+	}
+	return specs
 }
 
 func appendUnique(list []string, items ...string) []string {

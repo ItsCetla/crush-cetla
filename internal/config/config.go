@@ -530,6 +530,8 @@ type Options struct {
 	// `tada trust`. It is only read from system and global config: the
 	// trust decision is made before any project config is loaded.
 	TrustedPaths []string `json:"trusted_paths,omitempty" jsonschema:"description=Directories whose projects (and every project below them) are trusted without running tada trust. Project-level config (tada.json\\, tadarc\\, .tada/tada.json) can run commands\\, so only list directories you control. Read only from the global config; ~ is expanded.,example=~/code/mine"`
+	// MagicContext is the opt-in Magic Context runtime. See MagicContextOptions.
+	MagicContext *MagicContextOptions `json:"magic_context,omitempty" jsonschema:"description=Magic Context: background historian\\, ctx_reduce drops\\, project memory and search. Replaces auto-summarize when enabled"`
 }
 
 // webTools are the built-in tools that make outbound network requests on

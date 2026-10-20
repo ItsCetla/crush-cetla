@@ -156,6 +156,17 @@ type ShellCommandResponse struct {
 	ExitCode int    `json:"exit_code"`
 }
 
+// MagicContextCommandRequest runs a /ctx-* command for a session.
+type MagicContextCommandRequest struct {
+	Name string `json:"name"`
+	Args string `json:"args,omitempty"`
+}
+
+// MagicContextCommandResponse holds the command's reply text.
+type MagicContextCommandResponse struct {
+	Text string `json:"text"`
+}
+
 // AgentSession represents a session with its busy status.
 type AgentSession struct {
 	Session

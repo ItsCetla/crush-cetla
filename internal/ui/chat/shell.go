@@ -20,8 +20,9 @@ import (
 var shellSeq atomic.Int64
 
 const (
-	shellMaxCollapsedLines = 10
-	shellHScrollStep       = 5
+	shellMaxCollapsedLines   = 10
+	commandMaxCollapsedLines = 24
+	shellHScrollStep         = 5
 )
 
 // ShellItem renders a bang-mode shell command result in the chat with a
@@ -42,6 +43,10 @@ type ShellItem struct {
 	sty             *styles.Styles
 	pending         bool
 	anim            *anim.Anim
+	// glyph is the header prompt; "$" for shell commands.
+	glyph string
+	// markdown renders finished output as markdown (Magic Context replies).
+	markdown bool
 }
 
 var (
@@ -63,6 +68,7 @@ func NewShellItem(sty *styles.Styles, command, output string, exitCode int) Mess
 		command:                  command,
 		exitCode:                 exitCode,
 		sty:                      sty,
+		glyph:                    "$",
 	}
 	s.replaceOutput(output)
 	return s
@@ -82,6 +88,7 @@ func NewPendingShellItem(sty *styles.Styles, command string) *ShellItem {
 		command:                  command,
 		sty:                      sty,
 		pending:                  true,
+		glyph:                    "$",
 	}
 	s.anim = anim.New(anim.Settings{
 		ID:         id,
@@ -91,6 +98,17 @@ func NewPendingShellItem(sty *styles.Styles, command string) *ShellItem {
 		GradColorB: sty.WorkingGradToColor,
 		NoScramble: true,
 	})
+	return s
+}
+
+// NewPendingCommandItem creates a pending item for an in-app command such
+// as /ctx-status. It looks like a shell item, but it is never persisted or
+// sent to the model, and its finished output renders as markdown.
+func NewPendingCommandItem(sty *styles.Styles, command string) *ShellItem {
+	s := NewPendingShellItem(sty, command)
+	s.id = fmt.Sprintf("command-%d-%s", shellSeq.Add(1), command)
+	s.glyph = "✦"
+	s.markdown = true
 	return s
 }
 
@@ -171,7 +189,7 @@ func (s *ShellItem) HandleMouseClick(btn ansi.MouseButton, x, y int) bool {
 func (s *ShellItem) HandleKeyEvent(key tea.KeyMsg) (bool, tea.Cmd) {
 	switch k := key.String(); k {
 	case "c", "y":
-		text := "$ " + s.command + "\n" + ansi.Strip(s.output.String())
+		text := s.glyph + " " + s.command + "\n" + ansi.Strip(s.output.String())
 		return true, common.CopyToClipboard(text, "Shell output copied to clipboard")
 	case "shift+left", "H":
 		if s.xOffset > 0 {
@@ -211,9 +229,9 @@ func (s *ShellItem) RawRender(width int) string {
 
 	var prompt string
 	if s.focused {
-		prompt = s.sty.Messages.ShellPrompt.Render("$")
+		prompt = s.sty.Messages.ShellPrompt.Render(s.glyph)
 	} else {
-		prompt = s.sty.Messages.ShellPromptBlurred.Render("$")
+		prompt = s.sty.Messages.ShellPromptBlurred.Render(s.glyph)
 	}
 
 	highlighted := s.sty.Messages.ShellCommand.Render(cmd)
@@ -251,6 +269,9 @@ func (s *ShellItem) RawRender(width int) string {
 	}
 	if raw == "" {
 		return header
+	}
+	if s.markdown && !s.pending {
+		return header + "\n" + s.renderMarkdown(raw, cappedWidth)
 	}
 
 	// Count lines from the trimmed output directly so truncation
@@ -317,6 +338,28 @@ func (s *ShellItem) RawRender(width int) string {
 	}
 
 	return result
+}
+
+// renderMarkdown renders a finished command reply as markdown, collapsed
+// to commandMaxCollapsedLines unless expanded.
+func (s *ShellItem) renderMarkdown(raw string, width int) string {
+	renderer := common.MarkdownRenderer(s.sty, width)
+	mu := common.LockMarkdownRenderer(renderer)
+	mu.Lock()
+	rendered, err := renderer.Render(raw)
+	mu.Unlock()
+	if err != nil {
+		rendered = raw
+	}
+	rendered = strings.Trim(rendered, "\n")
+	s.maxLineWidth = 0
+	total := strings.Count(rendered, "\n") + 1
+	if s.expandedContent || total <= commandMaxCollapsedLines {
+		return rendered
+	}
+	return firstLines(rendered, commandMaxCollapsedLines) + "\n" + s.sty.Messages.ShellTruncation.Render(
+		fmt.Sprintf("… %d more lines", total-commandMaxCollapsedLines),
+	)
 }
 
 func firstLines(s string, count int) string {

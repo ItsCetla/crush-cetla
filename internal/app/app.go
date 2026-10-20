@@ -58,6 +58,9 @@ type App struct {
 
 	config *config.ConfigStore
 
+	// db is the app database; Magic Context keeps its state there.
+	db *sql.DB
+
 	serviceEventsWG *sync.WaitGroup
 	eventsCtx       context.Context
 	events          *pubsub.Broker[tea.Msg]
@@ -110,6 +113,7 @@ func New(ctx context.Context, conn *sql.DB, store *config.ConfigStore, skillsMgr
 		globalCtx: ctx,
 
 		config: store,
+		db:     conn,
 
 		events:             pubsub.NewBroker[tea.Msg](),
 		serviceEventsWG:    &sync.WaitGroup{},
@@ -840,6 +844,7 @@ func (app *App) initCoderAgent(ctx context.Context, interactive bool) error {
 		RunComplete: app.runCompletions,
 		Skills:      app.Skills,
 		Interactive: interactive,
+		DB:          app.db,
 	})
 	if err != nil {
 		slog.Error("Failed to create coder agent", "err", err)

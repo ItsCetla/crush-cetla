@@ -390,6 +390,17 @@ func (c *controllerV1) endpoints() []apigen.Endpoint {
 			Fails(404, 500).
 			Handle(c.handlePostWorkspaceAgentSessionSummarize),
 
+		apigen.Post("/v1/workspaces/{id}/agent/sessions/{sid}/magic-context").
+			Summary("Run Magic Context command").
+			Description("Runs a /ctx-* command for the session. The command never reaches the model.").
+			Tags("agent").
+			PathParam("id", "Workspace ID").
+			PathParam("sid", "Session ID").
+			Accepts(proto.MagicContextCommandRequest{}).
+			Responds(proto.MagicContextCommandResponse{}).
+			Fails(400, 404, 500).
+			Handle(c.handlePostWorkspaceAgentSessionMagicContext),
+
 		apigen.Post("/v1/workspaces/{id}/agent/sessions/{sid}/shell").
 			Summary("Run shell command").
 			Description("Runs a shell command in the workspace on behalf of the session.").

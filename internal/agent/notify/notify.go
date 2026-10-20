@@ -25,6 +25,9 @@ const (
 	// finished. Message carries the error text when it failed, empty on
 	// success.
 	TypeAWSSSOAuthResult Type = "aws_sso_auth_result"
+	// TypeInfo is an informational notice for a session (for example a
+	// Magic Context status or command result). Message carries the text.
+	TypeInfo Type = "info"
 )
 
 // Notification represents a domain event published by the agent.

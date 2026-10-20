@@ -423,3 +423,8 @@ func goArgs(args []string) bool {
 	}
 	return false
 }
+
+// BannedCommandIn reports the first banned command that command would run,
+// or "" when there is none. Engines that run shell commands themselves use
+// it to apply the same block list.
+func BannedCommandIn(command string) string { return bannedCommandIn(command) }

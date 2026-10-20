@@ -147,9 +147,17 @@ func (c *coordinator) agenticFetchTool(_ context.Context, client *http.Client) (
 				return fantasy.ToolResponse{}, fmt.Errorf("error creating prompt: %s", err)
 			}
 
-			_, small, err := c.buildAgentModels(ctx, true)
+			large, small, err := c.buildAgentModels(ctx, true)
 			if err != nil {
 				return fantasy.ToolResponse{}, fmt.Errorf("error building models: %s", err)
+			}
+			// Claude Code can't run this tool set, so fall back to the
+			// large model when it's picked as the small one.
+			if small.ClaudeCode {
+				if large.ClaudeCode {
+					return fantasy.NewTextErrorResponse("agentic_fetch needs a non-Claude Code model"), nil
+				}
+				small = large
 			}
 
 			systemPrompt, err := promptTemplate.Build(ctx, small.Model.Provider(), small.Model.Model(), c.cfg)

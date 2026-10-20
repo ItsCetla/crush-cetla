@@ -292,14 +292,16 @@ func TestCloseOnlyTabGoesToLanding(t *testing.T) {
 	require.Nil(t, u.session)
 }
 
-func TestCloseOnlyTabBlockedWhileBusy(t *testing.T) {
+// Sessions run side by side, so a running agent must not pin the last tab
+// open; closing it only hides the tab while the run carries on.
+func TestCloseOnlyTabWhileBusy(t *testing.T) {
 	t.Parallel()
 
 	u, _ := newTabsTestUI(t, "Alpha")
 	u.agentBusyCache.set(true)
-	require.NotNil(t, u.closeActiveTab())
-	require.Len(t, u.tabs, 1)
-	require.Equal(t, uiChat, u.state)
+	_ = u.closeActiveTab()
+	require.Empty(t, u.tabs)
+	require.Equal(t, uiLanding, u.state)
 }
 
 func TestTabKeys(t *testing.T) {
@@ -457,13 +459,39 @@ func TestNewTabButtonStartsNewSession(t *testing.T) {
 	require.Len(t, u.tabs, 2)
 }
 
-func TestNewTabButtonBlockedWhileBusy(t *testing.T) {
+// Another session's run must not stop a new one from starting.
+func TestNewTabButtonWhileBusy(t *testing.T) {
 	t.Parallel()
 
 	u, _ := newTabsTestUI(t, "Alpha", "Beta")
 	u.agentBusyCache.set(true)
-	require.NotNil(t, u.newSessionFromTabs())
-	require.Equal(t, uiChat, u.state)
+	_ = u.newSessionFromTabs()
+	require.Equal(t, uiLanding, u.state)
+	require.Nil(t, u.session)
+	require.Len(t, u.tabs, 2)
+}
+
+// A run in another tab does not make the session in view look busy once
+// that session has been probed as idle, and a fresh session never does.
+func TestCurrentSessionBusy(t *testing.T) {
+	t.Parallel()
+
+	u, _ := newTabsTestUI(t, "Alpha", "Beta")
+	u.agentBusyCache.set(true)
+	id := u.currentSessionID()
+	require.True(t, u.currentSessionBusy(), "unprobed: falls back to the agent-wide state")
+
+	u.probedSession, u.probedSessionBusy = id, false
+	require.False(t, u.currentSessionBusy())
+	u.probedSessionBusy = true
+	require.True(t, u.currentSessionBusy())
+
+	u.agentBusyCache.set(false)
+	require.False(t, u.currentSessionBusy())
+
+	u.agentBusyCache.set(true)
+	_ = u.newSessionFromTabs()
+	require.False(t, u.currentSessionBusy())
 }
 
 func TestNeighbourTab(t *testing.T) {

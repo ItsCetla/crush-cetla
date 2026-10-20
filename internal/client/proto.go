@@ -583,6 +583,27 @@ func (c *Client) AgentSummarizeSession(ctx context.Context, id string, sessionID
 	return nil
 }
 
+// AgentMagicContextCommand runs a /ctx-* command for a session and
+// returns the reply text.
+func (c *Client) AgentMagicContextCommand(ctx context.Context, id, sessionID, name, args string) (string, error) {
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/agent/sessions/%s/magic-context", id, sessionID), nil, jsonBody(proto.MagicContextCommandRequest{
+		Name: name,
+		Args: args,
+	}), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return "", fmt.Errorf("failed to run magic context command: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to run magic context command: status code %d", rsp.StatusCode)
+	}
+	var resp proto.MagicContextCommandResponse
+	if err := json.NewDecoder(rsp.Body).Decode(&resp); err != nil {
+		return "", fmt.Errorf("failed to decode magic context response: %w", err)
+	}
+	return resp.Text, nil
+}
+
 // InitiateAgentProcessing triggers agent initialization on the server.
 func (c *Client) InitiateAgentProcessing(ctx context.Context, id string, interactive bool) error {
 	body := jsonBody(proto.AgentInitRequest{Interactive: interactive})

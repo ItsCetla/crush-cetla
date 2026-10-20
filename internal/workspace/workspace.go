@@ -165,6 +165,9 @@ type Workspace interface {
 	AgentClearQueue(sessionID string)
 	AgentSetMain(agentID string) error
 	AgentSummarize(ctx context.Context, sessionID string) error
+	// AgentMagicContextCommand runs a /ctx-* command for the session
+	// and returns the reply text. It never reaches the model.
+	AgentMagicContextCommand(ctx context.Context, sessionID, name, args string) (string, error)
 	UpdateAgentModel(ctx context.Context) error
 	InitCoderAgent(ctx context.Context) error
 	InitCoderAgentNonInteractive(ctx context.Context) error

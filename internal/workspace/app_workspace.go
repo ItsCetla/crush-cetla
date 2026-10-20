@@ -246,6 +246,17 @@ func (w *AppWorkspace) AgentSummarize(ctx context.Context, sessionID string) err
 	return w.app.AgentCoordinator.Summarize(ctx, sessionID)
 }
 
+func (w *AppWorkspace) AgentMagicContextCommand(ctx context.Context, sessionID, name, args string) (string, error) {
+	if w.app.AgentCoordinator == nil {
+		return "", errors.New("agent coordinator not initialized")
+	}
+	mc, ok := w.app.AgentCoordinator.(agent.MagicContextCommander)
+	if !ok {
+		return "", errors.New("magic context is not available")
+	}
+	return mc.MagicContextCommand(ctx, sessionID, name, args)
+}
+
 func (w *AppWorkspace) UpdateAgentModel(ctx context.Context) error {
 	return w.app.UpdateAgentModel(ctx)
 }

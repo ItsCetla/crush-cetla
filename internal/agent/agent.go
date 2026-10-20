@@ -38,8 +38,11 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
+	"github.com/charmbracelet/crush/internal/magiccontext"
 	"github.com/charmbracelet/crush/internal/message"
+	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
+	"github.com/charmbracelet/crush/internal/question"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/stringext"
 	"github.com/charmbracelet/crush/internal/version"
@@ -186,6 +189,13 @@ type Model struct {
 	CatwalkCfg catwalk.Model
 	ModelCfg   config.SelectedModel
 	FlatRate   bool
+	// ClaudeCode routes turns through the user's `claude` CLI instead
+	// of Ta-Da's own model loop.
+	ClaudeCode bool
+	// ClaudeBinary is the CLI to run; ClaudeKeepAPIKey keeps
+	// ANTHROPIC_API_KEY in its environment.
+	ClaudeBinary     string
+	ClaudeKeepAPIKey bool
 }
 
 // activeCancel wraps a context.CancelFunc with a unique pointer identity.
@@ -255,6 +265,16 @@ type sessionAgent struct {
 	// across the agent. Cancel uses its current value as the per-session
 	// high-water mark.
 	acceptSeqGen uint64
+
+	// mc is the Magic Context engine. Nil (or disabled) means the
+	// classic auto-summarize path. Sub-agents never get one.
+	mc *magiccontext.Engine
+
+	// Claude Code engine settings. See claude_code.go.
+	permissions permission.Service
+	questions   question.Service
+	planMode    bool
+	workDir     string
 }
 
 type SessionAgentOptions struct {
@@ -271,6 +291,11 @@ type SessionAgentOptions struct {
 	Tools                []fantasy.AgentTool
 	Notify               pubsub.Publisher[notify.Notification]
 	RunComplete          pubsub.Publisher[notify.RunComplete]
+	MagicContext         *magiccontext.Engine
+	Permissions          permission.Service
+	Questions            question.Service
+	PlanMode             bool
+	WorkDir              string
 }
 
 func NewSessionAgent(
@@ -295,6 +320,11 @@ func NewSessionAgent(
 		dispatchMu:           csync.NewMap[string, *sync.Mutex](),
 		acceptedRuns:         csync.NewMap[string, int](),
 		cancelMark:           csync.NewMap[string, uint64](),
+		mc:                   opts.MagicContext,
+		permissions:          opts.Permissions,
+		questions:            opts.Questions,
+		planMode:             opts.PlanMode,
+		workDir:              opts.WorkDir,
 	}
 }
 
@@ -837,7 +867,15 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	if call.MaxOutputTokens > 0 {
 		maxOutputTokens = &call.MaxOutputTokens
 	}
-	result, err = agent.Stream(genCtx, fantasy.AgentStreamCall{
+	stream := agent.Stream
+	if largeModel.ClaudeCode {
+		// The Claude Code engine runs the user's `claude` CLI for the
+		// whole turn; the stream call below is unused.
+		stream = func(c context.Context, _ fantasy.AgentStreamCall) (*fantasy.AgentResult, error) {
+			return a.runClaudeCode(c, ctx, call, largeModel, msgs, &sessionLock, &currentSession, &currentAssistant, completedToolCalls)
+		}
+	}
+	result, err = stream(genCtx, fantasy.AgentStreamCall{
 		Prompt:           message.PromptWithTextAttachments(call.Prompt, call.Attachments),
 		Files:            files,
 		Messages:         history,
@@ -882,6 +920,14 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 					return callContext, prepared, createErr
 				}
 				prepared.Messages = append(prepared.Messages, userMessage.ToAIMessage()...)
+			}
+
+			// Magic Context rebuilds the prompt from the stored session
+			// on every step (tags, drops, compartments, reminders).
+			if a.magicContextActive() {
+				if mcMsgs, ok := a.magicContextMessages(callContext, call.SessionID, prepared.Messages, prepared.Tools, largeModel, systemPrompt); ok {
+					prepared.Messages = mcMsgs
+				}
 			}
 
 			prepared.Messages = a.workaroundProviderMediaLimitations(prepared.Messages, largeModel)
@@ -1023,6 +1069,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			if !toolResult.IsError && toolResult.Name != "" {
 				completedToolCalls[toolResult.Name] = struct{}{}
 			}
+			a.magicContextToolResult(ctx, currentAssistant.SessionID, &toolResult)
 			// Use parent ctx instead of genCtx to ensure the message is created
 			// even if the request is canceled mid-stream
 			_, createMsgErr := a.messages.Create(ctx, currentAssistant.SessionID, message.CreateMessageParams{
@@ -1084,6 +1131,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				return sessionErr
 			}
 			currentSession = updatedSession
+			a.magicContextStepFinish(ctx, call.SessionID, currentAssistant, usage, int64(largeModel.CatwalkCfg.ContextWindow))
 			return a.messages.Update(genCtx, *currentAssistant)
 		},
 		StopWhen: []fantasy.StopCondition{
@@ -1102,7 +1150,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				} else {
 					threshold = int64(float64(cw) * smallContextWindowRatio)
 				}
-				if (remaining <= threshold) && !a.disableAutoSummarize {
+				if (remaining <= threshold) && !a.disableAutoSummarize && !a.magicContextCompaction() {
 					shouldSummarize = true
 					return true
 				}
@@ -1403,6 +1451,9 @@ func (a *sessionAgent) Summarize(ctx context.Context, sessionID string, opts fan
 	// Copy mutable fields under lock to avoid races with SetModels.
 	largeModel := a.largeModel.Get()
 	systemPromptPrefix := a.systemPromptPrefix.Get()
+	if largeModel.ClaudeCode {
+		return ErrClaudeCodeSummarize
+	}
 
 	currentSession, err := a.sessions.Get(ctx, sessionID)
 	if err != nil {
@@ -1817,6 +1868,15 @@ func hasUserTextMessage(msgs []message.Message) bool {
 }
 
 // GenerateTitle generates a session title based on the initial prompt.
+// promptTitle turns a prompt into a short fallback session title.
+func promptTitle(prompt string) string {
+	title := strings.TrimSpace(strings.ReplaceAll(prompt, "\n", " "))
+	if len(title) > 50 {
+		title = ansi.Truncate(title, 50, "…")
+	}
+	return title
+}
+
 func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, userPrompt string) {
 	if userPrompt == "" {
 		return
@@ -1866,9 +1926,20 @@ func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, user
 		name  string
 		model Model
 	}
-	attempts := []modelAttempt{
-		{"small", smallModel},
-		{"large", largeModel},
+	var attempts []modelAttempt
+	for _, at := range []modelAttempt{{"small", smallModel}, {"large", largeModel}} {
+		// The Claude Code engine can't answer one-off prompts.
+		if !at.model.ClaudeCode {
+			attempts = append(attempts, at)
+		}
+	}
+	if len(attempts) == 0 {
+		if title := promptTitle(userPrompt); title != "" {
+			if err := a.sessions.Rename(ctx, sessionID, title); err == nil {
+				titleSaved = true
+			}
+		}
+		return
 	}
 
 	var resp *fantasy.AgentResult
@@ -1912,12 +1983,7 @@ func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, user
 		// LLM returned empty content. Use the prompt itself as a
 		// fallback title, truncated to 50 chars, before resorting to
 		// the generic default.
-		fallback := strings.ReplaceAll(userPrompt, "\n", " ")
-		fallback = strings.TrimSpace(fallback)
-		if len(fallback) > 50 {
-			fallback = ansi.Truncate(fallback, 50, "…")
-		}
-		title = cmp.Or(fallback, DefaultSessionName)
+		title = cmp.Or(promptTitle(userPrompt), DefaultSessionName)
 	}
 
 	// Calculate usage and cost.

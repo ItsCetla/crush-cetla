@@ -144,6 +144,13 @@ func convertChoices(in []QuestionChoice) []question.Choice {
 	return out
 }
 
+// FormatQuestionAnswers renders answers the way the question tool reports
+// them, which is what Ta-Da's question card reads.
+func FormatQuestionAnswers(answers []question.Answer, questions []question.Question) (string, error) {
+	resp, err := formatAnswers(answers, questions)
+	return resp.Content, err
+}
+
 // formatAnswers converts answers into a tool response string for the LLM.
 func formatAnswers(answers []question.Answer, questions []question.Question) (fantasy.ToolResponse, error) {
 	var b strings.Builder

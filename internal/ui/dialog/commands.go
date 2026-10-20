@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/commands"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/magiccontext"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/list"
 	"github.com/charmbracelet/crush/internal/ui/styles"
@@ -463,6 +464,12 @@ func (c *Commands) defaultCommands() []*CommandItem {
 			NewCommandItem(c.com.Styles, "close_tab", "Close Tab", "alt+w", ActionCloseTab{}),
 		)
 		commands = append(commands, NewCommandItem(c.com.Styles, "summarize", "Summarize Session", "", ActionSummarize{SessionID: c.sessionID}))
+		if opts := c.com.Config().Options; opts != nil && opts.MagicContextEnabled() {
+			for _, mc := range magiccontext.Commands {
+				commands = append(commands, NewCommandItem(c.com.Styles, "magic_context_"+mc.Name, "Magic Context: "+mc.Description, "",
+					ActionMagicContext{SessionID: c.sessionID, Name: mc.Name}).WithAliases(mc.Name))
+			}
+		}
 	}
 
 	// Add reasoning toggle for models that support it

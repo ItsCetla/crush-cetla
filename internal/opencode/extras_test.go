@@ -382,6 +382,23 @@ func TestLoadConfigToolsPluginsCompaction(t *testing.T) {
 	require.Equal(t, []string{global + ": tools.x: not a boolean"}, cfg.Warnings)
 }
 
+// Plugins may come as [spec, options] pairs, and an entry that can't be
+// read still counts as a plugin.
+func TestLoadConfigPluginForms(t *testing.T) {
+	t.Parallel()
+
+	l := newLayout(t)
+	global := filepath.Join(l.global, "opencode.json")
+	writeFile(t, global, `{
+		"plugin": ["a@1", ["@cortexkit/opencode-magic-context@latest", {"x": 1}], 7]
+	}`)
+
+	cfg, err := LoadConfig(l.opts(nil))
+	require.NoError(t, err)
+	require.Equal(t, []string{"a@1", "@cortexkit/opencode-magic-context@latest", "7"}, cfg.Plugins)
+	require.Equal(t, []string{global + ": plugin: unreadable entry 7"}, cfg.Warnings)
+}
+
 func TestLoadConfigConfigDirs(t *testing.T) {
 	t.Parallel()
 

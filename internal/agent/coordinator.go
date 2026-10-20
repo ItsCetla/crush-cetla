@@ -32,6 +32,7 @@ import (
 	"github.com/charmbracelet/crush/internal/hooks"
 	"github.com/charmbracelet/crush/internal/log"
 	"github.com/charmbracelet/crush/internal/lsp"
+	"github.com/charmbracelet/crush/internal/magiccontext"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/oauth"
 	"github.com/charmbracelet/crush/internal/oauth/copilot"
@@ -170,6 +171,10 @@ type coordinator struct {
 	activeSkills []*skills.Skill // Post-filter: active skills only.
 	skillTracker *skills.Tracker
 
+	// mc is the Magic Context engine shared by the main agents (nil when
+	// Magic Context is off).
+	mc *magiccontext.Engine
+
 	readyWg errgroup.Group
 }
 
@@ -189,6 +194,8 @@ type CoordinatorOptions struct {
 	RunComplete pubsub.Publisher[notify.RunComplete]
 	Skills      *skills.Manager
 	Interactive bool
+	// DB is the app database, used by Magic Context (nil turns it off).
+	DB *sql.DB
 }
 
 func NewCoordinator(ctx context.Context, opts CoordinatorOptions) (Coordinator, error) {
@@ -222,6 +229,8 @@ func NewCoordinator(ctx context.Context, opts CoordinatorOptions) (Coordinator, 
 		skillTracker: skillTracker,
 		interactive:  opts.Interactive,
 	}
+
+	c.mc = c.newMagicContextEngine(ctx, opts.DB)
 
 	agentCfg, ok := opts.Config.Config().Agents[config.AgentCoder]
 	if !ok {
@@ -793,6 +802,11 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		Tools:                nil,
 		Notify:               c.notify,
 		RunComplete:          c.runComplete,
+		MagicContext:         c.mainMagicContext(isSubAgent),
+		Permissions:          c.permissions,
+		Questions:            c.questions,
+		PlanMode:             agent.ID == config.AgentPlan,
+		WorkDir:              c.cfg.WorkingDir(),
 	})
 
 	// The readiness goroutines below perform one-time setup — building the
@@ -813,7 +827,13 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 			return err
 		}
 		richOn := c.cfg.Config().Options.TUI.RichBlocksEnabled()
-		result.SetSystemPrompt(withRichBlocksHint(systemPrompt, c.interactive, isSubAgent, richOn))
+		systemPrompt = withRichBlocksHint(systemPrompt, c.interactive, isSubAgent, richOn)
+		if mc := c.mainMagicContext(isSubAgent); mc != nil {
+			if section := mc.SystemPromptSection(systemPrompt, false); section != "" {
+				systemPrompt += "\n\n" + section
+			}
+		}
+		result.SetSystemPrompt(systemPrompt)
 		return nil
 	})
 
@@ -821,6 +841,9 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		tools, err := c.buildTools(initCtx, agent, isSubAgent)
 		if err != nil {
 			return err
+		}
+		if !isSubAgent {
+			tools = append(tools, c.magicContextTools()...)
 		}
 		result.SetTools(tools)
 		return nil
@@ -1037,12 +1060,18 @@ func (c *coordinator) buildAgentModels(ctx context.Context, isSubAgent bool) (Mo
 		CatwalkCfg: *largeCatwalkModel,
 		ModelCfg:   largeModelCfg,
 		FlatRate:   largeProviderCfg.FlatRate,
+		ClaudeCode: largeProviderCfg.IsClaudeCode(),
+	}
+	if large.ClaudeCode {
+		large.ClaudeBinary = largeProviderCfg.ClaudeCodeBinary()
+		large.ClaudeKeepAPIKey = largeProviderCfg.ClaudeCodeUsesAPIKey()
 	}
 	small := Model{
 		Model:      smallModel,
 		CatwalkCfg: *smallCatwalkModel,
 		ModelCfg:   smallModelCfg,
 		FlatRate:   smallProviderCfg.FlatRate,
+		ClaudeCode: smallProviderCfg.IsClaudeCode(),
 	}
 
 	return large, small, nil
@@ -1304,6 +1333,10 @@ func (c *coordinator) buildProvider(providerCfg config.ProviderConfig, model con
 		}
 	}
 
+	if providerCfg.IsClaudeCode() {
+		return claudeCodeProvider{}, nil
+	}
+
 	switch providerCfg.Type {
 	case openai.Name:
 		// A ChatGPT login is the provider's single credential: every
@@ -1426,7 +1459,7 @@ func (c *coordinator) updateAgentModels(ctx context.Context, agent SessionAgent,
 	if err != nil {
 		return err
 	}
-	agent.SetTools(tools)
+	agent.SetTools(append(tools, c.magicContextTools()...))
 	return nil
 }
 

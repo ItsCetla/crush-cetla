@@ -621,6 +621,26 @@ func (c *controllerV1) handlePostWorkspaceAgentSessionSummarize(w http.ResponseW
 	w.WriteHeader(http.StatusOK)
 }
 
+// handlePostWorkspaceAgentSessionMagicContext runs a /ctx-* command.
+func (c *controllerV1) handlePostWorkspaceAgentSessionMagicContext(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	sid := r.PathValue("sid")
+
+	var req proto.MagicContextCommandRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.server.logError(r, "Failed to decode request", "error", err)
+		jsonError(w, http.StatusBadRequest, "failed to decode request")
+		return
+	}
+
+	text, err := c.backend.MagicContextCommand(r.Context(), id, sid, req.Name, req.Args)
+	if err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	jsonEncode(w, proto.MagicContextCommandResponse{Text: text})
+}
+
 // handlePostWorkspaceAgentSessionShell runs a shell command in the workspace.
 func (c *controllerV1) handlePostWorkspaceAgentSessionShell(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

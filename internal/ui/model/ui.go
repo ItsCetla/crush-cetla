@@ -38,6 +38,7 @@ import (
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/home"
 	"github.com/charmbracelet/crush/internal/lsp"
+	"github.com/charmbracelet/crush/internal/magiccontext"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
@@ -128,6 +129,15 @@ const (
 
 type openEditorMsg struct {
 	Text string
+}
+
+// magicContextResultMsg carries the reply of a /ctx-* command.
+type magicContextResultMsg struct {
+	PendingID string
+	SessionID string
+	Command   string
+	Text      string
+	Err       error
 }
 
 type shellResultMsg struct {
@@ -933,7 +943,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if hasInProgressTodo(m.session.Todos) {
 			// only start spinner if there is an in-progress todo
-			if m.isAgentBusy() {
+			if m.currentSessionBusy() {
 				m.todoIsSpinning = true
 				cmds = append(cmds, m.todoSpinner.Tick)
 			}
@@ -1087,7 +1097,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chat.RemoveMessage(msg.Payload.ID)
 		}
 		// start the spinner if there is a new message
-		if hasInProgressTodo(m.session.Todos) && m.isAgentBusy() && !m.todoIsSpinning {
+		if hasInProgressTodo(m.session.Todos) && m.currentSessionBusy() && !m.todoIsSpinning {
 			m.todoIsSpinning = true
 			cmds = append(cmds, m.todoSpinner.Tick)
 		}
@@ -1513,6 +1523,23 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chat.ScrollToBottom()
 		}
 		cmds = append(cmds, m.loadPromptHistory())
+	case magicContextResultMsg:
+		out, code := msg.Text, 0
+		if msg.Err != nil {
+			out, code = msg.Err.Error(), 1
+		}
+		if item := m.chat.MessageItem(msg.PendingID); item != nil {
+			if cmdItem, ok := item.(*chat.ShellItem); ok {
+				cmdItem.Complete(out, code)
+				m.chat.ScrollToBottom()
+			}
+		} else if m.hasSession() && m.session.ID == msg.SessionID {
+			// The chat reloaded while the command ran; show the reply anew.
+			item := chat.NewPendingCommandItem(m.com.Styles, msg.Command)
+			item.Complete(out, code)
+			m.chat.AppendMessages(item)
+			m.chat.ScrollToBottom()
+		}
 	case gitBranchUpdatedMsg:
 		m.gitBranch = msg.branch
 	case gitBranchPollMsg:
@@ -1571,7 +1598,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Textarea placeholder logic
 		if m.bangMode {
 			m.textarea.Placeholder = "Run a shell command"
-		} else if m.isAgentBusy() {
+		} else if m.currentSessionBusy() {
 			m.textarea.Placeholder = m.workingPlaceholder
 		} else if m.mode == uiInputModePlan {
 			m.textarea.Placeholder = "Let's plan"
@@ -2176,10 +2203,6 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		}
 		m.dialog.CloseDialog(dialog.NotificationsID)
 	case dialog.ActionNewSession:
-		if m.isAgentBusy() {
-			cmds = append(cmds, util.ReportWarn("Agent is busy, please wait before starting a new session..."))
-			break
-		}
 		if cmd := m.newSession(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -2199,6 +2222,9 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		if cmd := m.closeActiveTab(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case dialog.ActionMagicContext:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.runMagicContextCommand(msg.Name, ""))
 	case dialog.ActionSummarize:
 		if m.isAgentBusy() {
 			cmds = append(cmds, util.ReportWarn("Agent is busy, please wait before summarizing session..."))
@@ -3110,7 +3136,7 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 
 	// Handle cancel key when agent is busy.
 	if key.Matches(msg, m.keyMap.Chat.Cancel) {
-		if m.isAgentBusy() {
+		if m.currentSessionBusy() {
 			if cmd := m.cancelAgent(); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -3200,6 +3226,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					return m.openQuitDialog()
 				}
 
+				if name, args, ok := m.parseMagicContextCommand(value); ok {
+					m.randomizePlaceholders()
+					m.historyReset()
+					return m.runMagicContextCommand(name, args)
+				}
+
 				if m.bangMode && value != "" {
 					m.bangMode = false
 					m.setEditorPrompt(m.yoloModeCached())
@@ -3225,10 +3257,6 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				return tea.Batch(m.sendMessage(value, attachments...), m.loadPromptHistory())
 			case key.Matches(msg, m.keyMap.Chat.NewSession):
 				if !m.hasSession() {
-					break
-				}
-				if m.isAgentBusy() {
-					cmds = append(cmds, util.ReportWarn("Agent is busy, please wait before starting a new session..."))
 					break
 				}
 				if cmd := m.newSession(); cmd != nil {
@@ -3405,10 +3433,6 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				}
 			case key.Matches(msg, m.keyMap.Chat.NewSession):
 				if !m.hasSession() {
-					break
-				}
-				if m.isAgentBusy() {
-					cmds = append(cmds, util.ReportWarn("Agent is busy, please wait before starting a new session..."))
 					break
 				}
 				m.focus = uiFocusEditor
@@ -3788,8 +3812,8 @@ func (m *UI) ShortHelp() []key.Binding {
 	case uiInitialize:
 		binds = append(binds, k.Quit)
 	case uiChat:
-		// Show cancel binding if agent is busy.
-		if m.isAgentBusy() {
+		// Show cancel binding if the session in view is busy.
+		if m.currentSessionBusy() {
 			cancelBinding := k.Chat.Cancel
 			if m.isCanceling {
 				cancelBinding.SetHelp("esc", "press again to cancel")
@@ -3907,8 +3931,8 @@ func (m *UI) FullHelp() [][]key.Binding {
 				k.Quit,
 			})
 	case uiChat:
-		// Show cancel binding if agent is busy.
-		if m.isAgentBusy() {
+		// Show cancel binding if the session in view is busy.
+		if m.currentSessionBusy() {
 			cancelBinding := k.Chat.Cancel
 			if m.isCanceling {
 				cancelBinding.SetHelp("esc", "press again to cancel")
@@ -4957,6 +4981,24 @@ func (m *UI) isAgentBusy() bool {
 	return m.agentBusyCache.val
 }
 
+// currentSessionBusy reports whether the session in view is working. The
+// agent runs sessions side by side, so another tab's run must not make an
+// idle tab (or a fresh one) look busy. Until the session in view has been
+// probed, it falls back to the agent-wide state.
+func (m *UI) currentSessionBusy() bool {
+	if m.bangCancel != nil {
+		return true
+	}
+	if !m.agentBusyCache.val || !m.hasSession() {
+		return false
+	}
+	id := m.currentSessionID()
+	if m.probedSession != id {
+		return true
+	}
+	return m.probedSessionBusy || m.pending.sessionID == id || m.chat.HasLiveSpinner()
+}
+
 // pendingTurn is a turn this client sent that has not yet ended. It lives
 // until the run's RunComplete (or a failure to start it) arrives.
 type pendingTurn struct {
@@ -5467,6 +5509,46 @@ func (m *UI) runShellCommandInternal(command string, isFirstMessage bool) tea.Cm
 	return tea.Batch(cmds...)
 }
 
+// parseMagicContextCommand reports whether value is a /ctx-* command and
+// Magic Context is on. Bang mode and plain prompts are never commands.
+func (m *UI) parseMagicContextCommand(value string) (name, args string, ok bool) {
+	if m.bangMode || !strings.HasPrefix(value, "/") {
+		return "", "", false
+	}
+	if opts := m.com.Config().Options; opts == nil || !opts.MagicContextEnabled() {
+		return "", "", false
+	}
+	name, args, _ = strings.Cut(value, " ")
+	if strings.Contains(name, "\n") || !magiccontext.IsCommand(name) {
+		return "", "", false
+	}
+	return strings.TrimPrefix(name, "/"), strings.TrimSpace(args), true
+}
+
+// runMagicContextCommand runs a /ctx-* command for the current session.
+// The command and its reply show in the chat but are never persisted or
+// sent to the model.
+func (m *UI) runMagicContextCommand(name, args string) tea.Cmd {
+	if !m.hasSession() {
+		return util.ReportWarn("Start a session before running /" + name)
+	}
+	command := "/" + name
+	if args != "" {
+		command += " " + args
+	}
+	sessionID := m.session.ID
+	item := chat.NewPendingCommandItem(m.com.Styles, command)
+	m.chat.SetAnimationsAllowed(true)
+	m.chat.AppendMessages(item)
+	m.chat.ScrollToBottom()
+	pendingID := item.ID()
+	ws := m.com.Workspace
+	return func() tea.Msg {
+		text, err := ws.AgentMagicContextCommand(context.Background(), sessionID, name, args)
+		return magicContextResultMsg{PendingID: pendingID, SessionID: sessionID, Command: command, Text: text, Err: err}
+	}
+}
+
 const cancelTimerDuration = 2 * time.Second
 
 // cancelTimerCmd creates a command that expires the cancel timer.
@@ -5914,6 +5996,12 @@ func (m *UI) handleAgentNotification(n notify.Notification) tea.Cmd {
 		return m.handleAWSSSOAuth(n.AWSSOCommand, n.AWSSOURL)
 	case notify.TypeAWSSSOAuthResult:
 		return m.handleAWSSSOAuthResult(n.Message)
+	case notify.TypeInfo:
+		// Only surface notices for the session on screen.
+		if n.Message == "" || m.session == nil || m.session.ID != n.SessionID {
+			return nil
+		}
+		return util.ReportInfo(n.Message)
 	default:
 		return nil
 	}
