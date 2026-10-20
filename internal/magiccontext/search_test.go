@@ -18,7 +18,7 @@ import (
 
 func p2InsertSession(t *testing.T, s *Store, id string) {
 	t.Helper()
-	_, err := s.db.Exec(`INSERT INTO sessions (id, title, updated_at, created_at) VALUES (?, 't', 0, 0)`, id)
+	_, err := s.db.ExecContext(t.Context(), `INSERT INTO sessions (id, title, updated_at, created_at) VALUES (?, 't', 0, 0)`, id)
 	require.NoError(t, err)
 }
 
@@ -242,7 +242,7 @@ func TestIndexGitCommitsAndSearch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, n)
 	var count int
-	require.NoError(t, s.db.QueryRow(`SELECT COUNT(*) FROM mc_git_commits WHERE project_path = ?`, key).Scan(&count))
+	require.NoError(t, s.db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM mc_git_commits WHERE project_path = ?`, key).Scan(&count))
 	require.Equal(t, 1, count)
 
 	_, err = s.IndexGitCommits(ctx, Settings{GitIndex: true, GitMaxCommits: 10}, repo, key, nil)

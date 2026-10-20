@@ -125,6 +125,14 @@
             <p><kbd>shift+tab</kbd> cycles three permission modes, always shown in the status bar. <strong>Manual</strong> asks before edits and commands, <strong>Plan</strong> talks it through before any code, and <strong>Auto</strong> skips prompts while system level commands stay blocked. Start in Auto with <code>tada --auto</code>.</p>
           </article>
           <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13.5 6l-3 12"/></svg></span>Claude Code inside Ta-Da</h3>
+            <p>Have the <code>claude</code> CLI? Pick <strong>Claude Code</strong> in the model picker and Ta-Da runs your own <code>claude</code> each turn, with its edits shown as Ta-Da diffs, its tool calls going through Ta-Da's permission prompts and its questions in Ta-Da's dialog. Ta-Da never touches your Claude login.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4c-4 0-7 2.5-7 6 0 2 1 3.6 2.6 4.7L7 20l4-2.2c.3 0 .7.1 1 .1 4 0 7-2.5 7-6s-3-6-7-6z"/><path d="M9 10h6M9 13h4"/></svg></span>Magic Context, opt-in</h3>
+            <p>A Go port of cortexkit/magic-context. A background historian compresses old turns before the window fills, the agent can drop stale tool output, and project memory and notes carry over between sessions. All local; turn it on with <code>options.magic_context.enabled</code>.</p>
+          </article>
+          <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h7"/><path d="m17 15 2 2 4-4"/></svg></span>OpenCode import</h3>
             <p>MCP servers, providers, model choices, the models.dev cache, rules, skills, custom commands, tool toggles and file-edit permissions come from your OpenCode install. Read from disk only. <a href="#opencode">How it works</a>.</p>
           </article>
@@ -225,6 +233,8 @@
           <li><strong>Model providers you configure.</strong> Chat completions, plus a <code>GET /models</code> discovery call against the same base URL.</li>
           <li><strong>MCP servers you configure.</strong> Local processes, HTTP or SSE endpoints, and their OAuth flows if they use one.</li>
           <li><strong>OAuth refresh</strong> for accounts you signed in with <code>tada login</code>.</li>
+          <li class="still"><strong>Your <code>claude</code> CLI, only when you pick a Claude Code model.</strong> Ta-Da starts the CLI on your machine; the CLI talks to Anthropic itself.</li>
+          <li class="still"><strong>Magic Context embeddings, only if you set an endpoint.</strong> Its historian and memory otherwise use the model providers above.</li>
           <li class="still"><strong>Web tools, only once enabled</strong> and only after you approve each request.</li>
           <li class="still"><strong>Catalog refresh, only on request</strong> with <code>tada update-providers</code>.</li>
           <li class="still"><strong>Update check, unless turned off.</strong> At most every 6 hours, one request to <code>api.github.com</code> for this repo's latest release; downloads only when you run <code>tada update</code>. Off with <code>options.update_check: false</code>, <code>option update-check false</code> or <code>TADA_NO_UPDATE_CHECK=1</code>.</li>
@@ -327,6 +337,10 @@ go build -o tada .
           <details>
             <summary>Does it work with local models?</summary>
             <p>Yes. Any OpenAI- or Anthropic-compatible endpoint works, including llama-server, LM Studio, Ollama and vLLM. Set a provider with a <code>base_url</code> and an API key (or a <code>{file:…}</code> reference in OpenCode config) and pick the model. Timeouts are long enough for a cold 30k-token prompt on a 27B model.</p>
+          </details>
+          <details>
+            <summary>Can I use my Claude subscription?</summary>
+            <p>Through the Claude Code engine, yes. Ta-Da doesn't sign in to Claude or read your login: it runs the <code>claude</code> CLI you already use, and the CLI handles sign-in and billing. Claude Code runs its own tools and compaction in those sessions, so Summarize and Magic Context are off. Set <code>use_api_key: true</code> to bill <code>ANTHROPIC_API_KEY</code> instead.</p>
           </details>
           <details>
             <summary>What does <code>tada trust</code> actually gate?</summary>

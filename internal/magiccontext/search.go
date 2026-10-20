@@ -505,28 +505,29 @@ WHERE e.model_id = ? AND `+memoryVisibleWhere, append([]any{req.EmbeddingModel},
 		if err != nil {
 			return nil, nil, err
 		}
-		for rows.Next() {
-			var blob []byte
-			var m Memory
-			var imp sql.NullInt64
-			if err := rows.Scan(&m.ID, &m.ProjectPath, &m.Category, &m.Content, &m.NormalizedHash, &imp, &m.Scope, &m.SourceSessionID,
-				&m.SourceType, &m.SeenCount, &m.RetrievalCount, &m.FirstSeenAt, &m.CreatedAt, &m.UpdatedAt, &m.LastSeenAt,
-				&m.LastRetrievedAt, &m.Status, &m.ExpiresAt, &m.VerificationStatus, &m.VerifiedAt, &m.ClassifiedAt,
-				&m.SupersededBy, &m.MergedFrom, &blob); err != nil {
-				rows.Close()
-				return nil, nil, err
+		if err := func() error {
+			defer rows.Close()
+			for rows.Next() {
+				var blob []byte
+				var m Memory
+				var imp sql.NullInt64
+				if err := rows.Scan(&m.ID, &m.ProjectPath, &m.Category, &m.Content, &m.NormalizedHash, &imp, &m.Scope, &m.SourceSessionID,
+					&m.SourceType, &m.SeenCount, &m.RetrievalCount, &m.FirstSeenAt, &m.CreatedAt, &m.UpdatedAt, &m.LastSeenAt,
+					&m.LastRetrievedAt, &m.Status, &m.ExpiresAt, &m.VerificationStatus, &m.VerifiedAt, &m.ClassifiedAt,
+					&m.SupersededBy, &m.MergedFrom, &blob); err != nil {
+					return err
+				}
+				m.Importance = int(imp.Int64)
+				sim := clamp01(cosineSimilarity(queryVec, decodeEmbedding(blob)))
+				c := cands[m.ID]
+				if c == nil {
+					c = &cand{m: m}
+					cands[m.ID] = c
+				}
+				c.sem, c.hasSem = sim, true
 			}
-			m.Importance = int(imp.Int64)
-			sim := clamp01(cosineSimilarity(queryVec, decodeEmbedding(blob)))
-			c := cands[m.ID]
-			if c == nil {
-				c = &cand{m: m}
-				cands[m.ID] = c
-			}
-			c.sem, c.hasSem = sim, true
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
+			return rows.Err()
+		}(); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -798,22 +799,23 @@ WHERE e.model_id = ? AND g.project_path = ? AND g.committed_at BETWEEN ? AND ?`,
 		if err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			var r gitRow
-			var blob []byte
-			if err := rows.Scan(&r.sha, &r.short, &r.message, &r.committedAt, &blob); err != nil {
-				rows.Close()
-				return nil, err
+		if err := func() error {
+			defer rows.Close()
+			for rows.Next() {
+				var r gitRow
+				var blob []byte
+				if err := rows.Scan(&r.sha, &r.short, &r.message, &r.committedAt, &blob); err != nil {
+					return err
+				}
+				c := cands[r.sha]
+				if c == nil {
+					c = &cand{r: r}
+					cands[r.sha] = c
+				}
+				c.sem, c.hasSem = clamp01(cosineSimilarity(queryVec, decodeEmbedding(blob))), true
 			}
-			c := cands[r.sha]
-			if c == nil {
-				c = &cand{r: r}
-				cands[r.sha] = c
-			}
-			c.sem, c.hasSem = clamp01(cosineSimilarity(queryVec, decodeEmbedding(blob))), true
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
+			return rows.Err()
+		}(); err != nil {
 			return nil, err
 		}
 	}

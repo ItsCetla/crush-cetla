@@ -106,5 +106,6 @@ func indexRows(t *testing.T, s *Store, sid string) map[int]string {
 		require.NoError(t, rows.Scan(&o, &c))
 		out[o] = c
 	}
+	require.NoError(t, rows.Err())
 	return out
 }

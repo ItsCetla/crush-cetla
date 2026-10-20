@@ -55,6 +55,13 @@ talks to and what it does without asking:
   and open sessions stay as tabs above the chat. Diffs wrap long lines. Set
   `options.tui.rich_blocks` to `false` or `TADA_NO_RICH=1` to show the plain
   markdown instead.
+- **Claude Code engine.** With the `claude` CLI installed, pick "Claude Code"
+  in the model picker and Ta-Da runs your own `claude` for each turn, with
+  its tool calls going through Ta-Da's permission prompts and questions. See
+  [Claude Code](#claude-code).
+- **Magic Context (opt-in).** A Go port of cortexkit/magic-context that
+  compresses old turns in the background and keeps project memory across
+  sessions. See [Magic Context](#magic-context).
 
 Every fork change is listed in the [changelog](CHANGELOG.md).
 
@@ -810,6 +817,67 @@ model add custom-anthropic/claude-sonnet-4-20250514 \
   --price-cache-create 3.75 \
   --price-cache-hit 0.3
 ```
+
+### Claude Code
+
+If the [`claude` CLI](https://github.com/anthropics/claude-code) is on your
+`PATH`, Ta-Da adds a **Claude Code** provider with four models: the CLI's
+default, Opus, Sonnet and Haiku. Picking one makes Ta-Da run your own
+`claude` for every turn. Its replies, tool cards and diffs show in the chat
+as usual, its tool requests go through Ta-Da's permission prompts (and the
+current Manual, Plan or Auto mode), and when Claude asks you a question it
+appears in Ta-Da's question dialog.
+
+Ta-Da never reads or stores your Claude login: the CLI handles sign-in and
+billing. By default `ANTHROPIC_API_KEY` is removed from the CLI's
+environment so it uses your Claude account. To change that:
+
+```json
+{
+  "providers": {
+    "claude-code": {
+      "provider_options": {
+        "use_api_key": true,
+        "binary": "/opt/homebrew/bin/claude"
+      }
+    }
+  }
+}
+```
+
+Things that work differently in a Claude Code session: Claude Code runs its
+own tools and compaction, so Summarize and Magic Context are off; Ta-Da's
+system prompt isn't sent (earlier turns are passed along as context); and
+cost is only shown with `use_api_key`. Set `"disable": true` on the provider
+to hide it.
+
+### Magic Context
+
+Magic Context is a Go port of
+[cortexkit/magic-context](https://github.com/cortexkit/magic-context) (MIT).
+It is off by default:
+
+```json
+{
+  "options": {
+    "magic_context": { "enabled": true }
+  }
+}
+```
+
+When on, it replaces auto-summarize for the main agent. A background
+historian compresses older turns into short history sections once context use
+passes `execute_threshold_percentage` (default 65). The agent gets tools to
+drop old tool output (`ctx_reduce`), save and search project memory
+(`ctx_memory`, `ctx_search`), keep notes (`ctx_note`) and reopen compressed
+history (`ctx_expand`). The commands palette adds `ctx-status`, `ctx-flush`,
+`ctx-recomp`, `ctx-wrapup` and `ctx-dream`.
+
+Everything is stored in Ta-Da's local database. The historian and dreamer use
+your configured models (`historian.model`, `dreamer.model`: `large`, `small`
+or `provider/model`). Semantic search needs an embedding endpoint, which is
+off until you set `embedding.provider: "openai-compatible"` and an
+`endpoint`.
 
 ### Amazon Bedrock
 

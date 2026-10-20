@@ -163,7 +163,8 @@ func RunTurn(ctx context.Context, opts TurnOptions, h Handler) (*TurnResult, err
 	if bin == "" {
 		return nil, errors.New("claude code: the `claude` CLI was not found on PATH")
 	}
-	cmd := exec.Command(bin, BuildArgs(opts)...)
+	// Not CommandContext: cancelling ctx must interrupt first, then kill (below).
+	cmd := exec.Command(bin, BuildArgs(opts)...) //nolint:noctx // cancellation handled by hand
 	cmd.Dir = opts.WorkDir
 	cmd.Env = opts.Env
 	if cmd.Env == nil {

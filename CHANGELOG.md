@@ -7,6 +7,42 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-19
+
+### Added
+
+- **Claude Code engine.** When the `claude` CLI is installed, a "Claude Code"
+  provider shows up in the model picker (default model, Opus, Sonnet or
+  Haiku). Ta-Da runs your own `claude` for each turn and shows its output,
+  tool cards and diffs in the chat. Its tool requests go through Ta-Da's
+  permission prompts, and when Claude wants to ask you something it uses
+  Ta-Da's question dialog. Plan mode maps to Claude Code's plan mode. Login
+  and billing stay with the CLI; set `use_api_key: true` in the provider's
+  `provider_options` to bill `ANTHROPIC_API_KEY` instead, or `binary` to
+  point at a different CLI.
+- **Magic Context**, a Go port of
+  [cortexkit/magic-context](https://github.com/cortexkit/magic-context) (MIT).
+  Off by default; turn it on with `options.magic_context.enabled: true`. It
+  replaces auto-summarize for the main agent: a background historian
+  compresses older turns, the agent can drop old tool output with
+  `ctx_reduce`, and project memories, notes and search (`ctx_memory`,
+  `ctx_note`, `ctx_search`, `ctx_expand`) carry over between sessions.
+  Commands: `ctx-status`, `ctx-flush`, `ctx-recomp`, `ctx-wrapup` and
+  `ctx-dream`. Data stays in the local database; embeddings are off unless
+  you set an endpoint.
+
+### Fixed
+
+- A new tab can be opened while the current session is still working.
+- OpenCode plugin entries written as `[name, options]` pairs are read
+  correctly.
+
+### Notes
+
+- Claude Code sessions run Claude Code's own loop, tools and compaction, so
+  Magic Context and Summarize don't apply to them, and Ta-Da's system prompt
+  isn't sent. Cost is only shown with `use_api_key`.
+
 ## [0.3.2] - 2026-10-19
 
 ### Added

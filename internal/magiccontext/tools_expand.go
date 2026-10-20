@@ -100,7 +100,7 @@ func isZeroArg(v any, allowEmpty bool) bool {
 func resolveCtxExpandMode(args map[string]any) expandMode {
 	has := func(k string) bool { _, ok := args[k]; return ok }
 	set := func(k string) bool { v, ok := args[k]; return ok && v != nil }
-	if set("tag") && !(isZeroArg(args["tag"], true) && (has("message") || has("start"))) {
+	if set("tag") && (!isZeroArg(args["tag"], true) || (!has("message") && !has("start"))) {
 		n, err := parseTagInput(args["tag"])
 		if err != nil {
 			return expandMode{err: err.Error()}
