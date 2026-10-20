@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +52,8 @@ type TurnOptions struct {
 	Model string
 	// PermissionMode is passed to --permission-mode when set.
 	PermissionMode string
+	// Effort is passed to --effort when it is one of EffortLevels.
+	Effort string
 	// SessionID is the Claude Code session UUID.
 	SessionID string
 	// Resume continues an existing session instead of creating it.
@@ -111,6 +115,9 @@ type Handler struct {
 	// the CLI adds a steered message to the conversation. id is what
 	// SteerFunc returned. Returning an error aborts the turn.
 	OnSteer func(id string) error
+	// OnModels, when set, gets the CLI's selectable models from its
+	// initialize reply, on the OnEvent goroutine.
+	OnModels func([]ModelInfo)
 }
 
 // SteerFunc sends content (a string, or content blocks) to the CLI while
@@ -151,6 +158,9 @@ func BuildArgs(opts TurnOptions) []string {
 	if m := strings.TrimSpace(opts.Model); m != "" && m != "default" {
 		args = append(args, "--model", m)
 	}
+	if slices.Contains(EffortLevels, opts.Effort) {
+		args = append(args, "--effort", opts.Effort)
+	}
 	if opts.SessionID != "" {
 		if opts.Resume {
 			args = append(args, "--resume", opts.SessionID)
@@ -161,24 +171,101 @@ func BuildArgs(opts TurnOptions) []string {
 	return append(args, opts.ExtraArgs...)
 }
 
-// ChildEnv strips variables that would make the CLI bill an API key
-// instead of the user's own login, or think it is nested inside another
-// Claude Code session.
-func ChildEnv(env []string, keepAPIKey bool) []string {
+// ChildEnv prepares the CLI's environment. It always drops the variables
+// that would make the CLI think it is nested inside another Claude Code
+// session. Unless keepEnv is set, it also drops everything that would
+// send the CLI anywhere but the user's saved Claude login: API keys and
+// tokens, custom endpoints and headers, cloud-provider switches,
+// profile and federation selectors, and model-routing overrides.
+func ChildEnv(env []string, keepEnv bool) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
-		switch name {
-		case "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT":
+		switch {
+		case nestedVars[name]:
 			continue
-		case "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN":
-			if !keepAPIKey {
-				continue
-			}
+		case !keepEnv && routesAwayFromLogin(name):
+			continue
 		}
 		out = append(out, kv)
 	}
 	return out
+}
+
+// nestedVars mark a process as running inside Claude Code.
+var nestedVars = map[string]bool{
+	"CLAUDECODE":             true,
+	"CLAUDE_CODE_ENTRYPOINT": true,
+	"CLAUDE_CODE_SSE_PORT":   true,
+}
+
+// loginVars pick a credential, endpoint, account or model other than the
+// one the user's saved Claude login gives.
+var loginVars = map[string]bool{
+	// Credentials.
+	"ANTHROPIC_API_KEY":                       true,
+	"ANTHROPIC_AUTH_TOKEN":                    true,
+	"CLAUDE_CODE_OAUTH_TOKEN":                 true,
+	"CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR": true,
+	"CLAUDE_CODE_OAUTH_REFRESH_TOKEN":         true,
+	"CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR":     true,
+	// Endpoints and headers.
+	"ANTHROPIC_BASE_URL":                      true,
+	"ANTHROPIC_API_HOST":                      true,
+	"ANTHROPIC_UNIX_SOCKET":                   true,
+	"ANTHROPIC_CUSTOM_HEADERS":                true,
+	"CLAUDE_CODE_API_BASE_URL":                true,
+	"CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL": true,
+	// Profiles, federation and accounts.
+	"ANTHROPIC_PROFILE":             true,
+	"ANTHROPIC_FEDERATION_RULE_ID":  true,
+	"ANTHROPIC_IDENTITY_TOKEN":      true,
+	"ANTHROPIC_IDENTITY_TOKEN_FILE": true,
+	"ANTHROPIC_ORGANIZATION_ID":     true,
+	"ANTHROPIC_WORKSPACE_ID":        true,
+	"ANTHROPIC_SERVICE_ACCOUNT_ID":  true,
+	"ANTHROPIC_SCOPE":               true,
+	// Cloud providers.
+	"CLAUDE_CODE_USE_BEDROCK":                true,
+	"CLAUDE_CODE_USE_VERTEX":                 true,
+	"CLAUDE_CODE_USE_FOUNDRY":                true,
+	"CLAUDE_CODE_USE_GATEWAY":                true,
+	"CLAUDE_CODE_USE_MANTLE":                 true,
+	"CLAUDE_CODE_USE_ANTHROPIC_AWS":          true,
+	"CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD": true,
+	// Model routing.
+	"ANTHROPIC_MODEL":                  true,
+	"ANTHROPIC_CUSTOM_MODEL_OPTION":    true,
+	"CLAUDE_CODE_SUBAGENT_MODEL":       true,
+	"CLAUDE_CODE_SUBAGENT_MODEL_FORCE": true,
+	"CLAUDE_CODE_MODEL_CATALOG_URL":    true,
+}
+
+// loginPrefixes cover the families of per-provider and per-model
+// variables.
+var loginPrefixes = []string{
+	"ANTHROPIC_BEDROCK_",
+	"ANTHROPIC_VERTEX_",
+	"ANTHROPIC_FOUNDRY_",
+	"ANTHROPIC_AWS",
+	"ANTHROPIC_GOOGLE_CLOUD",
+	"ANTHROPIC_DEFAULT_",
+	"ANTHROPIC_SMALL_FAST_MODEL",
+}
+
+func routesAwayFromLogin(name string) bool {
+	if loginVars[name] {
+		return true
+	}
+	if strings.HasPrefix(name, "CLAUDE_CODE_SKIP_") && strings.HasSuffix(name, "_AUTH") {
+		return true
+	}
+	for _, p := range loginPrefixes {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // RunTurn starts the CLI, sends one prompt, streams events to h until the
@@ -232,9 +319,10 @@ func RunTurn(ctx context.Context, opts TurnOptions, h Handler) (*TurnResult, err
 		}
 	}
 
+	t.initID = t.nextID()
 	if err := t.send(map[string]any{
 		"type":       "control_request",
-		"request_id": t.nextID(),
+		"request_id": t.initID,
 		"request":    map[string]any{"subtype": "initialize"},
 	}); err == nil {
 		// A failed write means the CLI already exited; the read loop
@@ -360,6 +448,7 @@ type turn struct {
 	sessionID    string
 	model        string
 	sawAssistant bool
+	initID       string
 
 	// Steering. steerMu orders steer writes against the decision to end
 	// the turn, so a message is either sent and waited for, or refused.
@@ -541,6 +630,19 @@ func (t *turn) abandonedSteers() bool {
 	return t.abandoned
 }
 
+// initReply returns the models in ev when it answers the initialize
+// request.
+func (t *turn) initReply(ev Event) ([]ModelInfo, bool) {
+	var env struct {
+		RequestID string `json:"request_id"`
+	}
+	_ = json.Unmarshal(ev.Response, &env)
+	if t.initID == "" || cmp.Or(env.RequestID, ev.RequestID) != t.initID {
+		return nil, false
+	}
+	return initModels(ev.Response)
+}
+
 func (t *turn) nextID() string {
 	t.writeMu.Lock()
 	defer t.writeMu.Unlock()
@@ -586,7 +688,14 @@ func (t *turn) readLoop(r io.Reader, h Handler) error {
 		}
 		ev.Raw = append(json.RawMessage(nil), line...)
 		switch ev.Type {
-		case "keep_alive", "control_response":
+		case "keep_alive":
+			continue
+		case "control_response":
+			if h.OnModels != nil {
+				if models, ok := t.initReply(ev); ok {
+					h.OnModels(models)
+				}
+			}
 			continue
 		case "user":
 			if ev.IsReplay {

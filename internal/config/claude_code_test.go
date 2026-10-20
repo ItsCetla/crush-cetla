@@ -86,3 +86,48 @@ func TestClaudeCodeProviderUserConfig(t *testing.T) {
 	require.True(t, pc.ClaudeCodeUsesAPIKey())
 	require.NotEmpty(t, pc.Models)
 }
+
+func TestClaudeCodeModelsFromCLI(t *testing.T) {
+	t.Parallel()
+	models := ClaudeCodeModels([]claudecode.ModelInfo{
+		{Value: "default", DisplayName: "Default (recommended)", SupportsEffort: true, SupportedEffortLevels: []string{"high", "low"}},
+		{Value: "opus[1m]", DisplayName: "Opus (1M context)"},
+		{Value: "sonnet", DisplayName: "Sonnet"},
+	})
+	var ids []string
+	for _, m := range models {
+		ids = append(ids, m.ID)
+	}
+	// The CLI's rows come first; built-in aliases it left out follow.
+	require.Equal(t, []string{"default", "opus[1m]", "sonnet", "opus", "haiku"}, ids)
+	require.Equal(t, "Claude Code · Default (recommended)", models[0].Name)
+	require.True(t, models[0].CanReason)
+	require.Equal(t, []string{"default", "low", "high"}, models[0].ReasoningLevels)
+	require.Equal(t, "default", models[0].DefaultReasoningEffort)
+	require.Equal(t, int64(1000000), models[1].ContextWindow)
+	require.False(t, models[2].CanReason)
+	require.Equal(t, int64(200000), models[2].ContextWindow)
+
+	require.Equal(t, "high", ClaudeCodeEffort(models[0], SelectedModel{ReasoningEffort: "high"}))
+	require.Empty(t, ClaudeCodeEffort(models[0], SelectedModel{ReasoningEffort: "default"}))
+	require.Empty(t, ClaudeCodeEffort(models[0], SelectedModel{ReasoningEffort: "max"}), "not offered for this model")
+	require.Empty(t, ClaudeCodeEffort(models[2], SelectedModel{ReasoningEffort: "high"}))
+}
+
+func TestSetClaudeCodeModelsOnlyReplacesFilledInLists(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{Providers: csync.NewMap[string, ProviderConfig]()}
+	cfg.Providers.Set("cc", prepareClaudeCodeProvider("cc", ProviderConfig{Type: catwalk.Type(claudecode.ProviderType)}))
+	cfg.Providers.Set("mine", prepareClaudeCodeProvider("mine", ProviderConfig{
+		Type:   catwalk.Type(claudecode.ProviderType),
+		Models: []catwalk.Model{{ID: "opus"}},
+	}))
+	infos := []claudecode.ModelInfo{{Value: "best", DisplayName: "Best"}}
+	require.True(t, cfg.SetClaudeCodeModels(infos))
+	require.False(t, cfg.SetClaudeCodeModels(infos), "unchanged list")
+
+	cc, _ := cfg.Providers.Get("cc")
+	require.Equal(t, "best", cc.Models[0].ID)
+	mine, _ := cfg.Providers.Get("mine")
+	require.Equal(t, []catwalk.Model{{ID: "opus"}}, mine.Models)
+}

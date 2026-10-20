@@ -340,7 +340,7 @@ go build -o tada .
           </details>
           <details>
             <summary>Can I use my Claude subscription?</summary>
-            <p>Through the Claude Code engine, yes. Ta-Da doesn't sign in to Claude or read your login: it runs the <code>claude</code> CLI you already use, and the CLI handles sign-in and billing. Claude Code runs its own tools and compaction in those sessions, so Summarize and Magic Context are off. Set <code>use_api_key: true</code> to bill <code>ANTHROPIC_API_KEY</code> instead.</p>
+            <p>Through the Claude Code engine, yes. Ta-Da doesn't sign in to Claude or read your login: it runs the <code>claude</code> CLI you already use, and the CLI handles sign-in and billing. Claude Code runs its own tools and compaction in those sessions, so Summarize and Magic Context are off. By default the CLI only uses your saved Claude login; Ta-Da strips API keys, tokens, custom endpoints and Bedrock/Vertex switches from its environment. Set <code>use_api_key: true</code> to keep them, for example to bill <code>ANTHROPIC_API_KEY</code>.</p>
           </details>
           <details>
             <summary>What does <code>tada trust</code> actually gate?</summary>

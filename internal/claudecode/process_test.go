@@ -29,6 +29,13 @@ func TestBuildArgs(t *testing.T) {
 		claudecode.BuildArgs(claudecode.TurnOptions{PermissionMode: "plan", Model: "opus", SessionID: "abc"}),
 	)
 	require.Equal(t,
+		append(append([]string{}, base...), "--effort", "xhigh"),
+		claudecode.BuildArgs(claudecode.TurnOptions{Effort: "xhigh"}),
+	)
+	// Unknown levels (and the picker's "default") pass no flag.
+	require.Equal(t, base, claudecode.BuildArgs(claudecode.TurnOptions{Effort: "default"}))
+	require.Equal(t, base, claudecode.BuildArgs(claudecode.TurnOptions{Effort: "turbo"}))
+	require.Equal(t,
 		append(append([]string{}, base...), "--resume", "abc", "--x"),
 		claudecode.BuildArgs(claudecode.TurnOptions{SessionID: "abc", Resume: true, ExtraArgs: []string{"--x"}}),
 	)
@@ -36,9 +43,26 @@ func TestBuildArgs(t *testing.T) {
 
 func TestChildEnv(t *testing.T) {
 	t.Parallel()
-	env := []string{"PATH=/bin", "CLAUDECODE=1", "CLAUDE_CODE_ENTRYPOINT=cli", "CLAUDE_CODE_SSE_PORT=1", "ANTHROPIC_API_KEY=k", "ANTHROPIC_AUTH_TOKEN=t", "HOME=/h"}
-	require.Equal(t, []string{"PATH=/bin", "HOME=/h"}, claudecode.ChildEnv(env, false))
-	require.Equal(t, []string{"PATH=/bin", "ANTHROPIC_API_KEY=k", "ANTHROPIC_AUTH_TOKEN=t", "HOME=/h"}, claudecode.ChildEnv(env, true))
+	nested := []string{"CLAUDECODE=1", "CLAUDE_CODE_ENTRYPOINT=cli", "CLAUDE_CODE_SSE_PORT=1"}
+	routing := []string{
+		"ANTHROPIC_API_KEY=k",
+		"ANTHROPIC_AUTH_TOKEN=t",
+		"CLAUDE_CODE_OAUTH_TOKEN=o",
+		"ANTHROPIC_BASE_URL=http://proxy",
+		"ANTHROPIC_CUSTOM_HEADERS=x: y",
+		"CLAUDE_CODE_USE_BEDROCK=1",
+		"CLAUDE_CODE_SKIP_BEDROCK_AUTH=1",
+		"ANTHROPIC_BEDROCK_BASE_URL=http://b",
+		"ANTHROPIC_MODEL=m",
+		"ANTHROPIC_DEFAULT_OPUS_MODEL=m",
+		"ANTHROPIC_SMALL_FAST_MODEL=m",
+		"ANTHROPIC_PROFILE=p",
+	}
+	kept := []string{"PATH=/bin", "HOME=/h", "CLAUDE_CONFIG_DIR=/c", "CLAUDE_CODE_USE_POWERSHELL_TOOL=1", "ANTHROPIC_BETAS=b"}
+
+	env := append(append(append([]string{}, kept...), nested...), routing...)
+	require.Equal(t, kept, claudecode.ChildEnv(env, false))
+	require.Equal(t, append(append([]string{}, kept...), routing...), claudecode.ChildEnv(env, true))
 }
 
 func TestSessionUUIDStable(t *testing.T) {
@@ -222,4 +246,43 @@ func TestRunTurnSteerGivesUpWhenCLIGoesQuiet(t *testing.T) {
 	require.Equal(t, "one", res.Result.Result)
 	require.Equal(t, []string{"result"}, seen)
 	require.Less(t, time.Since(start), 4*time.Second)
+}
+
+func TestRunTurnReportsInitModels(t *testing.T) {
+	t.Parallel()
+	bin, dir := fakecli.Write(t, []string{
+		// A reply to some other request is ignored.
+		`{"type":"control_response","response":{"subtype":"success","request_id":"other","response":{"models":[{"value":"nope"}]}}}`,
+		`{"type":"control_response","response":{"subtype":"success","request_id":"tada-1","response":{"commands":[],"models":[` +
+			`{"value":"default","displayName":"Default (recommended)","supportsEffort":true,"supportedEffortLevels":["max","low","high","medium","xhigh","ultra"]},` +
+			`{"value":"haiku","displayName":"Haiku"},` +
+			`{"value":"old","displayName":"Old","disabled":true}]}}}`,
+		`{"type":"system","subtype":"init","session_id":"s-1","model":"claude-fake"}`,
+		`{"type":"result","subtype":"success","result":"ok","session_id":"s-1"}`,
+	})
+	var got [][]claudecode.ModelInfo
+	var seen []string
+	_, err := claudecode.RunTurn(t.Context(), claudecode.TurnOptions{Binary: bin, WorkDir: dir, Prompt: "hi", Env: os.Environ()}, claudecode.Handler{
+		OnEvent:  func(ev claudecode.Event) error { seen = append(seen, ev.Type); return nil },
+		OnModels: func(m []claudecode.ModelInfo) { got = append(got, m) },
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"system", "result"}, seen)
+	require.Len(t, got, 1)
+	require.Len(t, got[0], 2)
+	require.Equal(t, "default", got[0][0].Value)
+	require.Equal(t, []string{"low", "medium", "high", "xhigh", "max"}, got[0][0].Efforts())
+	require.Equal(t, "haiku", got[0][1].Value)
+	require.Nil(t, got[0][1].Efforts())
+}
+
+func TestSaveLoadModels(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "sub", "claude_code_models.json")
+	require.Nil(t, claudecode.LoadModels(path))
+	models := []claudecode.ModelInfo{{Value: "opus", DisplayName: "Opus", SupportsEffort: true, SupportedEffortLevels: []string{"high"}}}
+	require.NoError(t, claudecode.SaveModels(path, models))
+	require.Equal(t, models, claudecode.LoadModels(path))
+	require.NoError(t, os.WriteFile(path, []byte("not json"), 0o600))
+	require.Nil(t, claudecode.LoadModels(path))
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/claudecode"
 	"github.com/charmbracelet/crush/internal/claudecode/fakecli"
+	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/db"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/permission"
@@ -400,4 +401,32 @@ func TestCCToolNameAndInput(t *testing.T) {
 	require.JSONEq(t, `{"url":"https://a","format":"markdown"}`, ccToolInput("WebFetch", json.RawMessage(`{"url":"https://a"}`)))
 	require.Equal(t, "{}", ccToolInput("Bash", nil))
 	require.Equal(t, "not json", ccToolInput("Bash", json.RawMessage("not json")))
+}
+
+func TestClaudeCodePassesEffortAndKeepsModelList(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("TADA_GLOBAL_DATA", dataDir)
+	env := newClaudeCodeTestAgent(t, true, false, []string{
+		ccLine(t, map[string]any{"type": "control_response", "response": map[string]any{
+			"subtype": "success", "request_id": "tada-1",
+			"response": map[string]any{"models": []map[string]any{
+				{"value": "default", "displayName": "Default", "supportsEffort": true, "supportedEffortLevels": []string{"low", "high"}},
+			}},
+		}}),
+		ccLine(t, map[string]any{"type": "result", "subtype": "success", "result": "ok"}),
+	})
+	m := env.agent.largeModel.Get()
+	m.CatwalkCfg.ReasoningLevels = []string{"default", "low", "high"}
+	m.ModelCfg.ReasoningEffort = "high"
+	env.agent.largeModel.Set(m)
+	sess, err := env.sessions.Create(t.Context(), "cc")
+	require.NoError(t, err)
+	_, err = env.agent.Run(t.Context(), SessionAgentCall{SessionID: sess.ID, Prompt: "hi"})
+	require.NoError(t, err)
+	require.Contains(t, fakecli.Args(t, env.dir), "--effort high")
+
+	saved := claudecode.LoadModels(config.ClaudeCodeModelsPath())
+	require.Len(t, saved, 1)
+	require.Equal(t, "default", saved[0].Value)
+	require.Equal(t, []string{"low", "high"}, saved[0].Efforts())
 }

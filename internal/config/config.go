@@ -170,6 +170,11 @@ type ProviderConfig struct {
 	// is authenticated with a Grok account. Like ChatGPTModels, it is
 	// the provider's whole catalog in that case.
 	GrokModels []catwalk.Model `json:"grok_models,omitempty" jsonschema:"-"`
+
+	// ClaudeCodeDefaultModels marks a Claude Code provider whose Models
+	// Ta-Da filled in (the user listed none), so the list the CLI reports
+	// may replace them.
+	ClaudeCodeDefaultModels bool `json:"-"`
 }
 
 // ToProvider converts the [ProviderConfig] to a [catwalk.Provider].

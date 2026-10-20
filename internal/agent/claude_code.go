@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,6 +16,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/claudecode"
+	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/session"
@@ -135,6 +137,7 @@ func (a *sessionAgent) runClaudeCode(
 		WorkDir:        a.workDir,
 		Model:          model.ModelCfg.Model,
 		PermissionMode: mode,
+		Effort:         config.ClaudeCodeEffort(model.CatwalkCfg, model.ModelCfg),
 		SessionID:      ccSession,
 		Images:         images,
 		Env:            claudecode.ChildEnv(os.Environ(), model.ClaudeKeepAPIKey),
@@ -144,6 +147,7 @@ func (a *sessionAgent) runClaudeCode(
 		CanUseTool: r.canUseTool,
 		OnStart:    r.onStart,
 		OnSteer:    r.onSteer,
+		OnModels:   a.onClaudeModels,
 	}
 	defer r.endSteering()
 
@@ -281,6 +285,23 @@ func (r *ccRun) onSteer(id string) error {
 
 // endSteering stops taking steered prompts. Any the CLI never took in
 // run as their own turns next, unless the turn was canceled.
+// onClaudeModels keeps the model list the CLI reported: on disk for the
+// next launch, and in the live config so the model picker shows it now.
+func (a *sessionAgent) onClaudeModels(models []claudecode.ModelInfo) {
+	if len(models) == 0 {
+		return
+	}
+	path := config.ClaudeCodeModelsPath()
+	if !reflect.DeepEqual(claudecode.LoadModels(path), models) {
+		if err := claudecode.SaveModels(path, models); err != nil {
+			slog.Warn("Failed to save the Claude Code model list", "error", err)
+		}
+	}
+	if a.cfg != nil {
+		a.cfg.Config().SetClaudeCodeModels(models)
+	}
+}
+
 func (r *ccRun) endSteering() {
 	r.a.ccSteer.Del(r.call.SessionID)
 	r.a.ccPending.Del(r.call.SessionID)

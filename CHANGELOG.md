@@ -20,11 +20,26 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   running turn instead of waiting for it to end. The built-in agent picks
   it up at its next step; the Claude Code engine hands it to the CLI right
   away. Until the agent takes it in, it shows in the queue pill.
+- **Claude Code models and effort.** After your first Claude Code turn,
+  the model picker lists the models your account offers, as the CLI
+  reports them, instead of a fixed four. Models that support it get a
+  reasoning-effort setting (Default, Low, Medium, High, X-High, Max),
+  passed to the CLI as `--effort`. The list is read from the CLI's
+  startup reply, so it costs no extra request.
 
 ### Changed
 
 - Enter while the agent is busy now queues your message as its own turn.
   It used to be folded into the running turn; use Ctrl+Enter for that.
+- Claude Code sessions are named from your first message. Ta-Da no longer
+  asks another model for the title, so nothing about the session goes to a
+  second provider.
+- The Claude Code engine now removes more from the CLI's environment so
+  it always uses your saved Claude login: `CLAUDE_CODE_OAUTH_TOKEN` and
+  other tokens, custom endpoints and headers (`ANTHROPIC_BASE_URL`),
+  Bedrock/Vertex/Foundry switches, profiles and model overrides. Before,
+  only `ANTHROPIC_API_KEY` was removed. If you sign in through one of
+  those, set `use_api_key: true` on the provider to keep them.
 
 ### Fixed
 

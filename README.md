@@ -821,16 +821,24 @@ model add custom-anthropic/claude-sonnet-4-20250514 \
 ### Claude Code
 
 If the [`claude` CLI](https://github.com/anthropics/claude-code) is on your
-`PATH`, Ta-Da adds a **Claude Code** provider with four models: the CLI's
-default, Opus, Sonnet and Haiku. Picking one makes Ta-Da run your own
+`PATH`, Ta-Da adds a **Claude Code** provider. It starts with the CLI's
+default model, Opus, Sonnet and Haiku; after your first turn it shows the
+models your account actually offers, as the CLI reports them (kept in
+`claude_code_models.json` next to `providers.json`). Models that support it
+get a reasoning-effort setting (Low to Max, or Default to leave it to
+Claude Code), passed as `--effort`. Picking a model makes Ta-Da run your own
 `claude` for every turn. Its replies, tool cards and diffs show in the chat
 as usual, its tool requests go through Ta-Da's permission prompts (and the
 current Manual, Plan or Auto mode), and when Claude asks you a question it
 appears in Ta-Da's question dialog.
 
 Ta-Da never reads or stores your Claude login: the CLI handles sign-in and
-billing. By default `ANTHROPIC_API_KEY` is removed from the CLI's
-environment so it uses your Claude account. To change that:
+billing. By default the CLI only ever uses your saved Claude login: Ta-Da
+removes API keys and tokens (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`
+and the like), custom endpoints and headers (`ANTHROPIC_BASE_URL`), the
+Bedrock/Vertex/Foundry switches and model overrides from its environment.
+If you sign in through one of those (a setup token, a proxy or a cloud
+provider), set `use_api_key` to keep the whole environment:
 
 ```json
 {
@@ -849,7 +857,8 @@ Things that work differently in a Claude Code session: Claude Code runs its
 own tools and compaction, so Summarize and Magic Context are off; Ta-Da's
 system prompt isn't sent (earlier turns are passed along as context); and
 cost is only shown with `use_api_key`. Set `"disable": true` on the provider
-to hide it.
+to hide it. Session titles come from your first message, so nothing is sent
+to another provider to name a Claude Code session.
 
 ### Magic Context
 

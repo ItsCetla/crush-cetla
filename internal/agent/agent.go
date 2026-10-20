@@ -1894,16 +1894,16 @@ func hasUserTextMessage(msgs []message.Message) bool {
 	return false
 }
 
-// GenerateTitle generates a session title based on the initial prompt.
-// promptTitle turns a prompt into a short fallback session title.
+// promptTitle turns a prompt into a short session title.
 func promptTitle(prompt string) string {
-	title := strings.TrimSpace(strings.ReplaceAll(prompt, "\n", " "))
+	title := strings.Join(strings.Fields(prompt), " ")
 	if len(title) > 50 {
 		title = ansi.Truncate(title, 50, "…")
 	}
 	return title
 }
 
+// GenerateTitle generates a session title based on the initial prompt.
 func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, userPrompt string) {
 	if userPrompt == "" {
 		return
@@ -1916,7 +1916,8 @@ func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, user
 		if !titleSaved {
 			fallbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
-			if err := a.sessions.Rename(fallbackCtx, sessionID, DefaultSessionName); err != nil {
+			title := cmp.Or(promptTitle(userPrompt), DefaultSessionName)
+			if err := a.sessions.Rename(fallbackCtx, sessionID, title); err != nil {
 				slog.Error("Failed to save fallback session title", "error", err)
 			}
 		}
@@ -1954,10 +1955,14 @@ func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, user
 		model Model
 	}
 	var attempts []modelAttempt
-	for _, at := range []modelAttempt{{"small", smallModel}, {"large", largeModel}} {
-		// The Claude Code engine can't answer one-off prompts.
-		if !at.model.ClaudeCode {
-			attempts = append(attempts, at)
+	// A Claude Code session titles itself from the prompt: the engine
+	// can't answer one-off prompts, and the prompt shouldn't go to a
+	// different provider just for a title.
+	if !largeModel.ClaudeCode {
+		for _, at := range []modelAttempt{{"small", smallModel}, {"large", largeModel}} {
+			if !at.model.ClaudeCode {
+				attempts = append(attempts, at)
+			}
 		}
 	}
 	if len(attempts) == 0 {
@@ -1993,7 +1998,7 @@ func (a *sessionAgent) GenerateTitle(ctx context.Context, sessionID string, user
 		}
 	}
 	if !success {
-		// The deferred fallback will save the default session name.
+		// The deferred fallback titles the session from the prompt.
 		return
 	}
 
