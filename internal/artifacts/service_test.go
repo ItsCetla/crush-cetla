@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -61,7 +62,9 @@ func TestServicePublishReadAndOpen(t *testing.T) {
 	// The browser gets the viewer key; the tool result never does.
 	key, err := svc.Store.ViewerKey()
 	require.NoError(t, err)
-	require.Equal(t, []string{r.URL + "#k=" + key}, rec.urls)
+	require.Len(t, rec.urls, 1)
+	require.True(t, strings.HasPrefix(rec.urls[0], r.URL+"#t="), rec.urls[0])
+	require.NotContains(t, rec.urls[0], key)
 	require.NotContains(t, r.URL, key)
 	require.NotContains(t, r.Text, key)
 
@@ -263,6 +266,28 @@ func TestServerNeedsViewerKey(t *testing.T) {
 	_, err = st.Get(id)
 	require.NoError(t, err)
 
+	// A sign-in ticket swaps for the key once.
+	signIn := func(ticket string, hdr bool) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), "POST", "/api/signin",
+			strings.NewReader(`{"ticket":"`+ticket+`"}`))
+		req.Host = "127.0.0.1:7480"
+		req.Header.Set("Content-Type", "application/json")
+		if hdr {
+			req.Header.Set("X-Tada-Viewer", "1")
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w
+	}
+	ticket := strings.SplitN(st.SignInURL("x"), "#t=", 2)[1]
+	require.Equal(t, http.StatusForbidden, signIn(ticket, false).Code)
+	w = signIn(ticket, true)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.JSONEq(t, `{"key":"`+key+`"}`, w.Body.String())
+	require.Equal(t, http.StatusUnauthorized, signIn(ticket, true).Code, "used twice")
+	require.Equal(t, http.StatusUnauthorized, signIn("1.2.3", true).Code)
+	require.Equal(t, http.StatusUnauthorized, signIn(ticket[:len(ticket)-1]+"0", true).Code)
+
 	// The shells hold no data and stay public.
 	require.Equal(t, http.StatusOK, get("/", "").Code)
 	require.Equal(t, http.StatusOK, get("/a/"+id, "").Code)
@@ -311,4 +336,16 @@ func TestServerPageIsSandboxed(t *testing.T) {
 		require.Equal(t, allow, strings.Contains(csp, "fonts.gstatic.com"))
 		require.Contains(t, w.Body.String(), "Q3 Revenue")
 	}
+}
+
+func TestSourcePathsAreClean(t *testing.T) {
+	t.Parallel()
+	wd := t.TempDir()
+	env := CallEnv{WorkingDir: wd}
+	link := filepath.Join(wd, "link", "..", "secret.txt")
+	rel := "link/../other.txt"
+	got := SourcePaths(env, ArtifactParams{FilePath: link, Files: map[string]*string{"a.txt": &rel}})
+	// The permission check and the read must see the same string, so
+	// "link/.." can't be checked lexically and then read through a link.
+	require.Equal(t, []string{filepath.Join(wd, "secret.txt"), filepath.Join(wd, "other.txt")}, got)
 }

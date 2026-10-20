@@ -191,8 +191,14 @@ func (s *Service) viewerURL(id string, n int) (string, error) {
 
 func resolvePath(env CallEnv, p string) string {
 	p = strings.TrimSpace(p)
-	if p == "" || filepath.IsAbs(p) {
+	if p == "" {
 		return p
+	}
+	// Always clean the path, so the permission check and the read see the
+	// same string. Otherwise "dir/link/../x" would be checked as "dir/x"
+	// but read through the link.
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
 	}
 	if strings.HasPrefix(p, "~/") {
 		return filepath.Join(homeDir(), p[2:])

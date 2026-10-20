@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +68,38 @@ func TestSignInURL(t *testing.T) {
 	require.NoError(t, err)
 	k, err := st.ViewerKey()
 	require.NoError(t, err)
-	require.Equal(t, "http://127.0.0.1:7480/a/abc123#k="+k, st.SignInURL("http://127.0.0.1:7480/a/abc123"))
+	u := st.SignInURL("http://127.0.0.1:7480/a/abc123")
+	require.True(t, strings.HasPrefix(u, "http://127.0.0.1:7480/a/abc123#t="), u)
+	// The link never carries the key itself.
+	require.NotContains(t, u, k)
+	_, ok := checkTicket(k, strings.TrimPrefix(u, "http://127.0.0.1:7480/a/abc123#t="), time.Now())
+	require.True(t, ok)
+}
+
+func TestCheckTicket(t *testing.T) {
+	t.Parallel()
+	key := strings.Repeat("ab", 32)
+	now := time.Unix(1_800_000_000, 0)
+	tk, err := signInTicket(key, now)
+	require.NoError(t, err)
+
+	_, ok := checkTicket(key, tk, now)
+	require.True(t, ok)
+	_, ok = checkTicket(key, tk, now.Add(signInTTL+time.Second))
+	require.False(t, ok, "expired")
+	_, ok = checkTicket(strings.Repeat("cd", 32), tk, now)
+	require.False(t, ok, "other key")
+	_, ok = checkTicket(key, tk, now.Add(-time.Hour))
+	require.False(t, ok, "too far ahead")
+
+	parts := strings.Split(tk, ".")
+	later := strconv.FormatInt(now.Add(time.Minute).Unix(), 10)
+	_, ok = checkTicket(key, later+"."+parts[1]+"."+parts[2], now)
+	require.False(t, ok, "changed expiry")
+	for _, bad := range []string{"", "x", "1.2.3", tk + ".x", parts[0] + "." + parts[1] + "."} {
+		_, ok = checkTicket(key, bad, now)
+		require.False(t, ok, bad)
+	}
 }
 
 func TestPingNeedsProof(t *testing.T) {

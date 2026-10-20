@@ -913,9 +913,10 @@ viewer only answers on 127.0.0.1 and rejects requests from other hosts.
 **The viewer needs a key.** Other programs and web pages on your machine
 can reach 127.0.0.1 too, so the viewer's API and pages need a per-machine
 key, kept in `.viewer-key` in the artifacts folder (readable only by you).
-When Ta-Da opens the viewer, it signs that browser in by passing the key
-in the link; the key is then stored in the browser and taken out of the
-address bar. A browser that was never signed in shows a short note
+When Ta-Da opens the viewer, it signs that browser in with a one-time
+link that expires after two minutes; the browser swaps it for the key,
+keeps the key and takes the link out of the address bar. The key itself
+never appears in a link, a command line or browser history. A browser that was never signed in shows a short note
 instead: open the gallery from Ta-Da once (**Open Artifacts Gallery** or
 `tada artifacts open`). Each page is served under its own derived key, so
 a page can't reach the API or other artifacts. Delete `.viewer-key` to

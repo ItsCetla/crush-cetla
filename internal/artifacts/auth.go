@@ -11,6 +11,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -102,14 +104,61 @@ func equal(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
-// SignInURL returns u with the viewer key in its fragment. The viewer page
-// moves the key into the browser's storage for this origin and removes it
-// from the address bar; fragments are never sent to a server. Use it only
-// for links Ta-Da opens itself, never for text shown to a model.
+// signInTTL is how long a sign-in ticket stays valid. Ta-Da opens the
+// browser right after making one, so this only needs to cover a slow start.
+const signInTTL = 2 * time.Minute
+
+// signInTicket makes a single-use ticket that a viewer swaps for the key.
+// It's "<expiry>.<nonce>.<mac>", so any process with the key can make one
+// and any viewer for the store can check it.
+func signInTicket(key string, now time.Time) (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	exp := strconv.FormatInt(now.Add(signInTTL).Unix(), 10)
+	nonce := hex.EncodeToString(b)
+	return exp + "." + nonce + "." + ticketMAC(key, exp, nonce), nil
+}
+
+func ticketMAC(key, exp, nonce string) string {
+	return mac(key, "signin\x00"+exp+"\x00"+nonce)[:32]
+}
+
+// checkTicket reports whether t is a ticket made with key that hasn't
+// expired. It returns the ticket's expiry so the caller can remember it
+// as used until then.
+func checkTicket(key, t string, now time.Time) (int64, bool) {
+	parts := strings.Split(t, ".")
+	if len(parts) != 3 || len(parts[1]) != 32 {
+		return 0, false
+	}
+	exp, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	left := exp - now.Unix()
+	if left < 0 || left > int64(signInTTL/time.Second)+5 {
+		return 0, false
+	}
+	return exp, equal(parts[2], ticketMAC(key, parts[0], parts[1]))
+}
+
+// SignInURL returns u with a sign-in ticket in its fragment. The viewer
+// page swaps the ticket for the key, keeps the key in the browser's
+// storage for this origin and removes the ticket from the address bar.
+// The ticket works once and only for a couple of minutes, so the browser
+// command line and history never hold anything lasting; fragments are
+// never sent to a server either. Use it only for links Ta-Da opens
+// itself, never for text shown to a model.
 func (s *Store) SignInURL(u string) string {
 	k, err := s.ViewerKey()
 	if err != nil {
 		return u
 	}
-	return u + "#k=" + k
+	t, err := signInTicket(k, time.Now())
+	if err != nil {
+		return u
+	}
+	return u + "#t=" + t
 }

@@ -60,6 +60,9 @@ type Server struct {
 	srv   *http.Server
 	url   string
 	key   string
+
+	ticketMu sync.Mutex
+	used     map[string]int64 // redeemed sign-in tickets → expiry
 }
 
 var (
@@ -214,6 +217,7 @@ func newServer(store *Store, opts ServerOptions, baseURL string) (*Server, error
 		}
 		writeJSONResp(w, out)
 	})
+	mux.HandleFunc("POST /api/signin", s.apiSignIn)
 	mux.HandleFunc("GET /api/artifacts", s.apiList)
 	mux.HandleFunc("GET /api/artifacts/{id}", s.apiGet)
 	mux.HandleFunc("DELETE /api/artifacts/{id}", s.apiDelete)
@@ -234,6 +238,48 @@ func newServer(store *Store, opts ServerOptions, baseURL string) (*Server, error
 // authorized reports whether r carries the viewer key. Browsers send it
 // in X-Tada-Key; EventSource can't set headers, so the event stream also
 // takes it as ?k=.
+// publicAPI lists the endpoints a browser can call before it's signed in.
+var publicAPI = map[string]bool{"/api/ping": true, "/api/signin": true}
+
+// apiSignIn swaps a sign-in ticket from a link Ta-Da opened for the viewer
+// key. Each ticket works once.
+func (s *Server) apiSignIn(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Ticket string `json:"ticket"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		apiError(w, http.StatusBadRequest, err)
+		return
+	}
+	if !s.redeem(in.Ticket, time.Now()) {
+		apiError(w, http.StatusUnauthorized, errors.New("this sign-in link has expired or was already used: open the viewer from Ta-Da again"))
+		return
+	}
+	writeJSONResp(w, map[string]string{"key": s.key})
+}
+
+func (s *Server) redeem(ticket string, now time.Time) bool {
+	exp, ok := checkTicket(s.key, ticket, now)
+	if !ok {
+		return false
+	}
+	s.ticketMu.Lock()
+	defer s.ticketMu.Unlock()
+	for t, e := range s.used {
+		if e < now.Unix() {
+			delete(s.used, t)
+		}
+	}
+	if _, seen := s.used[ticket]; seen {
+		return false
+	}
+	if s.used == nil {
+		s.used = map[string]int64{}
+	}
+	s.used[ticket] = exp
+	return true
+}
+
 func (s *Server) authorized(r *http.Request) bool {
 	k := r.Header.Get("X-Tada-Key")
 	if k == "" && r.URL.Path == "/api/events" {
@@ -274,7 +320,7 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/ping" && !s.authorized(r) {
+		if strings.HasPrefix(r.URL.Path, "/api/") && !publicAPI[r.URL.Path] && !s.authorized(r) {
 			apiError(w, http.StatusUnauthorized, errors.New("this browser isn't signed in to the viewer: open it from Ta-Da (tada artifacts open)"))
 			return
 		}

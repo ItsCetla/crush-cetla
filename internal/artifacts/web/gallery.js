@@ -32,28 +32,35 @@
   applyTheme(theme);
 
   // ---------- viewer key ----------
-  // Ta-Da opens the viewer with #k=<key>. Keep the key in this origin's
-  // storage (which, unlike cookies, is separate per port) and take it out of
-  // the address bar. Every API call sends it.
+  // Ta-Da opens the viewer with #t=<ticket>, a one-time sign-in ticket.
+  // Swap it for the key, keep the key in this origin's storage (which,
+  // unlike cookies, is separate per port) and take the ticket out of the
+  // address bar. Every API call sends the key.
   const KEY_STORE = 'tada:key';
   let viewerKey = '';
-  {
-    const m = /^#k=([0-9a-f]{64})$/.exec(location.hash);
-    if (m) {
-      viewerKey = m[1];
+  try { viewerKey = localStorage.getItem(KEY_STORE) || ''; } catch { /* storage unavailable */ }
+  async function redeemTicket() {
+    const m = /^#t=([0-9a-f.]{1,128})$/.exec(location.hash);
+    if (!m) return false;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch { /* ignore */ }
+    try {
+      const res = await fetch('/api/signin', {
+        method: 'POST',
+        headers: { 'X-Tada-Viewer': '1', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket: m[1] }),
+      });
+      const data = await res.json();
+      if (!res.ok || !/^[0-9a-f]{64}$/.test(data.key || '')) return false;
+      viewerKey = data.key;
       try { localStorage.setItem(KEY_STORE, viewerKey); } catch { /* storage unavailable */ }
-      try { history.replaceState(null, '', location.pathname + location.search); } catch { /* ignore */ }
-    } else {
-      try { viewerKey = localStorage.getItem(KEY_STORE) || ''; } catch { /* storage unavailable */ }
-    }
+      return true;
+    } catch { return false; }
   }
+  const signedIn = redeemTicket();
   // A tab already open on this page only sees a hash change, so sign in
   // and start over with the new key.
-  window.addEventListener('hashchange', () => {
-    const m = /^#k=([0-9a-f]{64})$/.exec(location.hash);
-    if (!m) return;
-    try { localStorage.setItem(KEY_STORE, m[1]); } catch { /* storage unavailable */ }
-    location.replace(location.pathname + location.search);
+  window.addEventListener('hashchange', async () => {
+    if (await redeemTicket()) location.reload();
   });
   const SIGN_IN_MSG = 'Open it from Ta-Da ("Open Artifacts Gallery" in the command palette, or "tada artifacts open") to sign in this browser.';
 
@@ -566,6 +573,9 @@
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  // Wait for the sign-in so the first API call and the live updates have
+  // the key.
+  const start = () => { signedIn.then(init); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
 })();

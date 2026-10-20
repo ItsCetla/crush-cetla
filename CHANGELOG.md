@@ -7,6 +7,22 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-20
+
+### Security
+
+- **One-time sign-in links.** Ta-Da used to open the artifacts viewer with
+  the viewer key in the link, so the key showed up in the browser's command
+  line (visible to other programs through `ps`) and could stay in browser
+  history. The link now carries a single-use ticket that expires after two
+  minutes; the viewer swaps it for the key and removes it from the address
+  bar.
+- **Clean file paths before reading.** An absolute `file_path` or `files`
+  source with `..` after a symlink (`project/link/../x`) was checked as the
+  cleaned path but read through the link, so it could read a file outside
+  the project without asking. Paths are now cleaned once, and the check and
+  the read use the same path.
+
 ## [0.5.0] - 2026-10-20
 
 ### Added
@@ -304,7 +320,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/ItsCetla/tada/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/ItsCetla/tada/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/ItsCetla/tada/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/ItsCetla/tada/compare/v0.4.1...v0.4.2
