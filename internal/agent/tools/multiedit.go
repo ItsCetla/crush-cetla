@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/crush/internal/history"
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 type MultiEditOperation struct {
@@ -71,6 +72,7 @@ func NewMultiEditTool(
 		MultiEditToolName,
 		multieditDescription,
 		func(ctx context.Context, params MultiEditParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.FilePath == "" {
 				return fantasy.NewTextErrorResponse("file_path is required"), nil
 			}

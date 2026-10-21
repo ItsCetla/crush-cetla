@@ -11,6 +11,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 //go:embed web_search.md.tpl
@@ -40,6 +41,7 @@ func NewWebSearchTool(permissions permission.Service, workingDir string, client 
 		WebSearchToolName,
 		renderToolDescription(webSearchDescriptionTpl),
 		func(ctx context.Context, params WebSearchParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.Query == "" {
 				return fantasy.NewTextErrorResponse("query is required"), nil
 			}

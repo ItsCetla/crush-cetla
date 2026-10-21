@@ -64,6 +64,10 @@ func (m *mockSessionService) SetChannel(_ context.Context, sessionID, channel st
 	return session.Session{ID: sessionID, Channel: channel}, nil
 }
 
+func (m *mockSessionService) SetWorkingDir(_ context.Context, sessionID, dir string) (session.Session, error) {
+	return session.Session{ID: sessionID, WorkingDir: dir}, nil
+}
+
 func (m *mockSessionService) UpdateTitleAndUsage(context.Context, string, string, int64, int64, float64) error {
 	return nil
 }

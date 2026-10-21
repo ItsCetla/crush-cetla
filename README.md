@@ -1115,6 +1115,20 @@ The session in view shows its state under the sidebar title ("Needs you ·
 2m ago", "Working · 5m", "Done · just now", "Inactive · 3h"), or in the
 header in compact mode, next to a count of other tabs that need you.
 
+Each tab can work in its own folder. Type `/cd <path>` (or `/directory`,
+`/dir`) to move the tab in view to another project: the AI's tools, its
+system prompt (`AGENTS.md` and the other context files, git status) and the
+Claude Code engine all use that folder from the next turn. Paths can be
+relative to the tab's folder or start with `~`. `/cd` alone shows the
+folder, and `/cd -` goes back to the folder Ta-Da was started in. The folder
+is saved with the session, so a restored tab keeps it. **Tab Folder** in the
+command palette shows it too.
+
+A few things stay with the start folder: language servers, project config
+(`.crush.json`, MCP servers, skills) and Magic Context's project memory. A
+moved tab hides the git branch in the header, and on the Claude Code engine
+it starts a new Claude Code session with the chat so far replayed.
+
 Options, all under `options.tui`:
 
 | Option | Default | What it does |

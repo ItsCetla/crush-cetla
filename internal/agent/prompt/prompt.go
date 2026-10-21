@@ -68,6 +68,21 @@ func WithWorkingDir(workingDir string) Option {
 	}
 }
 
+// InDir returns a copy of the prompt that describes dir as the working
+// folder. A tab moved to another folder with /cd builds its system prompt
+// from this copy.
+func (p *Prompt) InDir(dir string) *Prompt {
+	c := *p
+	c.workingDir = dir
+	return &c
+}
+
+// WorkingDir returns the folder the prompt describes, or "" when it
+// uses the folder Ta-Da was launched in.
+func (p *Prompt) WorkingDir() string {
+	return p.workingDir
+}
+
 func NewPrompt(name, promptTemplate string, opts ...Option) (*Prompt, error) {
 	p := &Prompt{
 		name:     name,
@@ -108,9 +123,9 @@ func processFile(filePath string) *ContextFile {
 	}
 }
 
-func processContextPath(p string, store *config.ConfigStore) []ContextFile {
+func processContextPath(p, workingDir string) []ContextFile {
 	var contexts []ContextFile
-	fullPath := filepathext.SmartJoin(store.WorkingDir(), p)
+	fullPath := filepathext.SmartJoin(workingDir, p)
 	info, err := os.Stat(fullPath)
 	if err != nil {
 		return contexts
@@ -150,7 +165,7 @@ func expandPath(path string, store *config.ConfigStore) string {
 }
 
 // loadContextFiles loads and deduplicates context files from a list of paths.
-func loadContextFiles(paths []string, store *config.ConfigStore) map[string][]ContextFile {
+func loadContextFiles(paths []string, workingDir string, store *config.ConfigStore) map[string][]ContextFile {
 	files := map[string][]ContextFile{}
 	for _, pth := range paths {
 		expanded := expandPath(pth, store)
@@ -158,7 +173,7 @@ func loadContextFiles(paths []string, store *config.ConfigStore) map[string][]Co
 		if _, ok := files[pathKey]; ok {
 			continue
 		}
-		files[pathKey] = processContextPath(expanded, store)
+		files[pathKey] = processContextPath(expanded, workingDir)
 	}
 	return files
 }
@@ -168,8 +183,8 @@ func (p *Prompt) promptData(ctx context.Context, provider, model string, store *
 	platform := cmp.Or(p.platform, runtime.GOOS)
 
 	cfg := store.Config()
-	contextFiles := loadContextFiles(cfg.Options.ContextPaths, store)
-	globalContextFiles := loadContextFiles(cfg.Options.GlobalContextPaths, store)
+	contextFiles := loadContextFiles(cfg.Options.ContextPaths, workingDir, store)
+	globalContextFiles := loadContextFiles(cfg.Options.GlobalContextPaths, workingDir, store)
 
 	// Discover and load skills metadata.
 	var availSkillXML string
@@ -205,7 +220,7 @@ func (p *Prompt) promptData(ctx context.Context, provider, model string, store *
 		availSkillXML = skills.ToPromptXML(allSkills)
 	}
 
-	isGit := isGitRepo(store.WorkingDir())
+	isGit := isGitRepo(workingDir)
 	data := PromptDat{
 		Provider:      provider,
 		Model:         model,
@@ -218,7 +233,7 @@ func (p *Prompt) promptData(ctx context.Context, provider, model string, store *
 	}
 	if isGit {
 		var err error
-		data.GitStatus, err = getGitStatus(ctx, store.WorkingDir())
+		data.GitStatus, err = getGitStatus(ctx, workingDir)
 		if err != nil {
 			return PromptDat{}, err
 		}

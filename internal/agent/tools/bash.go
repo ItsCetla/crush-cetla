@@ -20,6 +20,7 @@ import (
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/shell"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 type BashParams struct {
@@ -207,6 +208,7 @@ func NewBashTool(permissions permission.Service, workingDir, spillDir string, at
 		BashToolName,
 		string(bashDescription(attribution, modelID)),
 		func(ctx context.Context, params BashParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.Command == "" {
 				return fantasy.NewTextErrorResponse("missing command"), nil
 			}

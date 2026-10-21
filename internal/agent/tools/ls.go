@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/crush/internal/filepathext"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 type LSParams struct {
@@ -76,6 +77,7 @@ func NewLsTool(permissions permission.Service, workingDir string, lsConfig confi
 		LSToolName,
 		lsDescription(),
 		func(ctx context.Context, params LSParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			searchPath, err := fsext.Expand(cmp.Or(params.Path, workingDir))
 			if err != nil {
 				return fantasy.NewTextErrorResponse(fmt.Sprintf("error expanding path: %v", err)), nil

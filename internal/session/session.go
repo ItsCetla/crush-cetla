@@ -59,8 +59,11 @@ type Session struct {
 	Cost             float64
 	Todos            []Todo
 	Channel          string
-	CreatedAt        int64
-	UpdatedAt        int64
+	// WorkingDir is the folder this session works in when it differs
+	// from the one Ta-Da was launched in. Empty means the launch folder.
+	WorkingDir string
+	CreatedAt  int64
+	UpdatedAt  int64
 }
 
 type Service interface {
@@ -73,6 +76,7 @@ type Service interface {
 	List(ctx context.Context) ([]Session, error)
 	Save(ctx context.Context, session Session) (Session, error)
 	SetChannel(ctx context.Context, sessionID, channel string) (Session, error)
+	SetWorkingDir(ctx context.Context, sessionID, dir string) (Session, error)
 	UpdateTitleAndUsage(ctx context.Context, sessionID, title string, promptTokens, completionTokens int64, cost float64) error
 	Rename(ctx context.Context, id string, title string) error
 	Delete(ctx context.Context, id string) error
@@ -244,6 +248,25 @@ func (s *service) SetChannel(ctx context.Context, sessionID, channel string) (Se
 	return session, nil
 }
 
+// SetWorkingDir moves a session to another folder. An empty dir puts
+// it back in the folder Ta-Da was launched in.
+func (s *service) SetWorkingDir(ctx context.Context, sessionID, dir string) (Session, error) {
+	dbSession, err := s.q.SetSessionWorkingDir(ctx, db.SetSessionWorkingDirParams{
+		ID: sessionID,
+		WorkingDir: sql.NullString{
+			String: dir,
+			Valid:  dir != "",
+		},
+	})
+	if err != nil {
+		return Session{}, err
+	}
+	session := s.fromDBItem(dbSession)
+	s.applyEstimatedUsageState(&session)
+	s.Publish(pubsub.UpdatedEvent, session)
+	return session, nil
+}
+
 // UpdateTitleAndUsage updates only the title and usage fields atomically.
 // This is safer than fetching, modifying, and saving the entire session.
 func (s *service) UpdateTitleAndUsage(ctx context.Context, sessionID, title string, promptTokens, completionTokens int64, cost float64) error {
@@ -335,6 +358,7 @@ func (s *service) fromDBItem(item db.Session) Session {
 		Cost:             item.Cost,
 		Todos:            todos,
 		Channel:          item.Channel.String,
+		WorkingDir:       item.WorkingDir.String,
 		CreatedAt:        item.CreatedAt,
 		UpdatedAt:        item.UpdatedAt,
 	}

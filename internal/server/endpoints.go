@@ -153,6 +153,17 @@ func (c *controllerV1) endpoints() []apigen.Endpoint {
 			Fails(400, 404, 500).
 			Handle(c.handlePutWorkspaceSession),
 
+		apigen.Put("/v1/workspaces/{id}/sessions/{sid}/working-dir").
+			Summary("Set session working folder").
+			Description("Sets the folder the session's agent and tools work in. An empty working_dir goes back to the launch folder.").
+			Tags("sessions").
+			PathParam("id", "Workspace ID").
+			PathParam("sid", "Session ID").
+			Accepts(proto.SetSessionWorkingDirRequest{}).
+			Responds(proto.Session{}).
+			Fails(400, 404, 500).
+			Handle(c.handlePutWorkspaceSessionWorkingDir),
+
 		apigen.Delete("/v1/workspaces/{id}/sessions/{sid}").
 			Summary("Delete session").
 			Tags("sessions").

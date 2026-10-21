@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/proto"
 	"github.com/charmbracelet/crush/internal/session"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 // CreateSession creates a new session in the given workspace.
@@ -101,6 +102,19 @@ func (b *Backend) SaveSession(ctx context.Context, workspaceID string, sess sess
 	}
 
 	return ws.Sessions.Save(ctx, sess)
+}
+
+// SetSessionWorkingDir sets the folder a session works in. An empty dir
+// goes back to the workspace's launch folder.
+func (b *Backend) SetSessionWorkingDir(ctx context.Context, workspaceID, sessionID, dir string) (session.Session, error) {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return session.Session{}, err
+	}
+	if err := workdir.Check(dir); err != nil {
+		return session.Session{}, err
+	}
+	return ws.Sessions.SetWorkingDir(ctx, sessionID, dir)
 }
 
 // MCPServersDisabled returns the MCP servers disabled for the given

@@ -211,6 +211,9 @@ func (c *Commands) HandleMsg(msg tea.Msg) Action {
 			if query, ok := ResumeQuery(typed); ok && query != "" {
 				return ActionOpenResume{Query: query}
 			}
+			if arg, ok := CDQuery(typed); ok && arg != "" {
+				return ActionChangeDir{Arg: arg}
+			}
 			if selectedItem := c.list.SelectedItem(); selectedItem != nil {
 				if item, ok := selectedItem.(*CommandItem); ok && item != nil {
 					return item.Action()
@@ -460,6 +463,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		NewCommandItem(c.com.Styles, "new_session", "New Session", "ctrl+n", ActionNewSession{}).WithAliases("clear"),
 		NewCommandItem(c.com.Styles, "switch_session", "Sessions", "ctrl+s", ActionOpenDialog{SessionsID}),
 		NewCommandItem(c.com.Styles, "resume", "Resume Conversation", "", ActionOpenResume{}).WithAliases("resume", "continue", "history"),
+		NewCommandItem(c.com.Styles, "tab_folder", "Tab Folder", "", ActionChangeDir{}).WithAliases("cd", "directory", "dir", "folder"),
 		NewCommandItem(c.com.Styles, "switch_model", "Switch Model", "ctrl+l", ActionOpenDialog{ModelsID}),
 	}
 

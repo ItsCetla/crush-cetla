@@ -22,6 +22,7 @@ import (
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/skills"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 //go:embed view.md.tpl
@@ -99,6 +100,7 @@ func NewViewTool(
 		ViewToolName,
 		viewDescription(),
 		func(ctx context.Context, params ViewParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.FilePath == "" {
 				return fantasy.NewTextErrorResponse("file_path is required"), nil
 			}

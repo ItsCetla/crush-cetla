@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/workdir"
 
 	"github.com/charmbracelet/crush/internal/backend"
 	"github.com/charmbracelet/crush/internal/proto"
@@ -364,6 +365,30 @@ func (c *controllerV1) handlePutWorkspaceSession(w http.ResponseWriter, r *http.
 	}
 
 	saved, err := c.backend.SaveSession(r.Context(), id, sess)
+	if err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	ws, _ := c.backend.GetWorkspace(id)
+	out := sessionToProto(saved)
+	out.IsBusy = isSessionBusy(ws, saved.ID)
+	out.AttachedClients = attachedClients(ws, saved.ID)
+	jsonEncode(w, out)
+}
+
+// handlePutWorkspaceSessionWorkingDir sets the folder a session works in.
+func (c *controllerV1) handlePutWorkspaceSessionWorkingDir(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	sid := r.PathValue("sid")
+
+	var req proto.SetSessionWorkingDirRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.server.logError(r, "Failed to decode request", "error", err)
+		jsonError(w, http.StatusBadRequest, "failed to decode request")
+		return
+	}
+
+	saved, err := c.backend.SetSessionWorkingDir(r.Context(), id, sid, req.WorkingDir)
 	if err != nil {
 		c.handleError(w, r, err)
 		return
@@ -840,7 +865,8 @@ func (c *controllerV1) handleError(w http.ResponseWriter, r *http.Request, err e
 		// queued prompts on the previous agent; mirror the TUI's
 		// own busy guard for API callers.
 		status = http.StatusConflict
-	case errors.Is(err, backend.ErrPathRequired):
+	case errors.Is(err, backend.ErrPathRequired),
+		errors.Is(err, workdir.ErrInvalid):
 		status = http.StatusBadRequest
 	case errors.Is(err, backend.ErrInvalidPermissionAction):
 		status = http.StatusBadRequest

@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -46,6 +47,7 @@ import (
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/stringext"
 	"github.com/charmbracelet/crush/internal/version"
+	"github.com/charmbracelet/crush/internal/workdir"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/charmtone"
 )
@@ -300,6 +302,9 @@ type sessionAgent struct {
 	ccExtraArgs func(sessionID string) []string
 	// control records usage, gates budgets and supplies the mission.
 	control Control
+	// promptForDir builds the system prompt for a session in another
+	// folder. See SessionAgentOptions.SystemPromptForDir.
+	promptForDir func(ctx context.Context, dir string) (string, error)
 }
 
 type SessionAgentOptions struct {
@@ -326,6 +331,10 @@ type SessionAgentOptions struct {
 	ClaudeCodeArgs func(sessionID string) []string
 	// Control is the control hub: usage ledger, budgets and missions.
 	Control Control
+	// SystemPromptForDir builds the system prompt for a session that
+	// was moved to another folder with /cd. Nil keeps SystemPrompt for
+	// every folder.
+	SystemPromptForDir func(ctx context.Context, dir string) (string, error)
 }
 
 func NewSessionAgent(
@@ -358,6 +367,7 @@ func NewSessionAgent(
 		workDir:              opts.WorkDir,
 		ccExtraArgs:          opts.ClaudeCodeArgs,
 		control:              opts.Control,
+		promptForDir:         opts.SystemPromptForDir,
 	}
 	a.mc.Store(opts.MagicContext)
 	return a
@@ -673,6 +683,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	if call.Channel != "" && call.channelMeta == nil {
 		call.channelMeta, _ = parseChannelMeta(call.Prompt)
 	}
+	ctx = a.withSessionDir(ctx, call.SessionID)
 
 	// genCtx/cancel are the run context and its cancel func, created under
 	// the per-session dispatch mutex below so a concurrent Cancel can observe
@@ -837,7 +848,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	// Copy mutable fields under lock to avoid races with SetTools/SetModels.
 	agentTools := filterToolsForChannel(a.tools.Copy(), call.Channel, mcp.GetStates())
 	largeModel := a.largeModel.Get()
-	systemPrompt := a.systemPrompt.Get()
+	systemPrompt := a.systemPromptFor(ctx)
 	promptPrefix := a.systemPromptPrefix.Get()
 	var instructions strings.Builder
 
@@ -2419,6 +2430,45 @@ func (a *sessionAgent) SetModels(large Model, small Model) {
 
 func (a *sessionAgent) SetTools(tools []fantasy.AgentTool) {
 	a.tools.SetSlice(tools)
+}
+
+// withSessionDir puts the session's folder in ctx when the session was
+// moved to another folder with /cd. Tools, permission checks and the
+// system prompt read it from there. A session without its own folder,
+// such as a sub-agent's, keeps whatever folder ctx already carries.
+func (a *sessionAgent) withSessionDir(ctx context.Context, sessionID string) context.Context {
+	if a.sessions == nil || sessionID == "" {
+		return ctx
+	}
+	s, err := a.sessions.Get(ctx, sessionID)
+	if err != nil || s.WorkingDir == "" {
+		return ctx
+	}
+	return workdir.With(ctx, s.WorkingDir)
+}
+
+// systemPromptFor returns the system prompt for the folder ctx carries.
+// It falls back to the launch folder's prompt when ctx carries none or
+// the folder's prompt can't be built.
+func (a *sessionAgent) systemPromptFor(ctx context.Context) string {
+	dir := workdir.From(ctx, "")
+	if dir == "" || a.promptForDir == nil || sameFolder(dir, a.workDir) {
+		return a.systemPrompt.Get()
+	}
+	p, err := a.promptForDir(ctx, dir)
+	if err != nil || p == "" {
+		slog.Warn("Building the system prompt for the tab folder failed; using the launch folder's", "dir", dir, "error", err)
+		return a.systemPrompt.Get()
+	}
+	return p
+}
+
+// sameFolder reports whether two paths name the same folder.
+func sameFolder(a, b string) bool {
+	if a == "" || b == "" {
+		return a == b
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
 }
 
 func (a *sessionAgent) SetSystemPrompt(systemPrompt string) {

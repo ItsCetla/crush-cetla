@@ -276,6 +276,7 @@ func sessionToProto(s session.Session) proto.Session {
 		Cost:             s.Cost,
 		Todos:            todosToProto(s.Todos),
 		Channel:          s.Channel,
+		WorkingDir:       s.WorkingDir,
 		CreatedAt:        s.CreatedAt,
 		UpdatedAt:        s.UpdatedAt,
 	}

@@ -10,6 +10,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/artifacts"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 //go:embed artifact.md
@@ -57,13 +58,15 @@ func withSchema[T any](t fantasy.AgentTool) fantasy.AgentTool {
 // artifact_comments tools.
 func NewArtifactTools(svc *artifacts.Service, permissions permission.Service, workingDir string) []fantasy.AgentTool {
 	env := func(ctx context.Context) artifacts.CallEnv {
-		return artifacts.CallEnv{WorkingDir: workingDir, Project: workingDir, SessionID: GetSessionFromContext(ctx)}
+		dir := workdir.From(ctx, workingDir)
+		return artifacts.CallEnv{WorkingDir: dir, Project: dir, SessionID: GetSessionFromContext(ctx)}
 	}
 
 	artifact := fantasy.NewAgentTool(
 		ArtifactToolName,
 		artifactDescription,
 		func(ctx context.Context, params artifacts.ArtifactParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			action := strings.ToLower(strings.TrimSpace(params.Action))
 			sessionID := GetSessionFromContext(ctx)
 			switch action {

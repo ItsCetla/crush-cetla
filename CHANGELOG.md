@@ -7,6 +7,17 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Added
+
+- **A folder per tab.** `/cd <path>` (also `/directory` and `/dir`) moves
+  the tab in view to another project. The AI's tools, permission checks,
+  system prompt and the Claude Code engine use that folder from the next
+  turn, and file completions, the file picker, the sidebar and the window
+  title follow it. `/cd` alone shows the folder and `/cd -` goes back to
+  the start folder. The folder is saved with the session. Language
+  servers, project config and Magic Context's project memory stay with the
+  start folder.
+
 ## [0.5.13] - 2026-10-21
 
 ### Added

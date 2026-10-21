@@ -7,6 +7,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 // MachinesToolName is the name of the machines tool.
@@ -20,6 +21,7 @@ func NewMachinesTool(store fleet.Store, permissions permission.Service, workingD
 		MachinesToolName,
 		fleet.ToolDescription,
 		func(ctx context.Context, params fleet.Params, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.Changes() {
 				ok, err := permissions.Request(ctx, permission.CreatePermissionRequest{
 					SessionID:   GetSessionFromContext(ctx),

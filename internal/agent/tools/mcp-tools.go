@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/crush/internal/agent/tools/mcp"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 // whitelistDockerTools contains Docker MCP tools that don't require permission.
@@ -117,7 +118,7 @@ func (m *Tool) Run(ctx context.Context, params fantasy.ToolCall) (fantasy.ToolRe
 			permission.CreatePermissionRequest{
 				SessionID:   sessionID,
 				ToolCallID:  params.ID,
-				Path:        m.workingDir,
+				Path:        workdir.From(ctx, m.workingDir),
 				ToolName:    m.Info().Name,
 				Action:      "execute",
 				Description: permissionDescription,

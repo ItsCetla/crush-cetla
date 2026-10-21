@@ -26,6 +26,8 @@ const FilePickerID = "filepicker"
 // FilePicker is a dialog that allows users to select files or directories.
 type FilePicker struct {
 	com *common.Common
+	// dir is the folder the picker starts in; "" is the workspace folder.
+	dir string
 
 	imgEnc                      fimage.Encoding
 	imgPrevWidth, imgPrevHeight int
@@ -57,10 +59,12 @@ func (f *FilePicker) CellSize() fimage.CellSize {
 
 var _ Dialog = (*FilePicker)(nil)
 
-// NewFilePicker creates a new [FilePicker] dialog.
-func NewFilePicker(com *common.Common) (*FilePicker, tea.Cmd) {
+// NewFilePicker creates a new [FilePicker] dialog that starts in dir, or
+// in the workspace folder when dir is empty.
+func NewFilePicker(com *common.Common, dir string) (*FilePicker, tea.Cmd) {
 	f := new(FilePicker)
 	f.com = com
+	f.dir = dir
 
 	help := help.New()
 	help.Styles = com.Styles.DialogHelpStyles()
@@ -123,6 +127,9 @@ func (f *FilePicker) SetImageCapabilities(caps *common.Capabilities) {
 
 // WorkingDir returns the current working directory of the [FilePicker].
 func (f *FilePicker) WorkingDir() string {
+	if f.dir != "" {
+		return f.dir
+	}
 	wd := f.com.Workspace.WorkingDir()
 	if len(wd) > 0 {
 		return wd

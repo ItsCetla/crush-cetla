@@ -82,7 +82,7 @@ func (m *UI) updateSidebarScrollState() {
 	if state := m.sessionStateText(t.Control.Muted, time.Now()); state != "" {
 		title = lipgloss.JoinVertical(lipgloss.Left, title, ansi.Truncate(state, contentWidth, "…"))
 	}
-	cwd := common.PrettyPathWithBranch(t, m.com.Workspace.WorkingDir(), m.gitBranch, contentWidth)
+	cwd := common.PrettyPathWithBranch(t, m.tabWorkingDir(), m.tabGitBranch(), contentWidth)
 	sidebarLogo := m.sidebarLogo
 	if height < logoHeightBreakpoint {
 		sidebarLogo = lipgloss.JoinVertical(lipgloss.Left, logo.SmallRender(m.com.Styles, contentWidth, logo.Opts{}), "")
@@ -100,7 +100,7 @@ func (m *UI) updateSidebarScrollState() {
 	lspSection := m.lspInfo(contentWidth, len(m.lspStates), true)
 	mcpSection := m.mcpInfo(contentWidth, mcpCount(m.com.Config().MCP.Sorted(), m.mcpStates), true)
 	skillsSection := m.skillsInfo(contentWidth, len(m.skillStatusItems()), true)
-	filesSection := m.filesInfo(m.com.Workspace.WorkingDir(), contentWidth, fileChangeCount(m.sessionFiles), true)
+	filesSection := m.filesInfo(m.tabWorkingDir(), contentWidth, fileChangeCount(m.sessionFiles), true)
 
 	// Build the scrollable content.
 	content := lipgloss.JoinVertical(

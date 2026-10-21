@@ -12,6 +12,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 //go:embed web_fetch.md.tpl
@@ -41,6 +42,7 @@ func NewWebFetchTool(permissions permission.Service, workingDir string, client *
 		WebFetchToolName,
 		renderToolDescription(webFetchDescriptionTpl),
 		func(ctx context.Context, params WebFetchParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.URL == "" {
 				return fantasy.NewTextErrorResponse("url is required"), nil
 			}

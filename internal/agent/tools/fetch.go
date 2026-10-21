@@ -15,6 +15,7 @@ import (
 	md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 const (
@@ -59,6 +60,7 @@ func NewFetchTool(permissions permission.Service, workingDir string, client *htt
 		FetchToolName,
 		fetchDescription(),
 		func(ctx context.Context, params FetchParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.URL == "" {
 				return fantasy.NewTextErrorResponse("URL parameter is required"), nil
 			}

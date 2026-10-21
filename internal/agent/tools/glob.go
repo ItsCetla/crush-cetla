@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/filepathext"
 	"github.com/charmbracelet/crush/internal/fsext"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 const GlobToolName = "glob"
@@ -55,6 +56,7 @@ func NewGlobTool(workingDir string, cfg config.ToolGlob) fantasy.AgentTool {
 		GlobToolName,
 		globDescription(),
 		func(ctx context.Context, params GlobParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.Pattern == "" {
 				return fantasy.NewTextErrorResponse("pattern is required"), nil
 			}

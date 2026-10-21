@@ -14,6 +14,7 @@ import (
 
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/pubsub"
+	"github.com/charmbracelet/crush/internal/workdir"
 	"github.com/google/uuid"
 )
 
@@ -216,7 +217,10 @@ func (s *permissionService) Deny(permission PermissionRequest) bool {
 }
 
 func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRequest) (bool, error) {
-	class := Classify(opts, s.workingDir)
+	// A tab moved to another folder with /cd carries that folder in the
+	// context, and "inside the project" means inside that folder.
+	workingDir := workdir.From(ctx, s.workingDir)
+	class := Classify(opts, workingDir)
 	policy := s.currentPolicy()
 	alwaysAsk := policy.Asks(class)
 
@@ -233,7 +237,7 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 	// file they write resolves, symlinks included, inside the working
 	// directory. Anything else falls through to the normal prompt.
 	if slices.Contains(s.projectAllowedTools, opts.ToolName) {
-		if target, ok := opts.Params.(FileTarget); ok && editableInProject(s.workingDir, target.TargetFile()) {
+		if target, ok := opts.Params.(FileTarget); ok && editableInProject(workingDir, target.TargetFile()) {
 			s.record(opts, class, DecisionAllowed, ViaProject)
 			return true, nil
 		}
@@ -316,7 +320,7 @@ func (s *permissionService) Request(ctx context.Context, opts CreatePermissionRe
 	}
 
 	if dir == "." {
-		dir = s.workingDir
+		dir = workingDir
 	}
 	permission := PermissionRequest{
 		ID:          uuid.New().String(),

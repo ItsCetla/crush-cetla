@@ -24,6 +24,7 @@ type Session struct {
 	Cost             float64 `json:"cost"`
 	Todos            []Todo  `json:"todos,omitempty"`
 	Channel          string  `json:"channel,omitempty"`
+	WorkingDir       string  `json:"working_dir,omitempty"`
 	CreatedAt        int64   `json:"created_at"`
 	UpdatedAt        int64   `json:"updated_at"`
 	IsBusy           bool    `json:"is_busy"`
@@ -35,4 +36,10 @@ type Todo struct {
 	Content    string `json:"content"`
 	Status     string `json:"status"`
 	ActiveForm string `json:"active_form"`
+}
+
+// SetSessionWorkingDirRequest sets the folder a session works in. An
+// empty WorkingDir goes back to the folder Ta-Da was launched in.
+type SetSessionWorkingDirRequest struct {
+	WorkingDir string `json:"working_dir"`
 }

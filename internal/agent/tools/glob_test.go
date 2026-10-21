@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"charm.land/fantasy"
+	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/workdir"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,4 +74,25 @@ func TestGlobFilesCapsResultsOnLargeTree(t *testing.T) {
 	require.NoError(t, err)
 	require.LessOrEqual(t, len(got), 10, "must not exceed limit")
 	require.True(t, truncated, "should report truncation on an over-limit tree")
+}
+
+func TestGlobToolUsesTabFolder(t *testing.T) {
+	t.Parallel()
+
+	launch := t.TempDir()
+	other := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(launch, "launch.go"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(other, "moved.go"), []byte("x"), 0o644))
+
+	tool := NewGlobTool(launch, config.ToolGlob{})
+	run := func(ctx context.Context) string {
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "1", Name: GlobToolName, Input: `{"pattern":"*.go"}`})
+		require.NoError(t, err)
+		return resp.Content
+	}
+
+	require.Contains(t, run(context.Background()), "launch.go")
+	got := run(workdir.With(context.Background(), other))
+	require.Contains(t, got, "moved.go")
+	require.NotContains(t, got, "launch.go")
 }

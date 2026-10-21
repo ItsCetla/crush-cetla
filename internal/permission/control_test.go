@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/workdir"
 	"github.com/stretchr/testify/require"
 )
 
@@ -367,6 +368,26 @@ func TestEditsModeApprovesOnlyProjectEdits(t *testing.T) {
 	// A git hook is inside the project but runs later, so it asks too.
 	got = answer(t, s, true)
 	ok, err = s.Request(ctx, CreatePermissionRequest{SessionID: "s", ToolName: "write", Params: fileParams{filepath.Join(root, ".git", "hooks", "pre-commit")}})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, ClassOutside, (<-got).Class)
+}
+
+func TestEditsModeFollowsTabFolder(t *testing.T) {
+	t.Parallel()
+	s, root := newControlService(t)
+	s.SetEditsMode(true)
+	other := t.TempDir()
+	ctx := workdir.With(context.Background(), other)
+
+	// The tab's folder is the project for this request.
+	ok, err := s.Request(ctx, CreatePermissionRequest{SessionID: "s", ToolName: "edit", Params: fileParams{filepath.Join(other, "a.go")}})
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	// The launch folder is outside it now, so Edits mode asks.
+	got := answer(t, s, true)
+	ok, err = s.Request(ctx, CreatePermissionRequest{SessionID: "s", ToolName: "edit", Params: fileParams{filepath.Join(root, "a.go")}})
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, ClassOutside, (<-got).Class)

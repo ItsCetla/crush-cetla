@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -23,6 +24,7 @@ import (
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/session"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 // The Claude Code engine runs the user's own `claude` CLI for a turn
@@ -133,7 +135,13 @@ func (a *sessionAgent) runClaudeCode(
 		return nil, budgetError(err)
 	}
 
+	// The CLI keeps its sessions per folder, so a tab moved with /cd
+	// starts a new CLI session there and gets the history replayed.
+	dir := workdir.From(ctx, a.workDir)
 	ccSession := claudecode.SessionUUID(call.SessionID)
+	if !sameFolder(dir, a.workDir) {
+		ccSession = claudecode.SessionUUID(call.SessionID + "\x00" + filepath.Clean(dir))
+	}
 	_, known := ccKnownSessions.Load(ccSession)
 	resume := known || claudecode.SessionExists(ccSession)
 
@@ -145,7 +153,7 @@ func (a *sessionAgent) runClaudeCode(
 	}
 	opts := claudecode.TurnOptions{
 		Binary:         model.ClaudeBinary,
-		WorkDir:        a.workDir,
+		WorkDir:        dir,
 		Model:          model.ModelCfg.Model,
 		PermissionMode: mode,
 		Effort:         config.ClaudeCodeEffort(model.CatwalkCfg, model.ModelCfg),
@@ -720,7 +728,7 @@ func (r *ccRun) onUser(ev claudecode.Event) error {
 			if tu.name == "TodoWrite" {
 				meta = r.saveTodos(tu.input)
 			} else {
-				meta = ccToolMetadata(tu.name, tu.input, structured, text, r.a.workDir)
+				meta = ccToolMetadata(tu.name, tu.input, structured, text, workdir.From(r.ctx, r.a.workDir))
 			}
 		}
 		tr := message.ToolResult{
@@ -804,7 +812,7 @@ func (r *ccRun) canUseTool(ctx context.Context, req claudecode.PermissionRequest
 		r.denied.Store(true)
 		return claudecode.Decision{Message: "Ta-Da has no permission service for this session.", Interrupt: true}
 	}
-	name, action, description, path, params := ccPermission(req, r.a.workDir)
+	name, action, description, path, params := ccPermission(req, workdir.From(r.ctx, r.a.workDir))
 	asked := time.Now()
 	ok, err := r.a.permissions.Request(ctx, permission.CreatePermissionRequest{
 		SessionID:   r.call.SessionID,

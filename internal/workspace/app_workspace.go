@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/workdir"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/agent"
@@ -61,6 +62,13 @@ func (w *AppWorkspace) ListSessions(ctx context.Context) ([]session.Session, err
 
 func (w *AppWorkspace) SaveSession(ctx context.Context, sess session.Session) (session.Session, error) {
 	return w.app.Sessions.Save(ctx, sess)
+}
+
+func (w *AppWorkspace) SetSessionWorkingDir(ctx context.Context, sessionID, dir string) (session.Session, error) {
+	if err := workdir.Check(dir); err != nil {
+		return session.Session{}, err
+	}
+	return w.app.Sessions.SetWorkingDir(ctx, sessionID, dir)
 }
 
 func (w *AppWorkspace) DeleteSession(ctx context.Context, sessionID string) error {

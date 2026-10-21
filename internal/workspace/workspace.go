@@ -123,6 +123,9 @@ type Workspace interface {
 	ListSessions(ctx context.Context) ([]session.Session, error)
 	SaveSession(ctx context.Context, sess session.Session) (session.Session, error)
 	DeleteSession(ctx context.Context, sessionID string) error
+	// SetSessionWorkingDir sets the folder the session works in. dir is
+	// absolute; empty goes back to the launch folder.
+	SetSessionWorkingDir(ctx context.Context, sessionID, dir string) (session.Session, error)
 	CreateAgentToolSessionID(messageID, toolCallID string) string
 	ParseAgentToolSessionID(sessionID string) (messageID string, toolCallID string, ok bool)
 	// SetCurrentSession reports the session this client is currently

@@ -828,6 +828,7 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		WorkDir:              c.cfg.WorkingDir(),
 		ClaudeCodeArgs:       c.claudeCodeArgs(isSubAgent),
 		Control:              c.agentControl(),
+		SystemPromptForDir:   c.promptForDir(prompt, large, isSubAgent),
 	})
 
 	// The readiness goroutines below perform one-time setup — building the
@@ -843,20 +844,9 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 	initCtx := context.WithoutCancel(ctx)
 
 	c.readyWg.Go(func() error {
-		systemPrompt, err := prompt.Build(initCtx, large.Model.Provider(), large.Model.Model(), c.cfg)
+		systemPrompt, err := c.buildSystemPrompt(initCtx, prompt, large, isSubAgent, true)
 		if err != nil {
 			return err
-		}
-		richOn := c.cfg.Config().Options.TUI.RichBlocksEnabled()
-		systemPrompt = withRichBlocksHint(systemPrompt, c.interactive, isSubAgent, richOn)
-		if !isSubAgent && !large.ClaudeCode && len(c.cfg.Config().Machines) > 0 {
-			// Ask the machines first, so the prompt has their live slots.
-			refreshCtx, cancel := context.WithTimeout(initCtx, 2*time.Second)
-			fleet.Refresh(refreshCtx, c.cfg.Config())
-			cancel()
-			if section := fleet.PromptSection(c.cfg.Config(), "the agent tool's machine parameter"); section != "" {
-				systemPrompt += "\n\n" + section
-			}
 		}
 		result.SetSystemPrompt(systemPrompt)
 		return nil
@@ -875,6 +865,51 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 	})
 
 	return result, nil
+}
+
+// buildSystemPrompt builds an agent's system prompt from p. refresh asks
+// the fleet machines for their live slots first; tab folder prompts skip
+// that and use the slots already known.
+func (c *coordinator) buildSystemPrompt(ctx context.Context, p *prompt.Prompt, large Model, isSubAgent, refresh bool) (string, error) {
+	systemPrompt, err := p.Build(ctx, large.Model.Provider(), large.Model.Model(), c.cfg)
+	if err != nil {
+		return "", err
+	}
+	richOn := c.cfg.Config().Options.TUI.RichBlocksEnabled()
+	systemPrompt = withRichBlocksHint(systemPrompt, c.interactive, isSubAgent, richOn)
+	if !isSubAgent && !large.ClaudeCode && len(c.cfg.Config().Machines) > 0 {
+		if refresh {
+			// Ask the machines first, so the prompt has their live slots.
+			refreshCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			fleet.Refresh(refreshCtx, c.cfg.Config())
+			cancel()
+		}
+		if section := fleet.PromptSection(c.cfg.Config(), "the agent tool's machine parameter"); section != "" {
+			systemPrompt += "\n\n" + section
+		}
+	}
+	return systemPrompt, nil
+}
+
+// promptForDir returns the builder for the system prompt of a tab that
+// works in another folder. Each folder's prompt is built once and reused,
+// so the prompt stays the same across turns and provider caching holds.
+func (c *coordinator) promptForDir(p *prompt.Prompt, large Model, isSubAgent bool) func(context.Context, string) (string, error) {
+	var mu sync.Mutex
+	cache := map[string]string{}
+	return func(ctx context.Context, dir string) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s, ok := cache[dir]; ok {
+			return s, nil
+		}
+		s, err := c.buildSystemPrompt(ctx, p.InDir(dir), large, isSubAgent, false)
+		if err != nil {
+			return "", err
+		}
+		cache[dir] = s
+		return s, nil
+	}
 }
 
 func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubAgent bool) ([]fantasy.AgentTool, error) {

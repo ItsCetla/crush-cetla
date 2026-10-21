@@ -170,6 +170,14 @@ func (w *ClientWorkspace) SaveSession(ctx context.Context, sess session.Session)
 	return protoToSession(*saved), nil
 }
 
+func (w *ClientWorkspace) SetSessionWorkingDir(ctx context.Context, sessionID, dir string) (session.Session, error) {
+	saved, err := w.client.SetSessionWorkingDir(ctx, w.workspaceID(), sessionID, dir)
+	if err != nil {
+		return session.Session{}, err
+	}
+	return protoToSession(*saved), nil
+}
+
 func (w *ClientWorkspace) DeleteSession(ctx context.Context, sessionID string) error {
 	return w.client.DeleteSession(ctx, w.workspaceID(), sessionID)
 }
@@ -1329,6 +1337,7 @@ func protoToSession(s proto.Session) session.Session {
 		Cost:             s.Cost,
 		Todos:            protoToTodos(s.Todos),
 		Channel:          s.Channel,
+		WorkingDir:       s.WorkingDir,
 		CreatedAt:        s.CreatedAt,
 		UpdatedAt:        s.UpdatedAt,
 	}
@@ -1456,6 +1465,7 @@ func sessionToProto(s session.Session) proto.Session {
 		Cost:             s.Cost,
 		Todos:            todosToProto(s.Todos),
 		Channel:          s.Channel,
+		WorkingDir:       s.WorkingDir,
 		CreatedAt:        s.CreatedAt,
 		UpdatedAt:        s.UpdatedAt,
 	}

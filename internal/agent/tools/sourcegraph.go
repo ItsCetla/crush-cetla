@@ -14,6 +14,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/workdir"
 )
 
 type SourcegraphParams struct {
@@ -83,6 +84,7 @@ func NewSourcegraphTool(permissions permission.Service, workingDir string, clien
 		SourcegraphToolName,
 		sourcegraphDescription(),
 		func(ctx context.Context, params SourcegraphParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.Query == "" {
 				return fantasy.NewTextErrorResponse("Query parameter is required"), nil
 			}

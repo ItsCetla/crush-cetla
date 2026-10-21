@@ -59,6 +59,12 @@ SET channel = ?
 WHERE id = ?
 RETURNING *;
 
+-- name: SetSessionWorkingDir :one
+UPDATE sessions
+SET working_dir = ?
+WHERE id = ?
+RETURNING *;
+
 -- name: UpdateSessionTitleAndUsage :exec
 UPDATE sessions
 SET

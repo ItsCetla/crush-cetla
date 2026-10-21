@@ -1653,6 +1653,8 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chat.AppendMessages(item)
 			m.chat.ScrollToBottom()
 		}
+	case sessionWorkingDirMsg:
+		cmds = append(cmds, m.handleSessionWorkingDir(msg))
 	case gitBranchUpdatedMsg:
 		m.gitBranch = msg.branch
 	case gitBranchPollMsg:
@@ -1797,15 +1799,15 @@ func (m *UI) setSessionMessages(msgs []message.Message) tea.Cmd {
 		switch msg.Role {
 		case message.User:
 			m.lastUserMessageTime = msg.CreatedAt
-			items = append(items, chat.ExtractMessageItems(m.com.Styles, msg, toolResultMap, m.com.Workspace.WorkingDir())...)
+			items = append(items, chat.ExtractMessageItems(m.com.Styles, msg, toolResultMap, m.tabWorkingDir())...)
 		case message.Assistant:
-			items = append(items, chat.ExtractMessageItems(m.com.Styles, msg, toolResultMap, m.com.Workspace.WorkingDir())...)
+			items = append(items, chat.ExtractMessageItems(m.com.Styles, msg, toolResultMap, m.tabWorkingDir())...)
 			if chat.ShouldShowAssistantInfo(msg) {
 				infoItem := chat.NewAssistantInfoItem(m.com.Styles, msg, m.com.Config(), time.Unix(m.lastUserMessageTime, 0))
 				items = append(items, infoItem)
 			}
 		default:
-			items = append(items, chat.ExtractMessageItems(m.com.Styles, msg, toolResultMap, m.com.Workspace.WorkingDir())...)
+			items = append(items, chat.ExtractMessageItems(m.com.Styles, msg, toolResultMap, m.tabWorkingDir())...)
 		}
 	}
 
@@ -1911,7 +1913,7 @@ func (m *UI) loadNestedToolCalls(items []chat.MessageItem) {
 		// Extract nested tool items.
 		var nestedTools []chat.ToolMessageItem
 		for _, nestedMsg := range nestedMsgPtrs {
-			nestedItems := chat.ExtractMessageItems(m.com.Styles, nestedMsg, nestedToolResultMap, m.com.Workspace.WorkingDir())
+			nestedItems := chat.ExtractMessageItems(m.com.Styles, nestedMsg, nestedToolResultMap, m.tabWorkingDir())
 			for _, nestedItem := range nestedItems {
 				if nestedToolItem, ok := nestedItem.(chat.ToolMessageItem); ok {
 					// Mark nested tools as simple (compact) rendering.
@@ -1985,11 +1987,11 @@ func (m *UI) appendSessionMessage(msg message.Message) tea.Cmd {
 		if m.pending.echo != nil && m.pending.sessionID == msg.SessionID {
 			m.dropPendingEcho()
 		}
-		items := chat.ExtractMessageItems(m.com.Styles, &msg, nil, m.com.Workspace.WorkingDir())
+		items := chat.ExtractMessageItems(m.com.Styles, &msg, nil, m.tabWorkingDir())
 		m.chat.AppendMessages(items...)
 		m.chat.ScrollToBottom()
 	case message.Assistant:
-		items := chat.ExtractMessageItems(m.com.Styles, &msg, nil, m.com.Workspace.WorkingDir())
+		items := chat.ExtractMessageItems(m.com.Styles, &msg, nil, m.tabWorkingDir())
 		m.setMessagePlanFlags(items)
 		m.chat.AppendMessages(items...)
 		if m.chat.Follow() {
@@ -2130,7 +2132,7 @@ func (m *UI) updateSessionMessage(msg message.Message) tea.Cmd {
 			}
 		}
 		if existingToolItem == nil {
-			items = append(items, chat.NewToolMessageItem(m.com.Styles, msg.ID, tc, nil, false, m.com.Workspace.WorkingDir()))
+			items = append(items, chat.NewToolMessageItem(m.com.Styles, msg.ID, tc, nil, false, m.tabWorkingDir()))
 		}
 	}
 
@@ -2200,7 +2202,7 @@ func (m *UI) handleChildSessionMessage(event pubsub.Event[message.Message]) tea.
 		}
 		if !found {
 			// Create a new nested tool item.
-			nestedItem := chat.NewToolMessageItem(m.com.Styles, event.Payload.ID, tc, nil, false, m.com.Workspace.WorkingDir())
+			nestedItem := chat.NewToolMessageItem(m.com.Styles, event.Payload.ID, tc, nil, false, m.tabWorkingDir())
 			if simplifiable, ok := nestedItem.(chat.Compactable); ok {
 				simplifiable.SetCompact(true)
 			}
@@ -2297,6 +2299,11 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		m.dialog.CloseDialog(dialog.ResumeID)
 		cmds = append(cmds, m.loadSession(msg.Session.ID))
 
+	case dialog.ActionChangeDir:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		if cmd := m.runCDCommand(msg.Arg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case dialog.ActionOpenResume:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		if cmd := m.openResumeDialog(msg.Query); cmd != nil {
@@ -3466,6 +3473,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					return m.openContextDialog()
 				}
 
+				if arg, ok := parseCDCommand(value, m.bangMode); ok {
+					m.randomizePlaceholders()
+					m.historyReset()
+					return m.runCDCommand(arg)
+				}
+
 				if name, args, ok := m.parseMagicContextCommand(value); ok {
 					m.randomizePlaceholders()
 					m.historyReset()
@@ -3588,7 +3601,7 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 						m.completionsStartIndex = curIdx
 						m.completionsPositionStart = m.completionsPosition()
 						depth, limit := m.com.Config().Options.TUI.Completions.Limits()
-						cmds = append(cmds, m.completions.Open(depth, limit))
+						cmds = append(cmds, m.completions.Open(m.tabFolder(), depth, limit))
 					}
 				}
 
@@ -3781,7 +3794,7 @@ func (m *UI) drawHeader(scr uv.Screen, area uv.Rectangle) {
 		m.detailsOpen,
 		area.Dx(),
 		m.lspErrorCount(),
-		m.gitBranch,
+		m.tabGitBranch(),
 		m.headerState(),
 	)
 }
@@ -4003,7 +4016,7 @@ func (m *UI) View() tea.View {
 	}
 	v.MouseMode = mouseMode(m.mouseEnabled, m.activeInline != nil || m.dialog.HandlesHover())
 	v.ReportFocus = m.caps.ReportFocusEvents
-	v.WindowTitle = "tada " + home.Short(m.com.Workspace.WorkingDir())
+	v.WindowTitle = "tada " + home.Short(m.tabWorkingDir())
 
 	key, cacheable := m.currentFrameKey()
 	if cacheable {
@@ -5181,6 +5194,10 @@ func (m *UI) insertFileCompletion(path string) tea.Cmd {
 			return util.NewWarnMsg("The current model does not support image attachments")
 		}
 
+		// Paths from the completions are relative to the tab's folder.
+		if dir := m.tabFolder(); dir != "" && !filepath.IsAbs(path) {
+			path = filepath.Join(dir, path)
+		}
 		absPath, _ := filepath.Abs(path)
 
 		if m.hasSession() {
@@ -6146,7 +6163,7 @@ func (m *UI) openFilesDialog() tea.Cmd {
 		return nil
 	}
 
-	filePicker, cmd := dialog.NewFilePicker(m.com)
+	filePicker, cmd := dialog.NewFilePicker(m.com, m.tabFolder())
 	filePicker.SetImageCapabilities(&m.caps)
 	m.dialog.OpenDialog(filePicker)
 
@@ -6710,7 +6727,7 @@ func (m *UI) drawSessionDetails(scr uv.Screen, area uv.Rectangle) {
 	lspSection := m.lspInfo(sectionWidth, maxItemsPerSection, false)
 	mcpSection := m.mcpInfo(sectionWidth, maxItemsPerSection, false)
 	skillsSection := m.skillsInfo(sectionWidth, maxItemsPerSection, false)
-	filesSection := m.filesInfo(m.com.Workspace.WorkingDir(), sectionWidth, maxItemsPerSection, false)
+	filesSection := m.filesInfo(m.tabWorkingDir(), sectionWidth, maxItemsPerSection, false)
 	sections := lipgloss.JoinHorizontal(lipgloss.Top, filesSection, " ", lspSection, " ", mcpSection, " ", skillsSection)
 	uv.NewStyledString(
 		s.CompactDetails.View.

@@ -140,13 +140,14 @@ func (c *Completions) KeyMap() KeyMap {
 	return c.keyMap
 }
 
-// Open opens the completions with file items from the filesystem.
-func (c *Completions) Open(depth, limit int) tea.Cmd {
+// Open opens the completions with file items from dir ("" is the folder
+// Ta-Da runs in). File paths are relative to dir.
+func (c *Completions) Open(dir string, depth, limit int) tea.Cmd {
 	return func() tea.Msg {
 		var msg CompletionItemsLoadedMsg
 		var wg sync.WaitGroup
 		wg.Go(func() {
-			msg.Files = loadFiles(depth, limit)
+			msg.Files = loadFiles(dir, depth, limit)
 		})
 		wg.Go(func() {
 			msg.Resources = loadMCPResources()
@@ -404,14 +405,24 @@ func (c *Completions) Render() string {
 	return c.list.List.Render()
 }
 
-func loadFiles(depth, limit int) []FileCompletionValue {
-	files, _, _ := fsext.ListDirectory(".", nil, depth, limit)
+func loadFiles(dir string, depth, limit int) []FileCompletionValue {
+	if dir == "" {
+		dir = "."
+	}
+	files, _, _ := fsext.ListDirectory(dir, nil, depth, limit)
 	slices.Sort(files)
 	result := make([]FileCompletionValue, 0, len(files))
 	for _, file := range files {
-		result = append(result, FileCompletionValue{
-			Path: strings.TrimPrefix(file, "./"),
-		})
+		path := strings.TrimPrefix(file, "./")
+		if dir != "." {
+			if rel, err := filepath.Rel(dir, file); err == nil {
+				if strings.HasSuffix(file, "/") || strings.HasSuffix(file, string(filepath.Separator)) {
+					rel += string(filepath.Separator)
+				}
+				path = rel
+			}
+		}
+		result = append(result, FileCompletionValue{Path: path})
 	}
 	return result
 }

@@ -169,6 +169,9 @@ func renderHeaderDetails(
 
 	const dirTrimLimit = 4
 	workingDir := com.Workspace.WorkingDir()
+	if session.WorkingDir != "" {
+		workingDir = session.WorkingDir
+	}
 	cwd := t.Header.WorkingDir.Render(fsext.DirTrim(fsext.PrettyPath(workingDir), dirTrimLimit))
 
 	if gitBranch != "" {

@@ -71,6 +71,43 @@ func TestSessionChannelPersists(t *testing.T) {
 	require.Equal(t, "signal", fetched.Channel)
 }
 
+func TestSessionWorkingDirPersists(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	t.Cleanup(func() {
+		require.NoError(t, db.Release(dataDir))
+		db.ResetPool()
+	})
+
+	conn, err := db.Connect(t.Context(), dataDir)
+	require.NoError(t, err)
+	sessions := NewService(db.New(conn), conn)
+
+	created, err := sessions.Create(t.Context(), "folder")
+	require.NoError(t, err)
+	require.Empty(t, created.WorkingDir)
+
+	dir := t.TempDir()
+	updated, err := sessions.SetWorkingDir(t.Context(), created.ID, dir)
+	require.NoError(t, err)
+	require.Equal(t, dir, updated.WorkingDir)
+
+	// A plain save must not drop the folder.
+	updated.Title = "renamed"
+	_, err = sessions.Save(t.Context(), updated)
+	require.NoError(t, err)
+	fetched, err := sessions.Get(t.Context(), created.ID)
+	require.NoError(t, err)
+	require.Equal(t, dir, fetched.WorkingDir)
+
+	reset, err := sessions.SetWorkingDir(t.Context(), created.ID, "")
+	require.NoError(t, err)
+	require.Empty(t, reset.WorkingDir)
+	fetched, err = sessions.Get(t.Context(), created.ID)
+	require.NoError(t, err)
+	require.Empty(t, fetched.WorkingDir)
+}
+
 func TestMCPServerDisabledRoundTrip(t *testing.T) {
 	dataDir := t.TempDir()
 	t.Cleanup(func() {

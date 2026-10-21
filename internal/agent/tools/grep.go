@@ -23,6 +23,7 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/fsext"
+	"github.com/charmbracelet/crush/internal/workdir"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -126,6 +127,7 @@ func NewGrepTool(workingDir string, config config.ToolGrep) fantasy.AgentTool {
 		GrepToolName,
 		grepDescription(),
 		func(ctx context.Context, params GrepParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workingDir := workdir.From(ctx, workingDir)
 			if params.Pattern == "" {
 				return fantasy.NewTextErrorResponse("pattern is required"), nil
 			}

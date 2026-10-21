@@ -878,6 +878,28 @@ func (c *Client) SaveSession(ctx context.Context, id string, sess proto.Session)
 	return &saved, nil
 }
 
+// SetSessionWorkingDir sets the folder a session works in. An empty dir
+// goes back to the launch folder.
+func (c *Client) SetSessionWorkingDir(ctx context.Context, id, sessionID, dir string) (*proto.Session, error) {
+	rsp, err := c.put(ctx, fmt.Sprintf("/workspaces/%s/sessions/%s/working-dir", id, sessionID), nil, jsonBody(proto.SetSessionWorkingDirRequest{WorkingDir: dir}), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set session folder: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		var apiErr proto.Error
+		if json.NewDecoder(rsp.Body).Decode(&apiErr) == nil && apiErr.Message != "" {
+			return nil, errors.New(apiErr.Message)
+		}
+		return nil, fmt.Errorf("failed to set session folder: status code %d", rsp.StatusCode)
+	}
+	var saved proto.Session
+	if err := json.NewDecoder(rsp.Body).Decode(&saved); err != nil {
+		return nil, fmt.Errorf("failed to decode session: %w", err)
+	}
+	return &saved, nil
+}
+
 // DeleteSession deletes a session from a workspace.
 func (c *Client) DeleteSession(ctx context.Context, id string, sessionID string) error {
 	rsp, err := c.delete(ctx, fmt.Sprintf("/workspaces/%s/sessions/%s", id, sessionID), nil, nil)
