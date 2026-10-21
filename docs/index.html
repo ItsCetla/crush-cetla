@@ -122,7 +122,7 @@
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>Manual, Plan, Edits or Auto</h3>
-            <p><kbd>shift+tab</kbd> cycles four permission modes, always shown in the status bar. <strong>Manual</strong> asks before edits and commands, <strong>Plan</strong> talks it through before any code, <strong>Edits</strong> approves file edits inside the project and asks for the rest, and <strong>Auto</strong> skips prompts while system level commands stay blocked. Every prompt says what kind of action it is, deletes always ask, and <kbd>ctrl+q</kbd> takes back control from any screen.</p>
+            <p><kbd>shift+tab</kbd> cycles four permission modes, always shown in the status bar. <strong>Manual</strong> asks before edits and commands, <strong>Plan</strong> talks it through before any code, <strong>Edits</strong> approves file edits inside the project and asks for the rest, and <strong>Auto</strong> skips prompts while system level commands stay blocked. Every prompt says what kind of action it is, deletes always ask, and <kbd>ctrl+q</kbd> takes back control from any screen. Any prompt can also <strong>Allow &amp; Continue in Auto</strong> (<kbd>c</kbd>) when you're happy to let the run finish on its own.</p>
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13.5 6l-3 12"/></svg></span>Claude Code inside Ta-Da</h3>
@@ -130,7 +130,7 @@
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="9" height="7" rx="1"/><rect x="13" y="4" width="9" height="7" rx="1"/><rect x="7.5" y="15" width="9" height="6" rx="1"/><path d="M6.5 11v2h11v-2M12 13v2"/></svg></span>Your other computers, put to work</h3>
-            <p>Got an M1 with room for 4 agents and a 3060 Ti with room for 2? Type <code>/machines</code> to add them by IP, see which are online and how many slots are free, and switch them on or off. Or use <code>machine add</code> in <code>tadarc</code>, <code>tada machines add</code>, or just tell the AI. It hands them side work in parallel and falls back to your main model when one drops.</p>
+            <p>Got an M1 with room for 4 agents and a 3060 Ti with room for 2? Type <code>/machines</code> to add them by IP, see which are online and how many slots are free, and switch them on or off. Or use <code>machine add</code> in <code>tadarc</code>, <code>tada machines add</code>, or just tell the AI. It hands them side work in parallel and falls back to your main model when one drops. Give each machine a role in <code>/model</code> → <strong>Machines</strong>, or let your main AI suggest one from its hardware and model.</p>
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-5"/><path d="M4 18h16"/></svg></span>Cockpit, budgets and missions</h3>
@@ -153,6 +153,10 @@
             <p>Every tag builds six archives and two Windows installers in a public GitHub Actions run with pinned actions, ships a <code>SHA256SUMS.txt</code>, and lands as a draft release that is reviewed before it is published.</p>
           </article>
           <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/><path d="m15 16 2 2 3-3"/></svg></span>Long chats keep going</h3>
+            <p>When a conversation outgrows the model's context window, Ta-Da summarizes it and sends the request again instead of stopping with an error. Auto-summarize leaves room for the reply, and models without a published window learn theirs from the first overflow.</p>
+          </article>
+          <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5M12 8v5l3 2"/></svg></span>Updates when you say so</h3>
             <p><code>tada update</code> fetches the newest release, checks it against <code>SHA256SUMS.txt</code> and swaps the binary in place. Ta-Da mentions a new version once; it never downloads on its own, and the check can be turned off.</p>
           </article>
@@ -168,13 +172,15 @@
       <div class="container">
         <div class="feature-grid feature-flip">
           <div class="feature-copy">
-            <span class="eyebrow">New in 0.3.0</span>
+            <span class="eyebrow">Tabs updated in 0.5.11</span>
             <h2 id="chat-title">Tables, charts and tabs in the terminal.</h2>
             <p>Replies are easier to read without leaving the terminal. Everything is drawn locally from the reply's own text; nothing is fetched.</p>
             <ul>
               <li>Markdown tables become bordered tables with numbers lined up on the decimal point. Too wide for the window, they shrink text columns first and never cut a number.</li>
               <li><code>```chart</code> blocks draw as bar, horizontal bar, line or sparkline charts in the theme's colours. A broken chart shows its source and the reason.</li>
               <li>Session tabs: sessions you open stay above the chat, with a <kbd>+</kbd> to start another. Click one or press <kbd>alt+1</kbd>…<kbd>alt+9</kbd>, <kbd>ctrl+pgdown</kbd> and <kbd>ctrl+pgup</kbd> step through them, and <kbd>alt+w</kbd> closes one. Each tab shows what its session is doing: a spinner while it works, <code>◎</code> when it waits for you, <code>✓</code> when it is done (bold until you look) and how long ago. Click the "needs you" count or press <kbd>alt+0</kbd> to go to the session that is waiting.</li>
+              <li>Tabs you can arrange: <kbd>alt+r</kbd> renames one, <kbd>alt+g</kbd> puts it in a group whose chip folds on a click, and <kbd>alt+a</kbd> sets it aside so it stays quiet. Drag tabs or press <kbd>ctrl+shift+pgup</kbd>/<kbd>pgdn</kbd> to reorder them. Open tabs, names and groups come back the next time you start Ta-Da.</li>
+              <li>A state line under the session title says "Needs you · 2m ago", "Working · 5m" or "Done · just now". Opt in to tabs down the sidebar (<code>options.tui.vertical_tabs</code>), a terminal bell (<code>notify_bell</code>) or your running Claude Code sessions in the sidebar (<code>claude_sessions</code>, read from local files only).</li>
               <li>Diffs from edits wrap long lines instead of cutting them off.</li>
             </ul>
             <p>Copying a reply still gives you the original markdown. Turn the drawing off with <code>options.tui.rich_blocks: false</code> or <code>TADA_NO_RICH=1</code>.</p>

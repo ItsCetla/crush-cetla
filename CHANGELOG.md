@@ -7,6 +7,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.11] - 2026-10-21
+
 ### Added
 
 - **Machines in `/model`.** Tab past Large and Small to **Machines** to pick
@@ -78,6 +80,13 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   Context now reserve the model's output tokens, so a full context no
   longer cuts the answer short.
 - **`/compact` and `/summarize` find the Summarize Session command.**
+
+### Security
+
+- **Tab, group and Claude Code session names can't send terminal escape
+  codes.** Names you type, names restored from the saved tabs file and
+  session names read from `~/.claude/sessions` are cleaned of escape
+  sequences and control characters and capped at 80 characters.
 
 ## [0.5.10] - 2026-10-20
 
@@ -539,7 +548,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.10...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.11...HEAD
+[0.5.11]: https://github.com/ItsCetla/tada/compare/v0.5.10...v0.5.11
 [0.5.10]: https://github.com/ItsCetla/tada/compare/v0.5.9...v0.5.10
 [0.5.9]: https://github.com/ItsCetla/tada/compare/v0.5.8...v0.5.9
 [0.5.8]: https://github.com/ItsCetla/tada/compare/v0.5.7...v0.5.8
