@@ -105,7 +105,7 @@ func (a *sessionAgent) magicContextMessages(
 		SessionID:    sessionID,
 		Messages:     msgs,
 		InputTokens:  sess.PromptTokens + sess.CompletionTokens,
-		ContextLimit: magicContextLimit(model.CatwalkCfg.ContextWindow, maxOutputTokens),
+		ContextLimit: magicContextLimit(a.contextWindow(model), maxOutputTokens),
 		ModelKey:     model.ModelCfg.Provider + "/" + model.ModelCfg.Model,
 		SystemHash:   systemHash(systemPrompt),
 		Reduce:       hasToolNamed(stepTools, magiccontext.CtxReduceToolName),

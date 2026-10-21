@@ -36,6 +36,8 @@ var contextWindowPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)context length of (?:only )?(\d+)`),
 	regexp.MustCompile(`(?i)context (?:window|size|length) (?:of|is) (\d+)`),
 	regexp.MustCompile(`(?i)n_ctx(?:_slot)?\s*[=:]\s*(\d+)`),
+	// LiteLLM: "Max Input Tokens=262144, Got=274491".
+	regexp.MustCompile(`(?i)max(?:imum)?[ _]input[ _]tokens\s*[=:]\s*(\d+)`),
 }
 
 // contextOverflow reports whether err is the provider refusing a prompt
@@ -83,6 +85,35 @@ func contextWindowFromText(texts ...string) int64 {
 		}
 	}
 	return 0
+}
+
+// maxOverflowRetries caps how many times one request is summarized and
+// re-run after outgrowing the context window.
+const maxOverflowRetries = 3
+
+// canRetryOverflow reports whether a turn that overflowed the context
+// window should be summarized and run again. The first overflow always
+// retries. A re-run that overflows again retries only if it finished at
+// least one step first: then summarizing shrinks it. One that fails on
+// its first step is already as small as summarizing makes it.
+func canRetryOverflow(retries, stepsDone int) bool {
+	if retries == 0 {
+		return true
+	}
+	return retries < maxOverflowRetries && stepsDone > 0
+}
+
+// overflowGiveUpMessage explains a context overflow that won't be
+// summarized and retried.
+func overflowGiveUpMessage(autoSummarizeOff, retried bool) string {
+	switch {
+	case autoSummarizeOff:
+		return "The conversation no longer fits the model's context window, and auto-summarize is off. Summarize the session or start a new one."
+	case retried:
+		return "The conversation still doesn't fit the model's context window after summarizing. Start a new session, or ask for the work in smaller steps."
+	default:
+		return "The conversation no longer fits the model's context window. Summarize the session or start a new one."
+	}
 }
 
 func contextWindowKey(m Model) string {

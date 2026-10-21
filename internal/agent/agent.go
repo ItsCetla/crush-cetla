@@ -133,10 +133,10 @@ type SessionAgentCall struct {
 	// paths treat as covered by any present mark, preserving the
 	// pre-sequence behavior.
 	acceptSeq uint64
-	// overflowRetry marks the re-run of a turn that failed because the
-	// conversation outgrew the context window and was summarized. A
-	// second overflow on it fails normally instead of looping.
-	overflowRetry bool
+	// overflowRetries counts how many times this request was summarized
+	// and re-run because the conversation outgrew the context window.
+	// See canRetryOverflow for when it may run again.
+	overflowRetries int
 	// OnAuthRefresh, when non-nil, is called by fantasy when a stream
 	// fails with an authentication error (HTTP 401). The callback should
 	// refresh credentials and return nil on success, in which case
@@ -926,6 +926,9 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	// fitting the context window and the turn will be summarized and
 	// re-run instead of failing.
 	var overflowed bool
+	// stepsDone counts the steps this turn finished, so an overflowing
+	// re-run can tell whether it made progress.
+	var stepsDone int
 	sanitizedToolCalls := make(map[string]bool)
 	// Full names of tool calls that completed without error this turn.
 	// Written only from the streaming callbacks (which run sequentially)
@@ -1157,6 +1160,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			return createMsgErr
 		},
 		OnStepFinish: func(stepResult fantasy.StepResult) error {
+			stepsDone++
 			for _, w := range stepResult.Warnings {
 				slog.Warn("Provider warning", "type", w.Type, "message", w.Message)
 			}
@@ -1209,7 +1213,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				return sessionErr
 			}
 			currentSession = updatedSession
-			a.magicContextStepFinish(ctx, call.SessionID, currentAssistant, usage, int64(largeModel.CatwalkCfg.ContextWindow))
+			a.magicContextStepFinish(ctx, call.SessionID, currentAssistant, usage, a.contextWindow(largeModel))
 			return a.messages.Update(genCtx, *currentAssistant)
 		},
 		StopWhen: []fantasy.StopCondition{
@@ -1333,19 +1337,22 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 		}
 		if isOverflow {
 			a.learnContextWindow(largeModel, reportedWindow)
-			// Summarize and run the request again, once. Not for the
-			// Claude Code engine (it compacts on its own) or when the
-			// user turned auto-summarize off.
-			overflowed = !call.overflowRetry && !a.disableAutoSummarize &&
-				!largeModel.ClaudeCode && genCtx.Err() == nil
+			// Summarize and run the request again. Not for the Claude
+			// Code engine (it compacts on its own) or when the user
+			// turned auto-summarize off.
+			overflowed = canRetryOverflow(call.overflowRetries, stepsDone) &&
+				!a.disableAutoSummarize && !largeModel.ClaudeCode && genCtx.Err() == nil
 			slog.Info("Prompt did not fit the context window",
-				"reported_window", reportedWindow, "retry", overflowed)
+				"reported_window", reportedWindow, "retry", overflowed,
+				"previous_retries", call.overflowRetries, "steps_done", stepsDone)
 		}
 		if isCancelErr {
 			currentAssistant.AddFinish(message.FinishReasonCanceled, "User canceled request", "")
 		} else if overflowed {
 			currentAssistant.AddFinish(message.FinishReasonError, "Context full",
 				"The conversation no longer fits the model's context window. Summarizing it and trying again.")
+		} else if isOverflow {
+			currentAssistant.AddFinish(message.FinishReasonError, "Context full", overflowGiveUpMessage(a.disableAutoSummarize, call.overflowRetries > 0))
 		} else if errors.As(err, &requestTimedOutErr) {
 			// Checked before the provider branches so a deadline our own
 			// request timeout imposed is never reported as a provider error.
@@ -1418,8 +1425,11 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			// Run the request again on the summarized session, ahead
 			// of anything that was queued behind it.
 			retry := call
-			retry.overflowRetry = true
-			retry.Prompt = fmt.Sprintf("The previous request failed because the conversation no longer fit in the context window, so it was summarized. The initial user request was: `%s`", call.Prompt)
+			retry.overflowRetries = call.overflowRetries + 1
+			if call.overflowRetries == 0 {
+				// A re-run's prompt already carries this note.
+				retry.Prompt = fmt.Sprintf("The previous request failed because the conversation no longer fit in the context window, so it was summarized. The initial user request was: `%s`", call.Prompt)
+			}
 			queue := append([]SessionAgentCall{retry}, held...)
 			a.messageQueue.Set(call.SessionID, append(queue, existing...))
 		case summarizeErr == nil:

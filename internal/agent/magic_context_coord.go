@@ -315,9 +315,10 @@ func (c *coordinator) MagicContextCommand(ctx context.Context, sessionID, name, 
 	if err != nil {
 		return "", err
 	}
-	limit := 0
-	if m := c.Model(); m.CatwalkCfg.ContextWindow > 0 {
-		limit = int(m.CatwalkCfg.ContextWindow)
+	// The catalog window, or one learned from an overflow error.
+	limit := int(c.Model().CatwalkCfg.ContextWindow)
+	if sa, ok := c.currentAgent().(*sessionAgent); ok {
+		limit = int(sa.contextWindow(c.Model()))
 	}
 	return c.mc.Load().RunCommand(ctx, magiccontext.CommandInput{
 		Name:         name,

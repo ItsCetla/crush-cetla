@@ -53,6 +53,16 @@ func TestContextOverflowDetection(t *testing.T) {
 			false, 0,
 		},
 		{
+			"litellm",
+			errors.New("litellm.BadRequestError: litellm.ContextWindowExceededError: litellm.BadRequestError: litellm._pre_call_checks: Context Window exceeded for given call. No models have context window large enough for this call. Model=hosted_vllm/qwen3.8-flash-next-fp8-262k, Max Input Tokens=262144, Got=274491"),
+			true, 262144,
+		},
+		{
+			"litellm provider error",
+			&fantasy.ProviderError{StatusCode: 400, Message: "ContextWindowExceededError: max_input_tokens: 131072, got 140000"},
+			true, 131072,
+		},
+		{
 			"wrapped",
 			fmt.Errorf("stream: %w", &fantasy.ProviderError{StatusCode: 400, Message: "prompt is too long: 210000 tokens > 200000 maximum"}),
 			true, 0,
@@ -179,7 +189,9 @@ func requireToolResultsFollowCalls(t *testing.T, msgs []fantasy.Message) {
 type overflowModel struct {
 	mu        sync.Mutex
 	overflows int
-	prompts   []string
+	// failAt makes these 1-based call numbers overflow as well.
+	failAt  map[int]bool
+	prompts []string
 }
 
 func (m *overflowModel) Provider() string { return "fake" }
@@ -200,7 +212,7 @@ func (m *overflowModel) Stream(_ context.Context, call fantasy.Call) (fantasy.St
 		}
 	}
 	m.prompts = append(m.prompts, last)
-	fail := len(m.prompts) <= m.overflows
+	fail := len(m.prompts) <= m.overflows || m.failAt[len(m.prompts)]
 	m.mu.Unlock()
 	if fail {
 		return nil, &fantasy.ProviderError{
@@ -306,4 +318,36 @@ func TestRun_ContextOverflowNotRetriedWhenAutoSummarizeOff(t *testing.T) {
 	_, err = sa.Run(t.Context(), SessionAgentCall{SessionID: sess.ID, Prompt: "fix the bug"})
 	require.Error(t, err)
 	require.Len(t, large.seen(), 1)
+}
+
+func TestCanRetryOverflow(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, canRetryOverflow(0, 0), "a first overflow always retries")
+	require.True(t, canRetryOverflow(1, 2), "a re-run that made progress retries")
+	require.False(t, canRetryOverflow(1, 0), "a re-run that overflowed at once gives up")
+	require.False(t, canRetryOverflow(maxOverflowRetries, 5), "retries are capped")
+}
+
+func TestRun_ContextOverflowRerunFailingAtOnceStops(t *testing.T) {
+	t.Parallel()
+
+	// Turn overflows, summary works, re-run overflows on its first step.
+	large := &overflowModel{overflows: 1}
+	large.failAt = map[int]bool{3: true}
+	sa, env := newOverflowAgent(t, large)
+	sess, err := env.sessions.Create(t.Context(), "session")
+	require.NoError(t, err)
+
+	_, err = sa.Run(t.Context(), SessionAgentCall{SessionID: sess.ID, Prompt: "fix the bug"})
+	ok, _ := contextOverflow(err)
+	require.True(t, ok, "the overflow error comes back: %v", err)
+	require.Len(t, large.seen(), 3, "turn, summary, re-run; no second summary")
+
+	msgs, err := env.messages.List(t.Context(), sess.ID)
+	require.NoError(t, err)
+	last := msgs[len(msgs)-1].FinishPart()
+	require.NotNil(t, last)
+	require.Equal(t, "Context full", last.Message)
+	require.Contains(t, last.Details, "after summarizing")
 }
