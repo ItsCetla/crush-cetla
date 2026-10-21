@@ -640,6 +640,13 @@ func (m *UI) Init() tea.Cmd {
 	}
 	// load the user commands async
 	cmds = append(cmds, m.loadCustomCommands())
+	// Check the user's machines once, so /model shows how many are ready
+	// and the first prompt already knows their live agent counts.
+	if m.com != nil && m.com.Workspace != nil {
+		if cfg := m.com.Workspace.Config(); cfg != nil && len(cfg.Machines) > 0 {
+			cmds = append(cmds, m.machinesCheckCmd())
+		}
+	}
 	// Prime the memoized LSP state off-thread.
 	if cmd := m.requestLSPRefresh(); cmd != nil {
 		cmds = append(cmds, cmd)

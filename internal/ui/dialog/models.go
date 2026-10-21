@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/util"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -277,7 +278,25 @@ func (m *Models) modelTypeRadioView() string {
 	return fmt.Sprintf("%s%s  %s%s  %s%s",
 		largeRadio, textStyle.Render(ModelTypeLarge.String()),
 		smallRadio, textStyle.Render(ModelTypeSmall.String()),
-		machinesRadio, textStyle.Render(ModelTypeMachines.String()))
+		machinesRadio, textStyle.Render(ModelTypeMachines.String())+m.machinesReady())
+}
+
+// machinesReady is the Machines tab's "· 2 ready" note, from the last
+// check.
+func (m *Models) machinesReady() string {
+	cfg := m.com.Config()
+	if cfg == nil || len(cfg.Machines) == 0 {
+		return ""
+	}
+	ready, agents, checked := fleet.CachedReady(cfg)
+	if !checked {
+		return ""
+	}
+	note := fmt.Sprintf(" · %d ready", ready)
+	if ready > 0 {
+		note = fmt.Sprintf(" · %d ready, %d agent%s", ready, agents, plural(agents))
+	}
+	return m.com.Styles.Control.Muted.Render(note)
 }
 
 // Draw implements [Dialog].

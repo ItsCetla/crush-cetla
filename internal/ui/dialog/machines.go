@@ -387,7 +387,8 @@ func (d *Machines) openForm(m *fleet.Status) {
 		d.editing = m.Name
 		d.inputs[machineFieldName].SetValue(m.Name)
 		d.inputs[machineFieldURL].SetValue(m.URL)
-		d.inputs[machineFieldSlots].SetValue(strconv.Itoa(m.SlotCount()))
+		// The saved value, not the live one: the form edits settings.
+		d.inputs[machineFieldSlots].SetValue(strconv.Itoa(m.MachineConfig.SlotCount()))
 		d.inputs[machineFieldHardware].SetValue(m.Hardware)
 		d.inputs[machineFieldModel].SetValue(m.MachineConfig.Model)
 		d.inputs[machineFieldRole].SetValue(m.Role)
@@ -564,20 +565,19 @@ func (d *Machines) content(now time.Time) string {
 	return rc.Render()
 }
 
-// summary is the title's "3 online, 5 of 7 slots free" note.
+// summary is the title's "2 ready · 5 of 6 agents free" note.
 func (d *Machines) summary(t *styles.Styles) string {
 	if d.form || !d.loaded || len(d.statuses) == 0 {
 		return ""
 	}
-	online, free, total := 0, 0, 0
+	ready, total := fleet.Ready(d.statuses)
+	free := 0
 	for _, s := range d.statuses {
-		if s.Online {
-			online++
+		if s.Online && s.Usable() {
 			free += s.Free()
-			total += s.SlotCount()
 		}
 	}
-	return " " + t.Control.Muted.Render(fmt.Sprintf("%d online · %d of %d slots free", online, free, total))
+	return " " + t.Control.Muted.Render(fmt.Sprintf("%d ready · %d of %d agent%s free", ready, free, total, plural(total)))
 }
 
 // frame pads or clips body to the dialog height so it doesn't jump.
@@ -701,7 +701,10 @@ func (d *Machines) detailRows(t *styles.Styles, s fleet.Status, width int) []str
 	case s.Online && s.Busy > 0:
 		lines = append(lines, kv(t, "Status", fmt.Sprintf("online, %d agent%s working", s.Busy, plural(s.Busy))))
 	case s.Online:
-		lines = append(lines, kv(t, "Status", "online, ready for agents"))
+		lines = append(lines, kv(t, "Status", fmt.Sprintf("online, ready for %d agent%s", s.SlotCount(), plural(s.SlotCount()))))
+	}
+	if !s.Disabled {
+		lines = append(lines, d.agentRows(t, s)...)
 	}
 	if len(s.Tags) > 0 {
 		lines = append(lines, kv(t, "Good for", trunc(strings.Join(s.Tags, ", "))))
@@ -718,6 +721,46 @@ func (d *Machines) detailRows(t *styles.Styles, s fleet.Status, width int) []str
 		}
 	}
 	return lines
+}
+
+// agentRows says how many agents the machine runs at once and where that
+// number came from, with a hint when the server runs fewer than the
+// settings ask for.
+func (d *Machines) agentRows(t *styles.Styles, s fleet.Status) []string {
+	n := s.SlotCount()
+	val := fmt.Sprintf("%d at once", n)
+	if s.Live.Slots > 0 {
+		val += t.Control.Muted.Render(" (the server says so)")
+	} else {
+		val += t.Control.Muted.Render(" (from settings)")
+	}
+	switch {
+	case s.Live.ContextWindow > 0:
+		val += t.Control.Muted.Render(fmt.Sprintf(" · %s context each", humanTokens(s.Live.ContextWindow)))
+	case s.ContextWindow > 0:
+		val += t.Control.Muted.Render(fmt.Sprintf(" · %s context", humanTokens(s.ContextWindow)))
+	}
+	lines := []string{kv(t, "Agents", val)}
+	if want := s.MachineConfig.SlotCount(); s.Live.Slots > 0 && want > s.Live.Slots {
+		lines = append(lines, kv(t, "", t.Control.Warn.Render(fmt.Sprintf(
+			"settings say %d; restart llama-server with --parallel %d to run them all", want, want))))
+	}
+	return lines
+}
+
+// humanTokens renders a token count as 16K or 1.5M.
+func humanTokens(n int64) string {
+	switch {
+	case n >= 1_000_000 && n%1_000_000 == 0:
+		return fmt.Sprintf("%dM", n/1_000_000)
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	case n >= 1024 && n%1024 == 0:
+		return fmt.Sprintf("%dK", n/1024)
+	case n >= 1000:
+		return fmt.Sprintf("%dK", n/1000)
+	}
+	return strconv.FormatInt(n, 10)
 }
 
 func (d *Machines) emptyRows(t *styles.Styles) []string {

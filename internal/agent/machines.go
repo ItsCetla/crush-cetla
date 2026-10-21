@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"charm.land/catwalk/pkg/catwalk"
 	"charm.land/fantasy"
 
 	"github.com/charmbracelet/crush/internal/agent/prompt"
@@ -31,7 +32,7 @@ func newMachineAgents(c *coordinator, p *prompt.Prompt, task config.Agent) *mach
 
 // get returns the sub-agent for m, building it the first time.
 func (ma *machineAgents) get(ctx context.Context, m fleet.Machine) (SessionAgent, error) {
-	key := m.Name + "\x00" + m.Model + "\x00" + m.URL
+	key := fmt.Sprintf("%s\x00%s\x00%s\x00%d", m.Name, m.Model, m.URL, m.ContextWindow)
 	ma.mu.Lock()
 	defer ma.mu.Unlock()
 	if a, ok := ma.agents[key]; ok {
@@ -48,14 +49,23 @@ func (ma *machineAgents) get(ctx context.Context, m fleet.Machine) (SessionAgent
 // buildMachineModel returns a model that runs on the machine's server.
 func (c *coordinator) buildMachineModel(ctx context.Context, m fleet.Machine) (Model, error) {
 	cfg := c.cfg.Config()
-	pc, ok := cfg.Providers.Get(m.Name)
+	pc, ok := cfg.MachineProvider(m.Name)
 	if !ok {
 		return Model{}, fmt.Errorf("machine %s has no provider", m.Name)
 	}
 	sel := config.SelectedModel{Provider: m.Name, Model: m.Model}
-	cm := cfg.GetModel(m.Name, m.Model)
-	if cm == nil {
-		return Model{}, fmt.Errorf("machine %s doesn't list model %s", m.Name, m.Model)
+	var cm catwalk.Model
+	if listed := cfg.GetModel(m.Name, m.Model); listed != nil {
+		cm = *listed
+	} else {
+		// The machine came online after startup, so its provider
+		// doesn't list the model yet.
+		cm = cfg.MachineModelDefaults(m.Name, m.Model, m.Live.ContextWindow)
+	}
+	// Each slot gets only its share of the server's context.
+	if w := m.Live.ContextWindow; w > 0 {
+		cm.ContextWindow = w
+		cm.DefaultMaxTokens = min(cm.DefaultMaxTokens, w/4)
 	}
 	provider, err := c.buildProvider(pc, sel, true)
 	if err != nil {
@@ -66,7 +76,7 @@ func (c *coordinator) buildMachineModel(ctx context.Context, m fleet.Machine) (M
 		return Model{}, err
 	}
 	lm = newRequestTimeoutModel(lm, cfg.Options.GetRequestTimeout())
-	return Model{Model: lm, CatwalkCfg: *cm, ModelCfg: sel, FlatRate: true}, nil
+	return Model{Model: lm, CatwalkCfg: cm, ModelCfg: sel, FlatRate: true}, nil
 }
 
 // buildMachineAgent builds a sub-agent whose large and small models both
@@ -77,7 +87,7 @@ func (c *coordinator) buildMachineAgent(ctx context.Context, p *prompt.Prompt, t
 	if err != nil {
 		return nil, err
 	}
-	pc, _ := c.cfg.Config().Providers.Get(m.Name)
+	pc, _ := c.cfg.Config().MachineProvider(m.Name)
 	a := NewSessionAgent(SessionAgentOptions{
 		LargeModel:           model,
 		SmallModel:           model,

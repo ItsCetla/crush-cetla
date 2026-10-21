@@ -97,25 +97,58 @@ func (c *Config) addMachineProviders() {
 			slog.Info("Machine uses the provider configured under its name", "machine", name)
 			continue
 		}
-		discoverModels := true
-		var models []catwalk.Model
-		if m.Model != "" {
-			models = []catwalk.Model{{ID: m.Model, Name: m.Model, ContextWindow: m.ContextWindow}}
-		}
-		label := name
-		if m.Hardware != "" {
-			label = fmt.Sprintf("%s (%s)", name, m.Hardware)
-		}
-		c.Providers.Set(name, ProviderConfig{
-			ID:                 name,
-			Name:               label,
-			BaseURL:            m.URL,
-			Type:               cmp.Or(m.Type, catwalk.TypeOpenAICompat),
-			APIKey:             m.APIKey,
-			AutoDiscoverModels: &discoverModels,
-			FlatRate:           true,
-			Models:             models,
-		})
+		c.Providers.Set(name, machineProvider(name, m))
+	}
+}
+
+// machineProvider is the provider Ta-Da makes for a machine.
+func machineProvider(name string, m MachineConfig) ProviderConfig {
+	discoverModels := true
+	var models []catwalk.Model
+	if m.Model != "" {
+		models = []catwalk.Model{{ID: m.Model, Name: m.Model, ContextWindow: m.ContextWindow}}
+	}
+	label := name
+	if m.Hardware != "" {
+		label = fmt.Sprintf("%s (%s)", name, m.Hardware)
+	}
+	return ProviderConfig{
+		ID:                 name,
+		Name:               label,
+		BaseURL:            m.URL,
+		Type:               cmp.Or(m.Type, catwalk.TypeOpenAICompat),
+		APIKey:             m.APIKey,
+		AutoDiscoverModels: &discoverModels,
+		FlatRate:           true,
+		Models:             models,
+	}
+}
+
+// MachineProvider returns the provider agents on the named machine use.
+// A machine that was offline at startup with no model set has no
+// provider in the config, so one is made from the machine's settings;
+// that way it can take work as soon as it comes online.
+func (c *Config) MachineProvider(name string) (ProviderConfig, bool) {
+	if pc, ok := c.Providers.Get(name); ok {
+		return pc, true
+	}
+	m, ok := c.Machines[name]
+	if !ok || m.Disabled || m.URL == "" || ValidMachineName(name) != nil {
+		return ProviderConfig{}, false
+	}
+	return machineProvider(name, m), true
+}
+
+// MachineModelDefaults returns the model entry to use for a machine
+// model its provider doesn't list, with the given context window (0 for
+// the machine's configured or default window).
+func (c *Config) MachineModelDefaults(name, model string, contextWindow int64) catwalk.Model {
+	window := cmp.Or(contextWindow, c.Machines[name].ContextWindow, defaultMachineContextWindow)
+	return catwalk.Model{
+		ID:               model,
+		Name:             model,
+		ContextWindow:    window,
+		DefaultMaxTokens: min(defaultMachineMaxTokens, window/4),
 	}
 }
 

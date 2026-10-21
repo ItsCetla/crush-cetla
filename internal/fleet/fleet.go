@@ -34,8 +34,11 @@ type Machine struct {
 	Name string
 	config.MachineConfig
 	// Model is the model agents on the machine run. It is empty when the
-	// machine was offline at startup and lists no model.
+	// machine has no model set and hasn't answered yet.
 	Model string
+	// Live is what the machine's server reported the last time it was
+	// checked; zero until then.
+	Live Live
 }
 
 // Usable reports whether agents can run on the machine.
@@ -43,20 +46,62 @@ func (m Machine) Usable() bool {
 	return !m.Disabled && m.URL != "" && m.Model != ""
 }
 
-// Machines returns the configured machines in name order.
+// SlotCount returns how many agents the machine runs at once: what its
+// server reports when it says, else the configured slots.
+func (m Machine) SlotCount() int {
+	if m.Live.Slots > 0 {
+		return m.Live.Slots
+	}
+	return m.MachineConfig.SlotCount()
+}
+
+// Machines returns the configured machines in name order, with what each
+// server last reported about itself. It doesn't contact the machines;
+// Refresh does.
 func Machines(cfg *config.Config) []Machine {
 	if cfg == nil {
 		return nil
 	}
 	out := make([]Machine, 0, len(cfg.Machines))
 	for _, name := range cfg.Machines.Names() {
-		out = append(out, Machine{
+		m := Machine{
 			Name:          name,
 			MachineConfig: cfg.Machines[name],
 			Model:         cfg.MachineModel(name),
-		})
+		}
+		if !m.Disabled && m.URL != "" {
+			m = withLive(m, lastLive(m))
+		}
+		out = append(out, m)
 	}
 	return out
+}
+
+// withLive applies what the server reported: its slot count and context
+// per slot, and its first model when the machine has none yet (it was
+// offline at startup with no model set).
+func withLive(m Machine, live Live) Machine {
+	m.Live = live
+	if live.ContextWindow > 0 {
+		m.ContextWindow = live.ContextWindow
+	}
+	if m.Model == "" && len(live.Models) > 0 {
+		m.Model = live.Models[0]
+	}
+	return m
+}
+
+// Refresh checks every enabled machine at once, so Machines reports live
+// slots and models. Recent answers are reused.
+func Refresh(ctx context.Context, cfg *config.Config) {
+	var wg sync.WaitGroup
+	for _, m := range Machines(cfg) {
+		if m.Disabled || m.URL == "" {
+			continue
+		}
+		wg.Go(func() { _, _ = Inspect(ctx, m) })
+	}
+	wg.Wait()
 }
 
 // Lookup returns the named machine.
@@ -167,14 +212,21 @@ func (p *Pool) Acquire(ctx context.Context, cfg *config.Config, name string) (*L
 		if !ok {
 			return nil, fmt.Errorf("no machine named %q", name)
 		}
-		if !m.Usable() {
-			return nil, fmt.Errorf("machine %q is disabled or has no model", m.Name)
+		if m.Disabled || m.URL == "" {
+			return nil, fmt.Errorf("machine %q is disabled", m.Name)
 		}
-		if err := Probe(ctx, m); err != nil {
+		live, err := Inspect(ctx, m)
+		if err != nil {
 			return nil, fmt.Errorf("machine %q is not reachable: %w", m.Name, err)
+		}
+		if m = withLive(m, live); !m.Usable() {
+			return nil, fmt.Errorf("machine %q has no model", m.Name)
 		}
 		return p.TryAcquire(m)
 	}
+
+	// Check the machines first so slot counts and models are current.
+	Refresh(ctx, cfg)
 
 	type candidate struct {
 		m    Machine

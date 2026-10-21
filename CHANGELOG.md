@@ -7,6 +7,23 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Added
+
+- **Machines are found and used without asking.** Ta-Da checks your
+  machines at startup and before each prompt, and tells the AI how many
+  are ready and how many agents they run in total, with a firmer nudge to
+  hand side work to them in parallel. llama.cpp servers report their own
+  slot count and per-slot context (from `/props`), which now override the
+  `--slots` setting; other servers keep using it. The `/model` Machines tab
+  shows "· 2 ready, 5 agents", and the machine details show an **Agents**
+  row with a hint when the server runs fewer slots than the settings ask
+  for.
+
+### Fixed
+
+- A machine that was offline when Ta-Da started, or had no model set, now
+  takes work as soon as it comes online instead of after a restart.
+
 ## [0.5.12] - 2026-10-21
 
 ### Security

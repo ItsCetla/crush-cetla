@@ -14,12 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// chatServer answers /models and echoes what /chat/completions got.
+// chatServer answers /models (not /props) and echoes what /chat/completions got.
 func chatServer(t *testing.T, got *chatRequest) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/models") {
 			_, _ = w.Write([]byte(`{"data":[{"id":"qwen"}]}`))
+			return
+		}
+		if r.URL.Path == "/props" {
+			http.NotFound(w, r)
 			return
 		}
 		require.NoError(t, json.NewDecoder(r.Body).Decode(got))

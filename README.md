@@ -1331,6 +1331,16 @@ How the AI uses them:
   prompt, plus any project files it names, to a free machine and returns
   the answer. It never leaves the project directory.
 
+Ta-Da checks your machines when it starts and before each prompt, and
+tells the AI how many are ready and how many agents they run in total, so
+it hands them work without being asked. A llama.cpp server reports its own
+slot count (`--parallel`) and the context each slot gets, and Ta-Da uses
+those; for Ollama and LM Studio the `--slots` you set decide. A machine
+that was offline when Ta-Da started is picked up as soon as it answers,
+even without a model set (it uses the first one the server lists). The
+Machines tab in `/model` shows how many are ready, and the machine details
+say when the server runs fewer slots than your settings ask for.
+
 Slots are shared by every Ta-Da process on your computer, so two sessions
 won't overload the same machine. Code sent to a machine goes to whatever
 URL you gave it, so only add machines you trust.

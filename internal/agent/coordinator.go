@@ -849,7 +849,11 @@ func (c *coordinator) buildAgent(ctx context.Context, prompt *prompt.Prompt, age
 		}
 		richOn := c.cfg.Config().Options.TUI.RichBlocksEnabled()
 		systemPrompt = withRichBlocksHint(systemPrompt, c.interactive, isSubAgent, richOn)
-		if !isSubAgent && !large.ClaudeCode {
+		if !isSubAgent && !large.ClaudeCode && len(c.cfg.Config().Machines) > 0 {
+			// Ask the machines first, so the prompt has their live slots.
+			refreshCtx, cancel := context.WithTimeout(initCtx, 2*time.Second)
+			fleet.Refresh(refreshCtx, c.cfg.Config())
+			cancel()
 			if section := fleet.PromptSection(c.cfg.Config(), "the agent tool's machine parameter"); section != "" {
 				systemPrompt += "\n\n" + section
 			}

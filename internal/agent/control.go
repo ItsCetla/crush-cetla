@@ -129,5 +129,13 @@ func (a *sessionAgent) machinesContext() string {
 	if a.isSubAgent || a.cfg == nil {
 		return ""
 	}
-	return fleet.PromptSection(a.cfg.Config(), "the "+fleet.AskToolName+" tool")
+	cfg := a.cfg.Config()
+	if len(cfg.Machines) == 0 {
+		return ""
+	}
+	// Ask the machines first, so the prompt has their live slots.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	fleet.Refresh(ctx, cfg)
+	cancel()
+	return fleet.PromptSection(cfg, "the "+fleet.AskToolName+" tool")
 }

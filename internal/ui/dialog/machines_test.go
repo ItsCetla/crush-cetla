@@ -192,7 +192,7 @@ func TestMachines_Render(t *testing.T) {
 
 	d.SetStatuses(testStatuses(), now)
 	out := ansi.Strip(d.content(now))
-	require.Contains(t, out, "1 online · 3 of 4 slots free")
+	require.Contains(t, out, "1 ready · 3 of 4 agents free")
 	require.Contains(t, out, "m1")
 	require.Contains(t, out, "3 of 4 free")
 	require.Contains(t, out, "offline")

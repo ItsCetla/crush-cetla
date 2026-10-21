@@ -91,3 +91,49 @@ func TestValidMachineName(t *testing.T) {
 	require.Error(t, ValidMachineName("Main"))
 	require.Error(t, ValidMachineName("a/b"))
 }
+
+func TestMachineProviderFallsBackToSettings(t *testing.T) {
+	t.Parallel()
+
+	c := &Config{
+		Machines: Machines{
+			"pc":  {URL: "http://pc:8080/v1", Type: "llamacpp", Hardware: "RTX"},
+			"off": {URL: "http://off/v1", Disabled: true},
+		},
+		Providers: csync.NewMapFrom(map[string]ProviderConfig{
+			"slate": {ID: "slate", BaseURL: "http://slate/v1"},
+		}),
+	}
+
+	pc, ok := c.MachineProvider("slate")
+	require.True(t, ok)
+	require.Equal(t, "http://slate/v1", pc.BaseURL)
+
+	pc, ok = c.MachineProvider("pc")
+	require.True(t, ok, "an offline-at-startup machine still gets a provider")
+	require.Equal(t, "http://pc:8080/v1", pc.BaseURL)
+	require.Equal(t, "pc (RTX)", pc.Name)
+	require.True(t, pc.FlatRate)
+
+	_, ok = c.MachineProvider("off")
+	require.False(t, ok)
+	_, ok = c.MachineProvider("missing")
+	require.False(t, ok)
+}
+
+func TestMachineModelDefaults(t *testing.T) {
+	t.Parallel()
+
+	c := &Config{Machines: Machines{"pc": {ContextWindow: 65536}}}
+	m := c.MachineModelDefaults("pc", "bonsai", 0)
+	require.Equal(t, "bonsai", m.ID)
+	require.EqualValues(t, 65536, m.ContextWindow)
+	require.EqualValues(t, 4096, m.DefaultMaxTokens)
+
+	m = c.MachineModelDefaults("pc", "bonsai", 8192)
+	require.EqualValues(t, 8192, m.ContextWindow)
+	require.EqualValues(t, 2048, m.DefaultMaxTokens)
+
+	m = c.MachineModelDefaults("other", "x", 0)
+	require.EqualValues(t, defaultMachineContextWindow, m.ContextWindow)
+}
