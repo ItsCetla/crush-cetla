@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/crush/internal/app"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/limits"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/spf13/cobra"
 )
@@ -50,6 +51,15 @@ tada status --json
 		if err != nil {
 			return err
 		}
+		if opts := store.Config().Options; opts != nil {
+			if path := opts.TUI.LimitRingsPath(); path != "" {
+				st.LimitsOn = true
+				st.Limits, err = (&limits.Reader{Path: path}).Read(time.Now())
+				if err != nil {
+					st.LimitsError = err.Error()
+				}
+			}
+		}
 		if asJSON {
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
@@ -73,6 +83,10 @@ type statusReport struct {
 	Report   control.Report      `json:"report"`
 	Actions  []permission.Action `json:"actions,omitempty"`
 	Missions []control.Mission   `json:"missions,omitempty"`
+	// Limits are read from options.tui.limit_rings, when it is set.
+	LimitsOn    bool              `json:"-"`
+	Limits      []limits.Provider `json:"limits,omitempty"`
+	LimitsError string            `json:"limits_error,omitempty"`
 }
 
 func collectStatus(cmd *cobra.Command, hub *control.Hub, limit int) (statusReport, error) {
@@ -143,6 +157,10 @@ func writeStatus(w io.Writer, st statusReport, now time.Time, plain bool) {
 		fmt.Fprintf(w, "  %-8s %s %s of %s (%.0f%%)%s\n", b.Window.Label(), bar, control.Money(b.Spent), control.Money(b.Limit), b.Pct, mark)
 	}
 
+	if st.LimitsOn {
+		writeLimits(w, st, now, plain)
+	}
+
 	section("Recent actions")
 	if len(st.Actions) == 0 {
 		fmt.Fprintln(w, "  None yet in this project.")
@@ -176,6 +194,47 @@ func writeStatus(w io.Writer, st statusReport, now time.Time, plain bool) {
 			line += "  (" + string(m.Status) + ")"
 		}
 		fmt.Fprintln(w, line)
+	}
+}
+
+// writeLimits prints the plan usage read from the limit rings file.
+func writeLimits(w io.Writer, st statusReport, now time.Time, plain bool) {
+	fmt.Fprintf(w, "\nLimits\n")
+	switch {
+	case st.LimitsError != "":
+		fmt.Fprintf(w, "  Can't read the limits file: %s\n", st.LimitsError)
+		return
+	case len(st.Limits) == 0:
+		fmt.Fprintln(w, "  No readings yet. Some other tool writes this file; Ta-Da only reads it.")
+		return
+	}
+	for _, p := range st.Limits {
+		if p.Stale {
+			fmt.Fprintf(w, "  %-10s stale\n", p.Name)
+			continue
+		}
+		parts := make([]string, 0, 2)
+		for _, row := range []struct {
+			label string
+			w     limits.Window
+		}{{"5h", p.Five}, {"week", p.Week}} {
+			pct := row.w.Percent()
+			if !row.w.Known && plain {
+				pct = "?"
+			}
+			part := fmt.Sprintf("%s %s", row.label, pct)
+			if !plain {
+				part = row.w.Ring() + " " + part
+			}
+			if reset := row.w.ResetLabel(now); reset != "" {
+				part += " (resets " + reset + ")"
+			}
+			if row.w.Warn() {
+				part += " !"
+			}
+			parts = append(parts, part)
+		}
+		fmt.Fprintf(w, "  %-10s %s\n", p.Name, strings.Join(parts, ", "))
 	}
 }
 

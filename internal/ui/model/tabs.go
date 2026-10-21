@@ -1,8 +1,10 @@
 package model
 
 import (
+	"image/color"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -44,6 +46,7 @@ const (
 	tabHitSelect tabHitKind = iota
 	tabHitClose
 	tabHitNew
+	tabHitNeeds // the "N needs you" count: jump to the next such tab
 )
 
 // tabHit is a clickable span of the tab bar, in cells relative to the
@@ -116,6 +119,7 @@ func (m *UI) removeTab(i int) {
 	if i < 0 || i >= len(m.tabs) {
 		return
 	}
+	m.dropTabStatus(m.tabs[i].id)
 	m.tabs = append(m.tabs[:i], m.tabs[i+1:]...)
 }
 
@@ -204,6 +208,11 @@ func (m *UI) handleTabBarClick(x int, middle bool) tea.Cmd {
 			continue
 		}
 		switch {
+		case h.kind == tabHitNeeds:
+			if middle {
+				return nil
+			}
+			return m.jumpToNeedingTab()
 		case h.kind == tabHitNew:
 			if middle {
 				return nil
@@ -235,30 +244,18 @@ func (m *UI) renderTabBar(width int) (string, []tabHit) {
 	}
 	t := m.com.Styles.Tabs
 	active := m.activeTabIndex()
+	now := time.Now()
 
-	cells := make([]tabCell, 0, len(m.tabs)+1)
-	for i, tab := range m.tabs {
-		isActive := i == active
-		titleStyle, indexStyle, closeStyle := t.Inactive, t.InactiveIndex, t.InactiveClose
-		if isActive {
-			titleStyle, indexStyle, closeStyle = t.Active, t.ActiveIndex, t.ActiveClose
-		}
-		prefix := " "
-		if i < 9 {
-			prefix = indexStyle.Render(" "+strconv.Itoa(i+1)) + titleStyle.Render(" ")
-		} else {
-			prefix = titleStyle.Render(prefix)
-		}
-		title := ansi.Truncate(tab.title, tabTitleMax, "…")
-		label := prefix + titleStyle.Render(title+" ")
-		closeMark := closeStyle.Render(tabCloseMark + " ")
-		cells = append(cells, tabCell{
-			index: i,
-			title: title,
-			label: label,
-			close: closeMark,
-			width: ansi.StringWidth(label) + ansi.StringWidth(closeMark),
-		})
+	needsBtn := ""
+	if n := len(m.tabsNeedingYou()); n > 0 {
+		needsBtn = t.NeedsCount.Render(" " + tabMarkNeeds + " " + strconv.Itoa(n) + " " + needsLabel(n) + " ")
+	}
+	newW := ansi.StringWidth(tabNewButton) + ansi.StringWidth(needsBtn)
+
+	// Ages are the first thing to go when the tabs do not fit.
+	cells := m.tabCells(active, now, true)
+	if tabCellsWidth(cells)+newW > width {
+		cells = m.tabCells(active, now, false)
 	}
 	if active < 0 && m.state == uiLanding {
 		label := t.Active.Italic(true).Render(" " + tabDraftTitle + " ")
@@ -273,11 +270,7 @@ func (m *UI) renderTabBar(width int) (string, []tabHit) {
 		focus = active
 	}
 
-	newW := ansi.StringWidth(tabNewButton)
-	total := newW
-	for _, c := range cells {
-		total += c.width + 1
-	}
+	total := newW + tabCellsWidth(cells)
 
 	start, end := 0, len(cells)
 	if total > width {
@@ -332,8 +325,85 @@ func (m *UI) renderTabBar(width int) (string, []tabHit) {
 	nx := x
 	write(t.New.Render(tabNewButton))
 	hits = append(hits, tabHit{x0: nx, x1: x, kind: tabHitNew, index: -1})
+	if needsBtn != "" {
+		bx := x
+		write(needsBtn)
+		hits = append(hits, tabHit{x0: bx, x1: x, kind: tabHitNeeds, index: -1})
+	}
 
 	return ansi.Truncate(b.String(), width, ""), hits
+}
+
+// tabCells renders each open tab. withAge adds how long ago its status
+// changed.
+func (m *UI) tabCells(active int, now time.Time, withAge bool) []tabCell {
+	t := m.com.Styles.Tabs
+	cells := make([]tabCell, 0, len(m.tabs)+1)
+	for i, tab := range m.tabs {
+		isActive := i == active
+		titleStyle, indexStyle, closeStyle := t.Inactive, t.InactiveIndex, t.InactiveClose
+		if isActive {
+			titleStyle, indexStyle, closeStyle = t.Active, t.ActiveIndex, t.ActiveClose
+		}
+		st := m.tabStatusOf(tab.id)
+		var b strings.Builder
+		if mark, kind := m.tabMark(st, now); mark != "" {
+			markStyle := titleStyle.Bold(false).Foreground(tabMarkColor(t.MarkWorking, t.MarkNeeds, t.MarkDone, t.MarkRead, t.MarkFailed, kind))
+			if kind == tabMarkKindUnread || kind == tabMarkKindNeeds {
+				markStyle = markStyle.Bold(true)
+			}
+			b.WriteString(markStyle.Render(" " + mark))
+		}
+		if i < 9 {
+			b.WriteString(indexStyle.Render(" "+strconv.Itoa(i+1)) + titleStyle.Render(" "))
+		} else {
+			b.WriteString(titleStyle.Render(" "))
+		}
+		title := ansi.Truncate(tab.title, tabTitleMax, "…")
+		if st != nil && st.unread {
+			titleStyle = titleStyle.Bold(true)
+		}
+		b.WriteString(titleStyle.Render(title + " "))
+		if withAge {
+			if age := tabAge(st, now); age != "" {
+				b.WriteString(indexStyle.Render(age + " "))
+			}
+		}
+		label := b.String()
+		closeMark := closeStyle.Render(tabCloseMark + " ")
+		cells = append(cells, tabCell{
+			index: i,
+			title: title,
+			label: label,
+			close: closeMark,
+			width: ansi.StringWidth(label) + ansi.StringWidth(closeMark),
+		})
+	}
+	return cells
+}
+
+// tabCellsWidth is the width of cells laid out with one-cell gaps.
+func tabCellsWidth(cells []tabCell) int {
+	w := 0
+	for _, c := range cells {
+		w += c.width + 1
+	}
+	return w
+}
+
+// tabMarkColor picks the color for a status mark.
+func tabMarkColor(working, needs, done, read, failed color.Color, kind tabMarkKind) color.Color {
+	switch kind {
+	case tabMarkKindWorking:
+		return working
+	case tabMarkKindNeeds:
+		return needs
+	case tabMarkKindUnread:
+		return done
+	case tabMarkKindFailed:
+		return failed
+	}
+	return read
 }
 
 // drawTabBar draws the tab bar into area and remembers its click spans.

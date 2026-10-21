@@ -646,6 +646,14 @@ type Styles struct {
 		InactiveClose lipgloss.Style // Close mark of a background tab
 		New           lipgloss.Style // The "+" new-session button
 		More          lipgloss.Style // "‹" / "›" marks for tabs scrolled out of view
+		NeedsCount    lipgloss.Style // "◎ 2 needs you" button after the tabs
+
+		// Status mark colors, drawn over the tab's own background.
+		MarkWorking color.Color // agent running or prompts queued
+		MarkNeeds   color.Color // waiting for a permission or answer
+		MarkDone    color.Color // finished, not yet looked at
+		MarkRead    color.Color // finished and seen
+		MarkFailed  color.Color // last turn failed
 	}
 
 	// Pills styles for todo/queue pills

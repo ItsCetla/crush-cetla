@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/limits"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/stretchr/testify/require"
 )
@@ -20,6 +21,14 @@ func TestWriteStatusEmpty(t *testing.T) {
 	require.Contains(t, out, "None set. Add options.budget")
 	require.Contains(t, out, "None yet in this project.")
 	require.Contains(t, out, `cockpit (ctrl+\ or alt+c)`)
+	require.NotContains(t, out, "Limits", "hidden unless options.tui.limit_rings is set")
+
+	b.Reset()
+	writeStatus(&b, statusReport{LimitsOn: true}, time.Now(), false)
+	require.Contains(t, b.String(), "No readings yet")
+	b.Reset()
+	writeStatus(&b, statusReport{LimitsOn: true, LimitsError: "boom"}, time.Now(), false)
+	require.Contains(t, b.String(), "Can't read the limits file: boom")
 }
 
 func sampleStatus(now time.Time) statusReport {
@@ -47,6 +56,15 @@ func sampleStatus(now time.Time) statusReport {
 			{Title: "Ship it", Status: control.MissionActive, Criteria: []control.Criterion{{ID: 1, Done: true}, {ID: 2}}},
 			{Title: "Old work", Status: control.MissionPaused},
 		},
+		LimitsOn: true,
+		Limits: []limits.Provider{
+			{
+				Name: "Claude",
+				Five: limits.Window{Known: true, Used: 84, Reset: now.Add(time.Hour)},
+				Week: limits.Window{},
+			},
+			{Name: "Codex", Stale: true},
+		},
 	}
 }
 
@@ -68,6 +86,9 @@ func TestWriteStatusFull(t *testing.T) {
 	require.Contains(t, out, "(auto mode)")
 	require.Contains(t, out, "Ship it  1/2")
 	require.Contains(t, out, "(paused)")
+	require.Contains(t, out, "Claude     ◕ 5h 84% (resets ")
+	require.Contains(t, out, ") !, ◌ week —")
+	require.Contains(t, out, "Codex      stale")
 }
 
 func TestWriteStatusPlainIsASCII(t *testing.T) {
@@ -84,6 +105,8 @@ func TestWriteStatusPlainIsASCII(t *testing.T) {
 	require.Contains(t, out, "+ ")
 	require.Contains(t, out, "x ")
 	require.Contains(t, out, "- Ship it  1/2")
+	require.Contains(t, out, "Claude     5h 84%")
+	require.Contains(t, out, "week ?")
 }
 
 func TestDecisionMark(t *testing.T) {

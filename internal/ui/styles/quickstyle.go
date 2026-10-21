@@ -1250,6 +1250,12 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Tabs.InactiveClose = inactiveTab.Foreground(o.fgMostSubtle)
 	s.Tabs.New = base.Foreground(o.primary).Bold(true)
 	s.Tabs.More = base.Foreground(o.fgMostSubtle)
+	s.Tabs.NeedsCount = base.Foreground(o.warning).Bold(true)
+	s.Tabs.MarkWorking = o.secondary
+	s.Tabs.MarkNeeds = o.warning
+	s.Tabs.MarkDone = o.success
+	s.Tabs.MarkRead = o.fgMostSubtle
+	s.Tabs.MarkFailed = o.error
 
 	// Tables and charts in assistant replies follow the theme palette:
 	// ember, amber, honey, live first, then the remaining accents.

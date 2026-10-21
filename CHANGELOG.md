@@ -12,6 +12,22 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 - **"Allow & Continue in Auto" in the permission prompt** (shortcut `c`).
   It allows the request and switches to Auto mode, so the run carries on
   without more prompts. Hidden when Auto is already on or while planning.
+- **Tab status marks.** Each tab shows a spinner while its session works,
+  `◎` when it needs you, `✓` when it's done (bold until you look at it) and
+  `✗` when it failed, plus how long ago that changed. Ages drop out first
+  when the tab bar gets crowded. Sub-agent requests mark their parent tab.
+- **"Needs you" count in the tab bar.** Click it, or press **Alt+0**, to jump
+  to the next tab waiting on a permission or a question.
+- **Usage limits in the sidebar and `tada status` (opt-in).** Set
+  `options.tui.limit_rings` to a local JSON file with each plan's 5 hour and
+  weekly usage. Ta-Da only reads the file; some other tool writes it. See
+  [Usage limits](README.md#usage-limits).
+
+### Changed
+
+- **A session stays "working" while queued prompts run.** The "Ta-Da is
+  waiting" notification now waits until the queue is empty and the turn
+  ended without an error. Canceling a run sends none.
 
 ### Fixed
 

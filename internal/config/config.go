@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -368,6 +369,25 @@ type TUIOptions struct {
 	Intro       *bool       `json:"intro,omitempty" jsonschema:"description=Play the short animated intro when the TUI starts. Any key skips it. TADA_NO_INTRO=1 also turns it off,default=true"`
 	RichBlocks  *bool       `json:"rich_blocks,omitempty" jsonschema:"description=Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off,default=true"`
 	FoldTools   *bool       `json:"fold_tools,omitempty" jsonschema:"description=Fold a finished turn's tool calls and intermediate notes into one 'Worked for …' line that expands on click. The final answer\\, errors and approval requests stay visible,default=true"`
+	LimitRings  string      `json:"limit_rings,omitempty" jsonschema:"description=Path to a local JSON file with AI plan usage (5 hour and weekly percent per provider) to show in the sidebar. Some other tool writes the file; Ta-Da only reads it and never fetches the numbers. Empty turns it off,example=~/.cache/limit-rings.json"`
+}
+
+// LimitRingsPath returns the usage-limits file to read, with a leading ~
+// expanded, or "" when the option is off.
+func (t *TUIOptions) LimitRingsPath() string {
+	if t == nil {
+		return ""
+	}
+	p := strings.TrimSpace(t.LimitRings)
+	if p == "" {
+		return ""
+	}
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			p = filepath.Join(home, strings.TrimPrefix(p, "~"))
+		}
+	}
+	return p
 }
 
 // FoldToolsEnabled reports whether finished turns fold their tool calls

@@ -394,6 +394,13 @@ type UI struct {
 	// Notification state
 	notifyBackend       notification.Backend
 	notifyWindowFocused bool
+
+	// tabStatuses holds each session's tab mark (working, needs you,
+	// done); see tab_status.go. tabMsgOwners maps message IDs to their
+	// session so sub-agent requests land on the parent's tab.
+	tabStatuses  map[string]*tabStatus
+	tabMsgOwners map[string]string
+	tabTickArmed bool
 	// custom commands & mcp commands
 	customCommands []commands.CustomCommand
 	mcpPrompts     []commands.MCPPrompt
@@ -451,6 +458,9 @@ type UI struct {
 	// recent actions, cost, mission). It's fetched off-thread like the
 	// busy caches (see control.go).
 	ctl controlCache
+
+	// lim is the last reading of the usage-limits file.
+	lim limitsState
 
 	// Todo spinner
 	todoSpinner    spinner.Model
@@ -658,6 +668,8 @@ func (m *UI) Init() tea.Cmd {
 	// The branch is shown from the first frame on, so read it now and keep
 	// polling for checkouts made outside Ta-Da.
 	cmds = append(cmds, m.fetchGitBranch(), m.gitBranchTicker())
+	// Usage limits come from a local file some other tool writes (opt-in).
+	cmds = append(cmds, m.limitsPoll(0))
 	// Prime the memoized MCP state off-thread. There is deliberately no
 	// wait for server-side MCP initialization: the init gate is
 	// process-local and only armed where mcp.Initialize runs (the server),
@@ -843,14 +855,25 @@ func (m *UI) loadMCPrompts() tea.Msg {
 	return mcpPromptsLoadedMsg{Prompts: prompts}
 }
 
-// Update handles updates to the UI model.
+// Update handles updates to the UI model. The tab status bookkeeping runs
+// around the main update so it also sees messages handled by an early return.
 func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := m.update(msg)
+	cmds := []tea.Cmd{cmd, m.trackTabStatus(msg)}
+	m.markViewedTabSeen()
+	cmds = append(cmds, m.armTabTick())
+	return model, tea.Batch(cmds...)
+}
+
+func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	m.beginFrameUpdate()
 	// Update terminal capabilities
 	m.caps.Update(msg)
 	m.trackTurnOutcome(msg)
 	switch msg := msg.(type) {
+	case tabSettleMsg, tabTickMsg:
+		// Handled by trackTabStatus.
 	case tea.EnvMsg:
 		// Is this Windows Terminal?
 		if !m.sendProgressBar {
@@ -1591,6 +1614,8 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.gitBranch = msg.branch
 	case gitBranchPollMsg:
 		cmds = append(cmds, m.fetchGitBranch(), m.gitBranchTicker())
+	case limitsMsg:
+		cmds = append(cmds, m.handleLimits(msg))
 	case util.InfoMsg:
 		if msg.Type == util.InfoTypeError {
 			slog.Error("Error reported", "error", msg.Msg)
@@ -3144,6 +3169,13 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				}
 				return true
 			}
+		case key.Matches(msg, m.keyMap.Tabs.Needs) && len(m.tabsNeedingYou()) > 0:
+			if m.state == uiChat || m.state == uiLanding {
+				if cmd := m.jumpToNeedingTab(); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				return true
+			}
 		case key.Matches(msg, m.keyMap.Tabs.Jump) && len(m.tabs) > 0:
 			if m.state == uiChat || m.state == uiLanding {
 				n, _ := strconv.Atoi(strings.TrimPrefix(msg.String(), "alt+"))
@@ -4089,7 +4121,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 
 		binds = append(binds, mainBinds)
 		if len(m.tabs) >= 2 {
-			binds = append(binds, []key.Binding{k.Tabs.Jump, k.Tabs.Next, k.Tabs.Prev, k.Tabs.Close})
+			binds = append(binds, []key.Binding{k.Tabs.Jump, k.Tabs.Needs, k.Tabs.Next, k.Tabs.Prev, k.Tabs.Close})
 		}
 
 		switch m.focus {
@@ -6205,10 +6237,8 @@ func (m *UI) handleAgentNotification(n notify.Notification) tea.Cmd {
 	var cmds []tea.Cmd
 	switch n.Type {
 	case notify.TypeAgentFinished:
-		cmds = append(cmds, m.sendNotification(notification.Notification{
-			Title:   "Ta-Da is waiting...",
-			Message: fmt.Sprintf("Agent's turn completed in \"%s\"", n.SessionTitle),
-		}))
+		// The "done" notification waits until nothing is queued behind
+		// this turn; see applyTabSettle.
 	case notify.TypeAgentError:
 		// Terminal edge like TypeAgentFinished; fall through to the
 		// busy/queue refresh below.

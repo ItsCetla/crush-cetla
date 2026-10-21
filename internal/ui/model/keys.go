@@ -76,6 +76,7 @@ type KeyMap struct {
 		Prev  key.Binding
 		Close key.Binding
 		Jump  key.Binding
+		Needs key.Binding
 	}
 
 	Initialize struct {
@@ -238,6 +239,10 @@ func DefaultKeyMap() KeyMap {
 	km.Tabs.Jump = key.NewBinding(
 		key.WithKeys("alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "alt+6", "alt+7", "alt+8", "alt+9"),
 		key.WithHelp("alt+1-9", "go to tab"),
+	)
+	km.Tabs.Needs = key.NewBinding(
+		key.WithKeys("alt+0"),
+		key.WithHelp("alt+0", "go to tab that needs you"),
 	)
 
 	km.Chat.NewSession = key.NewBinding(

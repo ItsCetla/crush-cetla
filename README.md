@@ -55,6 +55,16 @@ talks to and what it does without asking:
   and open sessions stay as tabs above the chat. Diffs wrap long lines. Set
   `options.tui.rich_blocks` to `false` or `TADA_NO_RICH=1` to show the plain
   markdown instead.
+- **Tab status.** Each tab shows whether its session is working, needs you,
+  is done (bold until you look) or failed, and how long ago that changed. A
+  session stays "working" while queued prompts run, and the "done"
+  notification waits until they finish. Click the "needs you" count or press
+  **Alt+0** to jump to the next tab waiting on you.
+- **Usage limits (opt-in).** Point `options.tui.limit_rings` at a local JSON
+  file with your plans' 5 hour and weekly usage, and the sidebar and
+  `tada status` show it. Some other tool writes the file; Ta-Da only reads
+  it and never fetches the numbers. See
+  [Usage limits](#usage-limits).
 - **Claude Code engine.** With the `claude` CLI installed, pick "Claude Code"
   in the model picker and Ta-Da runs your own `claude` for each turn, with
   its tool calls going through Ta-Da's permission prompts and questions. See
@@ -1033,6 +1043,51 @@ tada status --plain    # ASCII only
 tada status --json     # for scripts
 tada status --actions 20
 ```
+
+### Usage limits
+
+Ta-Da can show how much of each plan's 5 hour window and weekly limit you
+have used, in the sidebar and in `tada status`. It never fetches these
+numbers. A menu bar app, a cron job or a script writes them to a local JSON
+file, and Ta-Da checks that file every 30 seconds. It's off until you set the
+path:
+
+```json
+{
+  "options": {
+    "tui": { "limit_rings": "~/.cache/limit-rings.json" }
+  }
+}
+```
+
+The file is one JSON object with one key per provider. Keys starting with
+`_` are ignored, so metadata can sit next to the providers:
+
+```json
+{
+  "_version": 1,
+  "claude": {
+    "name": "Claude",
+    "_ts": 1760000000,
+    "used5h": 42.5,
+    "reset5h": 1760010000,
+    "usedWeek": 18,
+    "resetWeek": 1760400000
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `name` | Label to show. Defaults to the key. |
+| `_ts` | When the numbers were read, in epoch seconds. Older than 15 minutes shows as stale. |
+| `ok`, `stale` | `ok: false` or `stale: true` shows the reading as stale. |
+| `used5h`, `usedWeek` | Percent used, 0 to 100. From 80% the value is highlighted. |
+| `reset5h`, `resetWeek` | When the window resets, in epoch seconds. A time in the past hides the value. |
+| `tier` | Plan name. Read but not shown. |
+
+A window with no number or no reset time shows as `—`. The same format is
+read by other agent hosts, so one writer can feed them all.
 
 ### Magic Context
 

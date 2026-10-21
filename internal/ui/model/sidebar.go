@@ -109,7 +109,7 @@ func (m *UI) updateSidebarScrollState() {
 		"",
 	)
 	now := time.Now()
-	for _, s := range []string{m.missionInfo(contentWidth), m.controlInfo(contentWidth, now)} {
+	for _, s := range []string{m.missionInfo(contentWidth), m.controlInfo(contentWidth, now), m.limitsInfo(contentWidth, now)} {
 		if s != "" {
 			content = lipgloss.JoinVertical(lipgloss.Left, content, s, "")
 		}
