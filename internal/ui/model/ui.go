@@ -2673,6 +2673,11 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 			m.com.Workspace.PermissionGrant(msg.Permission)
 		case dialog.PermissionAllowForSession:
 			m.com.Workspace.PermissionGrantPersistent(msg.Permission)
+		case dialog.PermissionAllowAuto:
+			// Turn Auto on first so the agent's next tool call, which
+			// may race the grant, is not prompted again.
+			cmds = append(cmds, m.enableAutoMode())
+			m.com.Workspace.PermissionGrant(msg.Permission)
 		case dialog.PermissionDeny:
 			m.com.Workspace.PermissionDeny(msg.Permission)
 		}
@@ -4877,6 +4882,20 @@ func (m *UI) toggleAutoMode() tea.Cmd {
 	return manualModeBanner()
 }
 
+// enableAutoMode turns Auto on from the permission dialog's "Allow &
+// Continue in Auto". Unlike the toggles it never turns Auto off, and like
+// the Shift+Tab cycle it leaves Edits mode, which Auto supersedes.
+func (m *UI) enableAutoMode() tea.Cmd {
+	if !m.com.Workspace.PermissionSkipRequests() {
+		m.toggleYoloMode()
+	}
+	var cmd tea.Cmd
+	if m.editsModeCached() {
+		cmd = m.setEditsCmd(false)
+	}
+	return tea.Batch(cmd, autoModeBanner())
+}
+
 // switchPlanToYolo handles activating Auto while in plan mode: instead of a
 // "plan + auto" state the UI switches straight to the coder with Auto on.
 // Activation is idempotent, so Auto already on stays on.
@@ -5998,6 +6017,10 @@ func (m *UI) openPermissionsDialog(perm permission.PermissionRequest) tea.Cmd {
 	if diffMode := m.com.Config().Options.TUI.DiffMode; diffMode != "" {
 		opts = append(opts, dialog.WithDiffMode(diffMode == "split"))
 	}
+
+	// Offer "Allow & Continue in Auto" unless Auto is already on. Plan
+	// mode can't switch to Auto while the planner is running.
+	opts = append(opts, dialog.WithAutoOption(m.mode != uiInputModePlan && !m.yoloModeCached()))
 
 	permDialog := dialog.NewPermissions(m.com, perm, opts...)
 	m.dialog.OpenDialogWithGrace(permDialog)

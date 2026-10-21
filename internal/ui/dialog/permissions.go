@@ -29,7 +29,18 @@ type PermissionAction string
 const (
 	PermissionAllow           PermissionAction = "allow"
 	PermissionAllowForSession PermissionAction = "allow_session"
-	PermissionDeny            PermissionAction = "deny"
+	// PermissionAllowAuto allows this request and turns Auto mode on, so
+	// the rest of the run continues without prompts.
+	PermissionAllowAuto PermissionAction = "allow_auto"
+	PermissionDeny      PermissionAction = "deny"
+)
+
+// Permission dialog options, as selectedOption values.
+const (
+	optionAllow = iota
+	optionAllowSession
+	optionDeny
+	optionAllowAuto
 )
 
 // Permissions dialog sizing constants.
@@ -62,7 +73,8 @@ type Permissions struct {
 	fullscreen   bool // true when dialog is fullscreen
 
 	permission     permission.PermissionRequest
-	selectedOption int // 0: Allow, 1: Allow for session, 2: Deny
+	selectedOption int  // one of the option* constants
+	autoOffered    bool // show "Allow & Continue in Auto"
 
 	viewport      viewport.Model
 	viewportDirty bool // true when viewport content needs to be re-rendered
@@ -86,6 +98,7 @@ type permissionsKeyMap struct {
 	Select           key.Binding
 	Allow            key.Binding
 	AllowSession     key.Binding
+	AllowAuto        key.Binding
 	Deny             key.Binding
 	Close            key.Binding
 	ToggleDiffMode   key.Binding
@@ -123,6 +136,10 @@ func defaultPermissionsKeyMap() permissionsKeyMap {
 		AllowSession: key.NewBinding(
 			key.WithKeys("s", "S", "ctrl+s"),
 			key.WithHelp("s", "allow session"),
+		),
+		AllowAuto: key.NewBinding(
+			key.WithKeys("c", "C"),
+			key.WithHelp("c", "allow and continue in auto"),
 		),
 		Deny: key.NewBinding(
 			key.WithKeys("d", "D"),
@@ -176,6 +193,15 @@ func WithDiffMode(split bool) PermissionsOption {
 	}
 }
 
+// WithAutoOption offers "Allow & Continue in Auto". The caller decides,
+// since it is pointless when Auto is already on and impossible while
+// planning.
+func WithAutoOption(offered bool) PermissionsOption {
+	return func(p *Permissions) {
+		p.autoOffered = offered
+	}
+}
+
 // NewPermissions creates a new permissions dialog.
 func NewPermissions(com *common.Common, perm permission.PermissionRequest, opts ...PermissionsOption) *Permissions {
 	h := help.New()
@@ -200,7 +226,7 @@ func NewPermissions(com *common.Common, perm permission.PermissionRequest, opts 
 	p := &Permissions{
 		com:            com,
 		permission:     perm,
-		selectedOption: 0,
+		selectedOption: optionAllow,
 		viewport:       vp,
 		help:           h,
 		keyMap:         km,
@@ -250,6 +276,10 @@ func (p *Permissions) HandleMsg(msg tea.Msg) Action {
 		case key.Matches(msg, p.keyMap.AllowSession):
 			if p.sessionAllowed() {
 				return p.respond(PermissionAllowForSession)
+			}
+		case key.Matches(msg, p.keyMap.AllowAuto):
+			if p.autoOffered {
+				return p.respond(PermissionAllowAuto)
 			}
 		case key.Matches(msg, p.keyMap.Deny):
 			return p.respond(PermissionDeny)
@@ -312,10 +342,14 @@ func (p *Permissions) sessionAllowed() bool {
 
 // options returns the offered options as selectedOption values.
 func (p *Permissions) options() []int {
+	opts := []int{optionAllow}
 	if p.sessionAllowed() {
-		return []int{0, 1, 2}
+		opts = append(opts, optionAllowSession)
 	}
-	return []int{0, 2}
+	if p.autoOffered {
+		opts = append(opts, optionAllowAuto)
+	}
+	return append(opts, optionDeny)
 }
 
 // moveOption moves the selection by delta, wrapping around.
@@ -327,10 +361,12 @@ func (p *Permissions) moveOption(delta int) {
 
 func (p *Permissions) selectCurrentOption() tea.Msg {
 	switch p.selectedOption {
-	case 0:
+	case optionAllow:
 		return p.respond(PermissionAllow)
-	case 1:
+	case optionAllowSession:
 		return p.respond(PermissionAllowForSession)
+	case optionAllowAuto:
+		return p.respond(PermissionAllowAuto)
 	default:
 		return p.respond(PermissionDeny)
 	}
@@ -821,12 +857,15 @@ func (p *Permissions) renderContentPanel(content string, width int) string {
 
 func (p *Permissions) renderButtons(contentWidth int, fullscreen bool) string {
 	buttons := []common.ButtonOpts{
-		{Text: "Allow", UnderlineIndex: 0, Selected: p.selectedOption == 0},
+		{Text: "Allow", UnderlineIndex: 0, Selected: p.selectedOption == optionAllow},
 	}
 	if p.sessionAllowed() {
-		buttons = append(buttons, common.ButtonOpts{Text: "Allow for Session", UnderlineIndex: 10, Selected: p.selectedOption == 1})
+		buttons = append(buttons, common.ButtonOpts{Text: "Allow for Session", UnderlineIndex: 10, Selected: p.selectedOption == optionAllowSession})
 	}
-	buttons = append(buttons, common.ButtonOpts{Text: "Deny", UnderlineIndex: 0, Selected: p.selectedOption == 2})
+	if p.autoOffered {
+		buttons = append(buttons, common.ButtonOpts{Text: "Allow & Continue in Auto", UnderlineIndex: 8, Selected: p.selectedOption == optionAllowAuto})
+	}
+	buttons = append(buttons, common.ButtonOpts{Text: "Deny", UnderlineIndex: 0, Selected: p.selectedOption == optionDeny})
 
 	content := common.ButtonGroup(p.com.Styles, buttons, "  ")
 

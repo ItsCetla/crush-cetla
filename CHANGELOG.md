@@ -7,6 +7,12 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Added
+
+- **"Allow & Continue in Auto" in the permission prompt** (shortcut `c`).
+  It allows the request and switches to Auto mode, so the run carries on
+  without more prompts. Hidden when Auto is already on or while planning.
+
 ## [0.5.10] - 2026-10-20
 
 ### Security

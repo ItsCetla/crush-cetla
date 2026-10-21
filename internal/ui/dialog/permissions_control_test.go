@@ -72,3 +72,37 @@ func TestPermissions_HeaderShowsKindAndWhy(t *testing.T) {
 	require.Contains(t, header, "spend")
 	require.False(t, strings.Contains(header, "/should/not/show"))
 }
+
+func TestPermissions_AllowAutoOption(t *testing.T) {
+	t.Parallel()
+
+	// Not offered: no button, the shortcut does nothing.
+	p := newGradedPermissions(t, permission.PermissionRequest{ToolName: "bash"})
+	require.NotContains(t, ansi.Strip(p.renderButtons(100, false)), "Continue in Auto")
+	require.Nil(t, p.HandleMsg(keyMsg('c')))
+
+	s := styles.CharmtonePantera()
+	com := &common.Common{Styles: &s}
+	req := permission.PermissionRequest{ID: "perm-auto", ToolCallID: "tc", ToolName: "bash"}
+	p = NewPermissions(com, req, WithAutoOption(true))
+	require.Contains(t, ansi.Strip(p.renderButtons(100, false)), "Allow & Continue in Auto")
+
+	// Tab order: Allow, Allow for Session, Allow & Continue in Auto, Deny.
+	for _, want := range []int{optionAllowSession, optionAllowAuto, optionDeny, optionAllow} {
+		p.HandleMsg(tea.KeyPressMsg{Code: tea.KeyTab})
+		require.Equal(t, want, p.selectedOption)
+	}
+
+	got := p.HandleMsg(keyMsg('c'))
+	require.Equal(t, PermissionAllowAuto, got.(ActionPermissionResponse).Action)
+
+	p.selectedOption = optionAllowAuto
+	got = p.HandleMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.Equal(t, PermissionAllowAuto, got.(ActionPermissionResponse).Action)
+
+	// Still offered when "Allow for Session" is hidden.
+	req.AlwaysAsk = true
+	p = NewPermissions(com, req, WithAutoOption(true))
+	p.HandleMsg(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.Equal(t, optionAllowAuto, p.selectedOption)
+}
