@@ -170,6 +170,9 @@ type Workspace interface {
 	// AgentMagicContextCommand runs a /ctx-* command for the session
 	// and returns the reply text. It never reaches the model.
 	AgentMagicContextCommand(ctx context.Context, sessionID, name, args string) (string, error)
+	// AgentPrompt sends one prompt to the main model outside any
+	// session and returns the answer.
+	AgentPrompt(ctx context.Context, system, prompt string) (string, error)
 	UpdateAgentModel(ctx context.Context) error
 	InitCoderAgent(ctx context.Context) error
 	InitCoderAgentNonInteractive(ctx context.Context) error

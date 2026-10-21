@@ -607,6 +607,15 @@ func (app *App) overrideReasoningEffort(ctx context.Context, reasoningEffort str
 	return app.AgentCoordinator.UpdateModels(ctx)
 }
 
+// AgentPrompt sends one prompt to the main agent's model, outside any
+// session, and returns the answer.
+func (app *App) AgentPrompt(ctx context.Context, system, prompt string) (string, error) {
+	if app.AgentCoordinator == nil {
+		return "", errors.New("agent coordinator not initialized")
+	}
+	return agent.Complete(ctx, app.AgentCoordinator.Model(), system, prompt, 0)
+}
+
 // GetDefaultSmallModel returns the default small model for the given
 // provider. Falls back to the large model if no default is found.
 func (app *App) GetDefaultSmallModel(providerID string) config.SelectedModel {

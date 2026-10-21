@@ -30,6 +30,7 @@ type MachineConfig struct {
 	ContextWindow int64        `json:"context_window,omitempty" jsonschema:"description=Context window to assume when the server doesn't report one,example=32768"`
 	Slots         int          `json:"slots,omitempty" jsonschema:"description=How many agents the machine can run at once,default=1,minimum=1"`
 	Tags          []string     `json:"tags,omitempty" jsonschema:"description=What the machine is good at\\, shown to the AI,example=fast,example=code"`
+	Role          string       `json:"role,omitempty" jsonschema:"description=The job the machine is assigned\\, shown to the AI,example=code review and tests"`
 	Notes         string       `json:"notes,omitempty" jsonschema:"description=Anything else the AI should know about the machine"`
 	Disabled      bool         `json:"disabled,omitempty" jsonschema:"description=Keep the machine configured but don't use it,default=false"`
 }

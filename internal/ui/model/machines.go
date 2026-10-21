@@ -2,6 +2,8 @@ package model
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -23,6 +25,13 @@ type machinesStatusMsg struct {
 type machinesResultMsg struct {
 	out string
 	err error
+}
+
+// machinesSuggestMsg delivers the roles proposed for the machines.
+type machinesSuggestMsg struct {
+	sugs   []fleet.Suggestion
+	fromAI bool
+	err    error
 }
 
 // machineStore lets the fleet tool save changes through the workspace, so
@@ -62,6 +71,11 @@ func (m *UI) openMachinesDialog() tea.Cmd {
 		m.dialog.CloseDialog(dialog.MachinesID)
 	}
 	d, _ := dialog.NewMachines(m.com)
+	if m.com != nil && m.com.Workspace != nil {
+		if am := m.com.Workspace.AgentModel(); am.ModelCfg.Model != "" {
+			d.SetMainModel(am.ModelCfg)
+		}
+	}
 	m.dialog.OpenDialog(d)
 	return m.machinesCheckCmd()
 }
@@ -92,6 +106,60 @@ func (m *UI) machinesSaveCmd(p fleet.Params) tea.Cmd {
 		defer cancel()
 		out, err := fleet.RunTool(ctx, store, fleet.Default(), p)
 		return machinesResultMsg{out: out, err: err}
+	}
+}
+
+// machinesSuggestCmd asks the main AI which role fits each machine,
+// falling back to each machine's resources when it can't answer.
+func (m *UI) machinesSuggestCmd(statuses []fleet.Status) tea.Cmd {
+	if m.com == nil || m.com.Workspace == nil {
+		return nil
+	}
+	ws := m.com.Workspace
+	mainModel := dialog.MainModelName(ws.AgentModel().ModelCfg)
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		defer cancel()
+		sugs, fromAI, err := fleet.Suggest(ctx, statuses, mainModel, ws.AgentPrompt)
+		return machinesSuggestMsg{sugs: sugs, fromAI: fromAI, err: err}
+	}
+}
+
+// machinesApplyRolesCmd saves several role changes one after another,
+// then checks again so the list shows them.
+func (m *UI) machinesApplyRolesCmd(ps []fleet.Params) tea.Cmd {
+	if m.com == nil || m.com.Workspace == nil {
+		return nil
+	}
+	store := machineStore{ws: m.com.Workspace}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		var errs []error
+		n := 0
+		for _, p := range ps {
+			if _, err := fleet.RunTool(ctx, store, fleet.Default(), p); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", p.Name, err))
+				continue
+			}
+			n++
+		}
+		out := fmt.Sprintf("Set %d role%s.", n, plural(n))
+		return machinesResultMsg{out: out, err: errors.Join(errs...)}
+	}
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
+// handleMachinesSuggest shows the proposed roles.
+func (m *UI) handleMachinesSuggest(msg machinesSuggestMsg) {
+	if d := m.machinesDialog(); d != nil {
+		d.SetSuggestions(msg.sugs, msg.fromAI, msg.err)
 	}
 }
 

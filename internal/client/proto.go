@@ -607,6 +607,27 @@ func (c *Client) AgentMagicContextCommand(ctx context.Context, id, sessionID, na
 	return resp.Text, nil
 }
 
+// AgentPrompt sends one prompt to the workspace's main model outside any
+// session and returns the answer.
+func (c *Client) AgentPrompt(ctx context.Context, id, system, prompt string) (string, error) {
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/agent/prompt", id), nil, jsonBody(proto.AgentPromptRequest{
+		System: system,
+		Prompt: prompt,
+	}), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return "", fmt.Errorf("failed to prompt the model: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to prompt the model: status code %d", rsp.StatusCode)
+	}
+	var resp proto.AgentPromptResponse
+	if err := json.NewDecoder(rsp.Body).Decode(&resp); err != nil {
+		return "", fmt.Errorf("failed to decode prompt response: %w", err)
+	}
+	return resp.Text, nil
+}
+
 // Control runs a control hub command. A command the hub refused returns
 // its reason as the error.
 func (c *Client) Control(ctx context.Context, id string, cmd control.Command) (control.Reply, error) {

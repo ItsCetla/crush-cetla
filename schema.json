@@ -711,6 +711,13 @@
           "type": "array",
           "description": "What the machine is good at, shown to the AI"
         },
+        "role": {
+          "type": "string",
+          "description": "The job the machine is assigned, shown to the AI",
+          "examples": [
+            "code review and tests"
+          ]
+        },
         "notes": {
           "type": "string",
           "description": "Anything else the AI should know about the machine"

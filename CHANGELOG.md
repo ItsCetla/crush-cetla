@@ -9,6 +9,13 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ### Added
 
+- **Machines in `/model`.** Tab past Large and Small to **Machines** to pick
+  your main AI and see the machines that help it. Each machine can have a
+  role (`--role`, or the Role field in the form), and `s` asks your main AI
+  to suggest a role for every machine from its hardware, model, context
+  window and slots; `y` uses one suggestion, `Y` uses them all. `m` jumps
+  back to the model picker. A machine with a role is the first pick for
+  that kind of work.
 - **"Allow & Continue in Auto" in the permission prompt** (shortcut `c`).
   It allows the request and switches to Auto mode, so the run carries on
   without more prompts. Hidden when Auto is already on or while planning.

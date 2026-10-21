@@ -1263,10 +1263,20 @@ machine add pc --url "http://192.168.1.30:11434/v1" --type ollama \
 ```
 
 The easiest way is inside Ta-Da: type `/machines` (or pick **Machines**
-from the command palette). It shows every machine with whether it's online
-and how many slots are free, and lets you add (`a`), change (`e`), switch
-off (`space`) and remove (`x`) machines. Typing just an IP like
-`192.168.1.20` means Ollama on its usual port.
+from the command palette, or tab over to **Machines** in `/model`). It
+shows your main AI at the top (`m` changes it), then every machine with
+whether it's online and how many slots are free, and lets you add (`a`),
+change (`e`), switch off (`space`) and remove (`x`) machines. Typing just
+an IP like `192.168.1.20` means Ollama on its usual port.
+
+Each machine can have a **role**: the job it's assigned, such as "code
+review and tests" or "long file reads and summaries". Press `s` and your
+main AI looks at each machine's hardware, model, context window and slots
+and suggests a role for it, with a reason. Press `y` to use the suggestion
+for the selected machine or `Y` to use them all. (If the main AI can't
+answer, the suggestions come from the machines' resources alone.) You can
+also type a role in the add or edit form, or pass `--role` on the command
+line. The AI sends that kind of work to that machine first.
 
 Or from the shell: `tada machines add pc --url ... --slots 2`. Run
 `tada machines` to see which machines are online and how many slots are

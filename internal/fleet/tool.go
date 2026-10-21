@@ -34,6 +34,7 @@ type Params struct {
 	Slots         int      `json:"slots,omitempty" description:"How many agents the machine can run at once" jsonschema:"How many agents the machine can run at once"`
 	ContextWindow int64    `json:"context_window,omitempty" description:"Context window to assume if the server doesn't report one" jsonschema:"Context window to assume if the server doesn't report one"`
 	Tags          []string `json:"tags,omitempty" description:"What the machine is good at, e.g. fast or code" jsonschema:"What the machine is good at, e.g. fast or code"`
+	Role          string   `json:"role,omitempty" description:"The job the machine is assigned, e.g. code review and tests (add, update)" jsonschema:"The job the machine is assigned, e.g. code review and tests (add, update)"`
 	Notes         string   `json:"notes,omitempty" description:"Anything else worth knowing about the machine" jsonschema:"Anything else worth knowing about the machine"`
 	Disabled      *bool    `json:"disabled,omitempty" description:"Keep the machine saved but don't use it (add, update)" jsonschema:"Keep the machine saved but don't use it (add, update)"`
 }
@@ -223,6 +224,9 @@ func apply(m *config.MachineConfig, p Params) error {
 	if len(p.Tags) > 0 {
 		m.Tags = p.Tags
 	}
+	if v := strings.TrimSpace(p.Role); v != "" {
+		m.Role = v
+	}
 	if v := strings.TrimSpace(p.Notes); v != "" {
 		m.Notes = v
 	}
@@ -271,6 +275,9 @@ func DescribeChange(p Params) string {
 	}
 	if p.Slots > 0 {
 		parts = append(parts, fmt.Sprintf("%d slots", p.Slots))
+	}
+	if p.Role != "" {
+		parts = append(parts, "role "+p.Role)
 	}
 	verb := "Add"
 	if action == "update" {

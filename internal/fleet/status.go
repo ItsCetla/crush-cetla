@@ -66,6 +66,9 @@ func Describe(m Machine) string {
 	if len(m.Tags) > 0 {
 		fmt.Fprintf(&b, ", good for: %s", strings.Join(m.Tags, ", "))
 	}
+	if m.Role != "" {
+		fmt.Fprintf(&b, ", role: %s", m.Role)
+	}
 	if m.Notes != "" {
 		fmt.Fprintf(&b, ". %s", strings.TrimSuffix(m.Notes, "."))
 	}
@@ -112,6 +115,7 @@ func PromptSection(cfg *config.Config, toolHint string) string {
 	fmt.Fprintf(&b, "through %s, and run independent pieces in parallel to keep them busy. ", toolHint)
 	b.WriteString("Local models are weaker than you: give them small, specific tasks with the context they need, and check what they return. ")
 	b.WriteString("Keep planning, risky edits and final decisions yourself. ")
+	b.WriteString("A machine with a role is the first pick for that kind of work. ")
 	b.WriteString("When the user tells you about a machine (added, removed, changed), save it with the machines tool.\n\n")
 	b.WriteString(strings.Join(lines, "\n"))
 	b.WriteString("\n</machines>")

@@ -402,6 +402,16 @@ func (c *controllerV1) endpoints() []apigen.Endpoint {
 			Fails(400, 404, 500).
 			Handle(c.handlePostWorkspaceAgentSessionMagicContext),
 
+		apigen.Post("/v1/workspaces/{id}/agent/prompt").
+			Summary("Prompt the main model").
+			Description("Sends one prompt to the workspace's main model outside any session and returns the answer. Used for side jobs like suggesting machine roles.").
+			Tags("agent").
+			PathParam("id", "Workspace ID").
+			Accepts(proto.AgentPromptRequest{}).
+			Responds(proto.AgentPromptResponse{}).
+			Fails(400, 404, 500).
+			Handle(c.handlePostWorkspaceAgentPrompt),
+
 		apigen.Post("/v1/workspaces/{id}/control").
 			Summary("Run control command").
 			Description("Runs a control hub command: a status snapshot, take back, the Edits mode, a usage report, the action log or a mission change. A refused command returns 200 with the reason in error.").

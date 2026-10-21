@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/charmbracelet/crush/internal/control"
 
@@ -641,6 +642,30 @@ func (c *controllerV1) handlePostWorkspaceAgentSessionMagicContext(w http.Respon
 		return
 	}
 	jsonEncode(w, proto.MagicContextCommandResponse{Text: text})
+}
+
+// handlePostWorkspaceAgentPrompt sends one prompt to the main model
+// outside any session.
+func (c *controllerV1) handlePostWorkspaceAgentPrompt(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var req proto.AgentPromptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.server.logError(r, "Failed to decode request", "error", err)
+		jsonError(w, http.StatusBadRequest, "failed to decode request")
+		return
+	}
+	if strings.TrimSpace(req.Prompt) == "" {
+		jsonError(w, http.StatusBadRequest, "prompt is required")
+		return
+	}
+
+	text, err := c.backend.AgentPrompt(r.Context(), id, req.System, req.Prompt)
+	if err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	jsonEncode(w, proto.AgentPromptResponse{Text: text})
 }
 
 // handlePostWorkspaceControl runs a control hub command. A missing

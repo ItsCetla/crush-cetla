@@ -168,6 +168,18 @@ type MagicContextCommandResponse struct {
 	Text string `json:"text"`
 }
 
+// AgentPromptRequest sends one prompt to the main model outside any
+// session.
+type AgentPromptRequest struct {
+	System string `json:"system,omitempty"`
+	Prompt string `json:"prompt"`
+}
+
+// AgentPromptResponse holds the model's answer.
+type AgentPromptResponse struct {
+	Text string `json:"text"`
+}
+
 // AgentSession represents a session with its busy status.
 type AgentSession struct {
 	Session

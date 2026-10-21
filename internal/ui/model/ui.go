@@ -913,6 +913,8 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case machinesStatusMsg:
 		m.handleMachinesStatus(msg)
+	case machinesSuggestMsg:
+		m.handleMachinesSuggest(msg)
 	case machinesResultMsg:
 		if cmd := m.handleMachinesResult(msg); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -2600,11 +2602,16 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, m.runControlCmds(msg.Cmds))
 	case dialog.ActionOpenMachines:
 		m.dialog.CloseDialog(dialog.CommandsID)
+		m.dialog.CloseDialog(dialog.ModelsID)
 		cmds = append(cmds, m.openMachinesDialog())
 	case dialog.ActionCheckMachines:
 		cmds = append(cmds, m.machinesCheckCmd())
 	case dialog.ActionSaveMachine:
 		cmds = append(cmds, m.machinesSaveCmd(msg.Params))
+	case dialog.ActionSuggestRoles:
+		cmds = append(cmds, m.machinesSuggestCmd(msg.Statuses))
+	case dialog.ActionApplyRoles:
+		cmds = append(cmds, m.machinesApplyRolesCmd(msg.Params))
 	case dialog.ActionOpenContext:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, m.openContextDialog())
@@ -2982,6 +2989,14 @@ func (m *UI) handleSelectModel(msg dialog.ActionSelectModel) tea.Cmd {
 	m.dialog.CloseDialog(dialog.APIKeyInputID)
 	m.dialog.CloseDialog(dialog.OAuthID)
 	m.dialog.CloseDialog(dialog.ModelsID)
+
+	// The machines screen may be waiting underneath: show it the new
+	// main AI.
+	if msg.ModelType == config.SelectedModelTypeLarge {
+		if d := m.machinesDialog(); d != nil {
+			d.SetMainModel(msg.Model)
+		}
+	}
 
 	if isOnboarding {
 		m.setState(uiLanding, uiFocusEditor)

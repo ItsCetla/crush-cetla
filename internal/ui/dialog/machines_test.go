@@ -94,6 +94,8 @@ func TestMachines_AddForm(t *testing.T) {
 	d.HandleMsg(enter())
 	typeText(d, "RTX 4090")
 	d.HandleMsg(enter())
+	d.HandleMsg(enter()) // model: keep the default
+	typeText(d, "code review and tests")
 	act := d.HandleMsg(enter())
 
 	require.Equal(t, ActionSaveMachine{Params: fleet.Params{
@@ -103,6 +105,7 @@ func TestMachines_AddForm(t *testing.T) {
 		Type:     "ollama",
 		Slots:    3,
 		Hardware: "RTX 4090",
+		Role:     "code review and tests",
 	}}, act)
 
 	// A failed save keeps the form open with the error.
@@ -197,4 +200,92 @@ func TestMachines_Render(t *testing.T) {
 	for _, l := range splitLines(out) {
 		require.LessOrEqual(t, ansi.StringWidth(l), 84, l)
 	}
+}
+
+func TestMachines_AddFormSavesRole(t *testing.T) {
+	t.Parallel()
+	d := newTestMachines(t)
+	d.HandleMsg(keyMsg('a'))
+	typeText(d, "m3")
+	d.HandleMsg(enter())
+	typeText(d, "192.168.1.50")
+	for range 4 {
+		d.HandleMsg(enter())
+	}
+	typeText(d, "long file reads and summaries")
+	act := d.HandleMsg(enter())
+	save, ok := act.(ActionSaveMachine)
+	require.True(t, ok, "expected ActionSaveMachine, got %T", act)
+	require.Equal(t, "long file reads and summaries", save.Params.Role)
+}
+
+func TestMachines_SuggestAndApply(t *testing.T) {
+	t.Parallel()
+	d := newTestMachines(t)
+	d.SetStatuses(testStatuses(), time.Now())
+
+	act := d.HandleMsg(keyMsg('s'))
+	sug, ok := act.(ActionSuggestRoles)
+	require.True(t, ok, "expected ActionSuggestRoles, got %T", act)
+	require.Len(t, sug.Statuses, len(testStatuses()))
+	require.Nil(t, d.HandleMsg(keyMsg('s')), "a second press while asking does nothing")
+
+	d.SetSuggestions([]fleet.Suggestion{
+		{Name: "m1", Role: "code review and tests", Reason: "coder model"},
+		{Name: "pc", Role: "quick lookups and drafts", Reason: "small"},
+	}, true, nil)
+	require.Contains(t, d.notice, "main AI")
+
+	act = d.HandleMsg(keyMsg('y'))
+	save, ok := act.(ActionSaveMachine)
+	require.True(t, ok, "expected ActionSaveMachine, got %T", act)
+	require.Equal(t, "update", save.Params.Action)
+	require.Equal(t, "m1", save.Params.Name)
+	require.Equal(t, "code review and tests", save.Params.Role)
+	d.SetResult("ok", nil)
+
+	act = d.HandleMsg(keyMsg('Y'))
+	all, ok := act.(ActionApplyRoles)
+	require.True(t, ok, "expected ActionApplyRoles, got %T", act)
+	require.Len(t, all.Params, 2)
+}
+
+func TestMachines_ApplyWithoutSuggestion(t *testing.T) {
+	t.Parallel()
+	d := newTestMachines(t)
+	d.SetStatuses(testStatuses(), time.Now())
+	require.Nil(t, d.HandleMsg(keyMsg('y')))
+	require.Contains(t, d.notice, "press s")
+}
+
+func TestMachines_MainOpensModels(t *testing.T) {
+	t.Parallel()
+	d := newTestMachines(t)
+	act := d.HandleMsg(keyMsg('m'))
+	open, ok := act.(ActionOpenDialog)
+	require.True(t, ok, "expected ActionOpenDialog, got %T", act)
+	require.Equal(t, ModelsID, open.DialogID)
+}
+
+func TestMachines_RenderShowsMainAndRole(t *testing.T) {
+	t.Parallel()
+	d := newTestMachines(t)
+	d.SetMainModel(config.SelectedModel{Provider: "anthropic", Model: "claude-sonnet-4-5"})
+	sts := testStatuses()
+	sts[0].Role = "code review and tests"
+	d.SetStatuses(sts, time.Now())
+	d.SetSuggestions([]fleet.Suggestion{{Name: "m1", Role: "parallel search and bulk edits", Reason: "four slots"}}, false, nil)
+	out := ansi.Strip(d.content(time.Now()))
+	require.Contains(t, out, "Main AI")
+	require.Contains(t, out, "anthropic/claude-sonnet-4-5")
+	require.Contains(t, out, "code review and tests")
+	require.Contains(t, out, "parallel search and bulk edits")
+	require.Contains(t, out, "four slots")
+}
+
+func TestMainModelName(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "", MainModelName(config.SelectedModel{}))
+	require.Equal(t, "ollama", MainModelName(config.SelectedModel{Provider: "ollama"}))
+	require.Equal(t, "ollama/qwen3", MainModelName(config.SelectedModel{Provider: "ollama", Model: "qwen3"}))
 }

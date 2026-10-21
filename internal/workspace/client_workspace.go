@@ -334,6 +334,10 @@ func (w *ClientWorkspace) AgentSummarize(ctx context.Context, sessionID string) 
 	return w.client.AgentSummarizeSession(ctx, w.workspaceID(), sessionID)
 }
 
+func (w *ClientWorkspace) AgentPrompt(ctx context.Context, system, prompt string) (string, error) {
+	return w.client.AgentPrompt(ctx, w.workspaceID(), system, prompt)
+}
+
 func (w *ClientWorkspace) AgentMagicContextCommand(ctx context.Context, sessionID, name, args string) (string, error) {
 	return w.client.AgentMagicContextCommand(ctx, w.workspaceID(), sessionID, name, args)
 }

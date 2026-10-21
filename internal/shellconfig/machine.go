@@ -13,7 +13,7 @@ import (
 //
 //	machine add <name> --url URL [--model MODEL] [--slots N]
 //	    [--hardware TEXT] [--type TYPE] [--api-key KEY]
-//	    [--context-window N] [--tag TAG ...] [--notes TEXT]
+//	    [--context-window N] [--tag TAG ...] [--role TEXT] [--notes TEXT]
 //	    [--disabled true|false]
 //	machine remove <name>   (alias: rm)
 //
@@ -49,13 +49,14 @@ var machineAddFlags = []flagSpec{
 	{name: "--api-key", jsonKey: "api_key", kind: flagString, op: opSet},
 	{name: "--context-window", jsonKey: "context_window", kind: flagInt, op: opSet},
 	{name: "--tag", jsonKey: "tags", kind: flagString, op: opAppend},
+	{name: "--role", jsonKey: "role", kind: flagString, op: opSet},
 	{name: "--notes", jsonKey: "notes", kind: flagString, op: opSet},
 	{name: "--disabled", jsonKey: "disabled", kind: flagBool, op: opSet},
 }
 
 func machineAdd(b *ConfigBuilder, args []string, stderr io.Writer) error {
 	if len(args) < 3 {
-		return usage(stderr, "usage: machine add <name> --url URL [--model MODEL] [--slots N] [--hardware TEXT] [--type TYPE] [--api-key KEY] [--context-window N] [--tag TAG ...] [--notes TEXT] [--disabled true|false]")
+		return usage(stderr, "usage: machine add <name> --url URL [--model MODEL] [--slots N] [--hardware TEXT] [--type TYPE] [--api-key KEY] [--context-window N] [--tag TAG ...] [--role TEXT] [--notes TEXT] [--disabled true|false]")
 	}
 	name := args[2]
 	m := childMap(b.section("machines"), name)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/ui/common"
@@ -37,6 +39,18 @@ type ActionSaveMachine struct {
 	Params fleet.Params
 }
 
+// ActionSuggestRoles asks the UI to have the main AI propose a role for
+// each machine and hand the result back through SetSuggestions.
+type ActionSuggestRoles struct {
+	Statuses []fleet.Status
+}
+
+// ActionApplyRoles asks the UI to save several role changes at once and
+// hand the result back through SetResult.
+type ActionApplyRoles struct {
+	Params []fleet.Params
+}
+
 // MachinesQuery reports whether value is the machines command typed into
 // the editor ("/machines", "/machine" or "/fleet").
 func MachinesQuery(value string) bool {
@@ -54,10 +68,11 @@ const (
 	machineFieldSlots
 	machineFieldHardware
 	machineFieldModel
+	machineFieldRole
 	machineFieldCount
 )
 
-var machineFieldLabels = [machineFieldCount]string{"Name", "Address", "Slots", "Hardware", "Model"}
+var machineFieldLabels = [machineFieldCount]string{"Name", "Address", "Slots", "Hardware", "Model", "Role"}
 
 var machineFieldPlaceholders = [machineFieldCount]string{
 	"m1",
@@ -65,6 +80,7 @@ var machineFieldPlaceholders = [machineFieldCount]string{
 	"how many agents at once, e.g. 4",
 	`what it is, e.g. "M1 Max"`,
 	"optional: empty uses the first one it lists",
+	"optional: its job, e.g. code review and tests",
 }
 
 // Machines lists the user's machines with their live status and lets them
@@ -85,6 +101,14 @@ type Machines struct {
 	cursor     int
 	confirmDel string // machine armed for removal
 
+	// mainModel names the AI the user talks to, so the screen can show
+	// it next to the machines that help it.
+	mainModel string
+
+	suggesting    bool
+	suggestions   map[string]fleet.Suggestion
+	suggestFromAI bool
+
 	form    bool
 	editing string // machine being changed; empty when adding
 	field   int
@@ -99,6 +123,10 @@ type Machines struct {
 		Toggle  key.Binding
 		Remove  key.Binding
 		Refresh key.Binding
+		Main    key.Binding
+		Suggest key.Binding
+		Apply   key.Binding
+		ApplyAl key.Binding
 		Next    key.Binding
 		Prev    key.Binding
 		Save    key.Binding
@@ -136,12 +164,70 @@ func NewMachines(com *common.Common) (*Machines, ActionCheckMachines) {
 	km.Toggle = b([]string{"space", " "}, "space", "on/off")
 	km.Remove = b([]string{"x", "d", "delete"}, "x", "remove")
 	km.Refresh = b([]string{"r"}, "r", "check again")
+	km.Main = b([]string{"m"}, "m", "main AI")
+	km.Suggest = b([]string{"s"}, "s", "suggest roles")
+	km.Apply = b([]string{"y"}, "y", "use role")
+	km.ApplyAl = b([]string{"Y"}, "Y", "use all")
 	km.Next = b([]string{"tab", "down"}, "tab", "next field")
 	km.Prev = b([]string{"shift+tab", "up"}, "shift+tab", "prev field")
 	km.Save = b([]string{"enter", "ctrl+s"}, "enter", "next/save")
 	km.Back = b([]string{"esc"}, "esc", "cancel")
 	km.Close = CloseKey
+	if com != nil && com.Workspace != nil {
+		if cfg := com.Config(); cfg != nil {
+			d.SetMainModel(cfg.Models[config.SelectedModelTypeLarge])
+		}
+	}
 	return d, ActionCheckMachines{}
+}
+
+// SetMainModel names the AI the user talks to.
+func (d *Machines) SetMainModel(m config.SelectedModel) {
+	d.mainModel = MainModelName(m)
+}
+
+// MainModelName is how the machines screen and the suggestion prompt
+// name the main AI: provider/model, or "" when none is set.
+func MainModelName(m config.SelectedModel) string {
+	if m.Model == "" {
+		return m.Provider
+	}
+	if m.Provider == "" {
+		return m.Model
+	}
+	return m.Provider + "/" + m.Model
+}
+
+// SetSuggestions shows the roles proposed for the machines. fromAI says
+// the main AI answered; otherwise they come from each machine's
+// resources and err, if set, says why the AI couldn't.
+func (d *Machines) SetSuggestions(sugs []fleet.Suggestion, fromAI bool, err error) {
+	d.suggesting = false
+	d.suggestFromAI = fromAI
+	d.suggestions = make(map[string]fleet.Suggestion, len(sugs))
+	for _, s := range sugs {
+		d.suggestions[s.Name] = s
+	}
+	d.err = ""
+	switch {
+	case len(sugs) == 0 && err != nil:
+		d.err = "Couldn't suggest roles: " + err.Error()
+	case len(sugs) == 0:
+		d.notice = "Nothing to suggest yet; add a machine first."
+	case fromAI:
+		d.notice = "Roles suggested by your main AI · y uses one, Y uses them all"
+	case err != nil:
+		d.notice = "Roles from each machine's resources (your main AI couldn't answer: " +
+			strings.Join(strings.Fields(err.Error()), " ") + ") · y uses one, Y uses them all"
+	default:
+		d.notice = "Roles from each machine's resources · y uses one, Y uses them all"
+	}
+}
+
+// Suggestion returns the role proposed for the machine, if any.
+func (d *Machines) Suggestion(name string) (fleet.Suggestion, bool) {
+	s, ok := d.suggestions[name]
+	return s, ok
 }
 
 // ID implements Dialog.
@@ -221,6 +307,44 @@ func (d *Machines) HandleMsg(msg tea.Msg) Action {
 		d.checking = true
 		d.notice, d.err = "", ""
 		return ActionCheckMachines{}
+	case key.Matches(k, km.Main):
+		return ActionOpenDialog{DialogID: ModelsID}
+	case key.Matches(k, km.Suggest):
+		if d.suggesting || d.saving || len(d.statuses) == 0 {
+			return nil
+		}
+		d.suggesting = true
+		d.notice, d.err = "", ""
+		return ActionSuggestRoles{Statuses: slices.Clone(d.statuses)}
+	case key.Matches(k, km.Apply):
+		if m == nil || d.saving {
+			return nil
+		}
+		s, ok := d.suggestions[m.Name]
+		if !ok {
+			d.notice = "No suggestion for " + m.Name + " yet; press s to ask."
+			return nil
+		}
+		d.saving = true
+		d.notice, d.err = "", ""
+		return ActionSaveMachine{Params: fleet.Params{Action: "update", Name: m.Name, Role: s.Role}}
+	case key.Matches(k, km.ApplyAl):
+		if d.saving {
+			return nil
+		}
+		var ps []fleet.Params
+		for _, st := range d.statuses {
+			if s, ok := d.suggestions[st.Name]; ok && s.Role != st.Role {
+				ps = append(ps, fleet.Params{Action: "update", Name: st.Name, Role: s.Role})
+			}
+		}
+		if len(ps) == 0 {
+			d.notice = "No new roles to use; press s to ask for suggestions."
+			return nil
+		}
+		d.saving = true
+		d.notice, d.err = "", ""
+		return ActionApplyRoles{Params: ps}
 	case key.Matches(k, km.Add):
 		d.openForm(nil)
 	case key.Matches(k, km.Edit):
@@ -266,6 +390,7 @@ func (d *Machines) openForm(m *fleet.Status) {
 		d.inputs[machineFieldSlots].SetValue(strconv.Itoa(m.SlotCount()))
 		d.inputs[machineFieldHardware].SetValue(m.Hardware)
 		d.inputs[machineFieldModel].SetValue(m.MachineConfig.Model)
+		d.inputs[machineFieldRole].SetValue(m.Role)
 		d.field = machineFieldURL
 	}
 	d.inputs[d.field].Focus()
@@ -334,6 +459,7 @@ func (d *Machines) formParams() (fleet.Params, error) {
 		Name:     val(machineFieldName),
 		Hardware: val(machineFieldHardware),
 		Model:    val(machineFieldModel),
+		Role:     val(machineFieldRole),
 	}
 	if d.editing != "" {
 		p.Action = "update"
@@ -404,7 +530,7 @@ func (d *Machines) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	t := d.com.Styles
 	d.width = max(0, min(84, area.Dx()-t.Dialog.View.GetHorizontalBorderSize()))
 	// Title, footer, help and the frame take about eight rows.
-	d.height = max(6, min(13, area.Dy()-8))
+	d.height = max(8, min(16, area.Dy()-8))
 	DrawCenter(scr, area, d.content(time.Now()))
 	return nil
 }
@@ -486,21 +612,34 @@ func (d *Machines) listRows(t *styles.Styles, width int) []string {
 	nameW = min(nameW, 16)
 	hwW = min(hwW, 18)
 
-	// Leave room for the selected machine's details below the list.
-	rows := max(1, d.height-6)
+	lines := []string{d.mainLine(t, width), ""}
+	var details []string
+	if m := d.selected(); m != nil {
+		details = append(details, "")
+		details = append(details, d.detailRows(t, *m, width)...)
+	}
+	// The selected machine's details go below the list; the list gets
+	// whatever is left.
+	rows := max(1, d.height-len(lines)-len(details))
 	start := 0
 	if d.cursor >= rows {
 		start = d.cursor - rows + 1
 	}
-	var lines []string
 	for i := start; i < len(d.statuses) && i < start+rows; i++ {
 		lines = append(lines, d.machineLine(t, d.statuses[i], i == d.cursor, nameW, hwW, width))
 	}
-	if m := d.selected(); m != nil {
-		lines = append(lines, "")
-		lines = append(lines, d.detailRows(t, *m, width)...)
+	return append(lines, details...)
+}
+
+// mainLine names the AI the machines help, and how to change it.
+func (d *Machines) mainLine(t *styles.Styles, width int) string {
+	name := d.mainModel
+	if name == "" {
+		name = t.Control.Muted.Render("none chosen")
+	} else {
+		name = t.Control.Value.Render(ansi.Truncate(name, max(0, width-24), "…"))
 	}
-	return lines
+	return t.Control.Label.Render("Main AI  ") + name + t.Control.Muted.Render("  m to change")
 }
 
 func (d *Machines) machineLine(t *styles.Styles, s fleet.Status, sel bool, nameW, hwW, width int) string {
@@ -567,6 +706,17 @@ func (d *Machines) detailRows(t *styles.Styles, s fleet.Status, width int) []str
 	if len(s.Tags) > 0 {
 		lines = append(lines, kv(t, "Good for", trunc(strings.Join(s.Tags, ", "))))
 	}
+	role := s.Role
+	if role == "" {
+		role = t.Control.Muted.Render("none; s asks your main AI what it's best at")
+	}
+	lines = append(lines, kv(t, "Role", trunc(role)))
+	if sug, ok := d.suggestions[s.Name]; ok && sug.Role != s.Role {
+		lines = append(lines, kv(t, "Suggested", t.Control.Allowed.Render(trunc(sug.Role))+t.Control.Muted.Render("  y to use it")))
+		if sug.Reason != "" {
+			lines = append(lines, kv(t, "", t.Control.Muted.Render(trunc(sug.Reason))))
+		}
+	}
 	return lines
 }
 
@@ -615,6 +765,8 @@ func (d *Machines) footer(t *styles.Styles, now time.Time, inner int) string {
 	switch {
 	case d.saving:
 		line = t.Control.Muted.Render("Saving and checking…")
+	case d.suggesting:
+		line = t.Control.Muted.Render("Asking your main AI which role fits each machine…")
 	case d.err != "":
 		line = t.Control.Alert.Render("! " + d.err)
 	case d.notice != "":
@@ -643,9 +795,15 @@ func (d *Machines) ShortHelp() []key.Binding {
 		return []key.Binding{km.Save, km.Next, km.Back}
 	}
 	if len(d.statuses) == 0 {
-		return []key.Binding{km.Add, km.Refresh, km.Close}
+		return []key.Binding{km.Add, km.Main, km.Refresh, km.Close}
 	}
-	return []key.Binding{km.Add, km.Edit, km.Toggle, km.Remove, km.Refresh, km.Close}
+	h := []key.Binding{km.Add, km.Edit, km.Suggest}
+	if m := d.selected(); m != nil {
+		if s, ok := d.suggestions[m.Name]; ok && s.Role != m.Role {
+			h = append(h, km.Apply, km.ApplyAl)
+		}
+	}
+	return append(h, km.Main, km.Toggle, km.Remove, km.Refresh, km.Close)
 }
 
 // FullHelp implements help.KeyMap.

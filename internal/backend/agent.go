@@ -243,6 +243,19 @@ func (b *Backend) MagicContextCommand(ctx context.Context, workspaceID, sessionI
 	return mc.MagicContextCommand(ctx, sessionID, name, args)
 }
 
+// AgentPrompt sends one prompt to the workspace's main model, outside
+// any session, and returns the answer.
+func (b *Backend) AgentPrompt(ctx context.Context, workspaceID, system, prompt string) (string, error) {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return "", err
+	}
+	if ws.AgentCoordinator == nil {
+		return "", ErrAgentNotInitialized
+	}
+	return ws.AgentPrompt(ctx, system, prompt)
+}
+
 // Control runs a control hub command for the workspace.
 func (b *Backend) Control(ctx context.Context, workspaceID string, c control.Command) (control.Reply, error) {
 	ws, err := b.GetWorkspace(workspaceID)

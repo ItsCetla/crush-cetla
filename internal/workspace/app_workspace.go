@@ -248,6 +248,10 @@ func (w *AppWorkspace) AgentSummarize(ctx context.Context, sessionID string) err
 	return w.app.AgentCoordinator.Summarize(ctx, sessionID)
 }
 
+func (w *AppWorkspace) AgentPrompt(ctx context.Context, system, prompt string) (string, error) {
+	return w.app.AgentPrompt(ctx, system, prompt)
+}
+
 func (w *AppWorkspace) AgentMagicContextCommand(ctx context.Context, sessionID, name, args string) (string, error) {
 	if w.app.AgentCoordinator == nil {
 		return "", errors.New("agent coordinator not initialized")

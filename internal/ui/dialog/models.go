@@ -23,6 +23,10 @@ type ModelType int
 const (
 	ModelTypeLarge ModelType = iota
 	ModelTypeSmall
+	// ModelTypeMachines is the third tab: it opens the machines screen,
+	// where the user picks the main AI and assigns the other machines
+	// roles.
+	ModelTypeMachines
 )
 
 // String returns the string representation of the [ModelType].
@@ -32,6 +36,8 @@ func (mt ModelType) String() string {
 		return "Large Task"
 	case ModelTypeSmall:
 		return "Small Task"
+	case ModelTypeMachines:
+		return "Machines"
 	default:
 		return "Unknown"
 	}
@@ -82,6 +88,7 @@ type Models struct {
 
 	keyMap struct {
 		Tab      key.Binding
+		PrevTab  key.Binding
 		UpDown   key.Binding
 		Select   key.Binding
 		Edit     key.Binding
@@ -118,8 +125,12 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	m.input.Focus()
 
 	m.keyMap.Tab = key.NewBinding(
-		key.WithKeys("tab", "shift+tab"),
-		key.WithHelp("tab", "toggle type"),
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "large/small/machines"),
+	)
+	m.keyMap.PrevTab = key.NewBinding(
+		key.WithKeys("shift+tab"),
+		key.WithHelp("shift+tab", "previous tab"),
 	)
 	m.keyMap.Select = key.NewBinding(
 		key.WithKeys("enter", "ctrl+y"),
@@ -208,15 +219,20 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 				ModelType:      modelItem.SelectedModelType(),
 				ReAuthenticate: isEdit,
 			}
-		case key.Matches(msg, m.keyMap.Tab):
+		case key.Matches(msg, m.keyMap.Tab), key.Matches(msg, m.keyMap.PrevTab):
 			if m.isOnboarding {
 				break
 			}
-			if m.modelType == ModelTypeLarge {
-				m.modelType = ModelTypeSmall
-			} else {
-				m.modelType = ModelTypeLarge
+			next := m.modelType + 1
+			if key.Matches(msg, m.keyMap.PrevTab) {
+				next = m.modelType - 1
 			}
+			if next == ModelTypeMachines || next < ModelTypeLarge {
+				// The Machines tab is its own screen; the UI closes
+				// this dialog when it opens it.
+				return ActionOpenMachines{}
+			}
+			m.modelType = next
 			if err := m.setProviderItems(); err != nil {
 				return util.ReportError(err)
 			}
@@ -256,10 +272,12 @@ func (m *Models) modelTypeRadioView() string {
 
 	largeRadio := largeRadioStyle.Padding(0, 1).Render()
 	smallRadio := smallRadioStyle.Padding(0, 1).Render()
+	machinesRadio := t.Radio.Off.Padding(0, 1).Render()
 
-	return fmt.Sprintf("%s%s  %s%s",
+	return fmt.Sprintf("%s%s  %s%s  %s%s",
 		largeRadio, textStyle.Render(ModelTypeLarge.String()),
-		smallRadio, textStyle.Render(ModelTypeSmall.String()))
+		smallRadio, textStyle.Render(ModelTypeSmall.String()),
+		machinesRadio, textStyle.Render(ModelTypeMachines.String()))
 }
 
 // Draw implements [Dialog].
