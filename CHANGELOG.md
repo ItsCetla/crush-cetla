@@ -7,6 +7,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.14] - 2026-10-21
+
 ### Added
 
 - **A folder per tab.** `/cd <path>` (also `/directory` and `/dir`) moves
@@ -17,6 +19,10 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   the start folder. The folder is saved with the session. Language
   servers, project config and Magic Context's project memory stay with the
   start folder.
+- **Ambient line.** A calm line above the editor breathes and shifts color
+  with what the agent is doing, labelled with the current step, then glows
+  once and fades when the turn ends. Off with `option ui ambient off`,
+  `options.tui.ambient: false` or `TADA_NO_AMBIENT=1`.
 
 ## [0.5.13] - 2026-10-21
 
@@ -589,7 +595,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.13...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.14...HEAD
+[0.5.14]: https://github.com/ItsCetla/tada/compare/v0.5.13...v0.5.14
 [0.5.13]: https://github.com/ItsCetla/tada/compare/v0.5.12...v0.5.13
 [0.5.12]: https://github.com/ItsCetla/tada/compare/v0.5.11...v0.5.12
 [0.5.11]: https://github.com/ItsCetla/tada/compare/v0.5.10...v0.5.11

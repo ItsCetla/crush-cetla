@@ -221,6 +221,21 @@ type Styles struct {
 	WorkingLabelColor    color.Color // Label text color next to the indicator
 	WorkingTimerColor    color.Color // Elapsed timer suffix color
 
+	// Ambient mode: the calm line above the editor while the agent works.
+	// Its hue eases between the activity colors and fades into Bg.
+	Ambient struct {
+		Bg         color.Color // What the line fades into
+		Base       color.Color // Dim resting color of the line
+		Label      color.Color // Activity label at the line's right end
+		Thinking   color.Color
+		Reading    color.Color // Reading, searching and fetching
+		Editing    color.Color
+		Running    color.Color // Shell commands
+		Delegating color.Color // Sub-agents
+		Done       color.Color // Brief glow when a turn finishes
+		Failed     color.Color // Brief glow when a turn fails
+	}
+
 	// Section Title
 	Section struct {
 		Title lipgloss.Style

@@ -297,6 +297,20 @@ func TestOption_UIIntro(t *testing.T) {
 	require.Equal(t, false, ui["intro"])
 }
 
+func TestOption_UIAmbient(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "tadarc")
+	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(`option ui ambient off`))
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &result))
+
+	ui := result["options"].(map[string]any)["tui"].(map[string]any)
+	require.Equal(t, false, ui["ambient"])
+}
+
 func TestOption_MagicContext(t *testing.T) {
 	t.Parallel()
 

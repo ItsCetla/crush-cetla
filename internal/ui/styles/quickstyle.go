@@ -216,6 +216,17 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.WorkingLabelColor = o.fgMostSubtle
 	s.WorkingTimerColor = o.fgMostSubtle
 
+	s.Ambient.Bg = o.bgBase
+	s.Ambient.Base = o.separator
+	s.Ambient.Label = o.fgMostSubtle
+	s.Ambient.Thinking = o.primary
+	s.Ambient.Reading = o.info
+	s.Ambient.Editing = o.secondary
+	s.Ambient.Running = o.busy
+	s.Ambient.Delegating = o.keyword
+	s.Ambient.Done = o.success
+	s.Ambient.Failed = o.error
+
 	s.TextInput = textinput.Styles{
 		Focused: textinput.StyleState{
 			Text:        base,
