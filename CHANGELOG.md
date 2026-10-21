@@ -7,6 +7,13 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Added
+
+- **Ambient line.** A calm line above the editor breathes and shifts color
+  with what the agent is doing, labelled with the current step, then glows
+  once and fades when the turn ends. Off with `option ui ambient off`,
+  `options.tui.ambient: false` or `TADA_NO_AMBIENT=1`.
+
 ## [0.5.13] - 2026-10-21
 
 ### Added

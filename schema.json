@@ -1480,6 +1480,11 @@
           "description": "Fold a finished turn's tool calls and intermediate notes into one 'Worked for …' line that expands on click. The final answer, errors and approval requests stay visible",
           "default": true
         },
+        "ambient": {
+          "type": "boolean",
+          "description": "Draw a calm line above the editor while the agent works. It breathes slowly and shifts color as the agent thinks, reads, edits or runs commands. TADA_NO_AMBIENT=1 also turns it off",
+          "default": true
+        },
         "limit_rings": {
           "type": "string",
           "description": "Path to a local JSON file with AI plan usage (5 hour and weekly percent per provider) to show in the sidebar. Some other tool writes the file; Ta-Da only reads it and never fetches the numbers. Empty turns it off",

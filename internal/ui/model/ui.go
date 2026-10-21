@@ -293,6 +293,10 @@ type UI struct {
 	// Escape works for bang commands the same way it does for agent runs.
 	bangCancel context.CancelFunc
 
+	// ambient is the calm activity line drawn above the editor while the
+	// agent works.
+	ambient *ambientState
+
 	header *header
 
 	// sendProgressBar instructs the TUI to send progress bar updates to the
@@ -626,6 +630,7 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 	ui.isTransparent = opts.TUI.IsTransparent()
 	// enable mouse support (default on)
 	ui.mouseEnabled = opts.TUI.Mouse == nil || *opts.TUI.Mouse
+	ui.ambient = newAmbientState(opts.TUI.AmbientEnabled())
 
 	return ui
 }
@@ -874,7 +879,7 @@ func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.markViewedTabSeen()
 	m.traceTabStatus(before, msg)
 	m.noteMarkChanges(time.Now())
-	cmds = append(cmds, m.announceTabEdges(), m.armTabTick(), m.saveTabsIfChanged())
+	cmds = append(cmds, m.announceTabEdges(), m.armTabTick(), m.saveTabsIfChanged(), m.trackAmbient(msg))
 	return model, tea.Batch(cmds...)
 }
 
@@ -887,6 +892,8 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tabSettleMsg, tabTickMsg:
 		// Handled by trackTabStatus.
+	case ambientTickMsg:
+		// Handled by trackAmbient.
 	case tea.EnvMsg:
 		// Is this Windows Terminal?
 		if !m.sendProgressBar {
@@ -3888,6 +3895,7 @@ func (m *UI) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 			editor := uv.NewStyledString(m.renderEditorView(editorWidth))
 			editor.Draw(scr, layout.editor)
 			m.inlineCursor = nil
+			m.drawAmbient(scr, layout.editor)
 		}
 
 		// Draw details overlay in compact mode when open

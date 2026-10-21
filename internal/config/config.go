@@ -369,7 +369,9 @@ type TUIOptions struct {
 	Intro       *bool       `json:"intro,omitempty" jsonschema:"description=Play the short animated intro when the TUI starts. Any key skips it. TADA_NO_INTRO=1 also turns it off,default=true"`
 	RichBlocks  *bool       `json:"rich_blocks,omitempty" jsonschema:"description=Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off,default=true"`
 	FoldTools   *bool       `json:"fold_tools,omitempty" jsonschema:"description=Fold a finished turn's tool calls and intermediate notes into one 'Worked for …' line that expands on click. The final answer\\, errors and approval requests stay visible,default=true"`
-	LimitRings  string      `json:"limit_rings,omitempty" jsonschema:"description=Path to a local JSON file with AI plan usage (5 hour and weekly percent per provider) to show in the sidebar. Some other tool writes the file; Ta-Da only reads it and never fetches the numbers. Empty turns it off,example=~/.cache/limit-rings.json"`
+	// Ambient draws a calm line above the editor while the agent works.
+	Ambient    *bool  `json:"ambient,omitempty" jsonschema:"description=Draw a calm line above the editor while the agent works. It breathes slowly and shifts color as the agent thinks\\, reads\\, edits or runs commands. TADA_NO_AMBIENT=1 also turns it off,default=true"`
+	LimitRings string `json:"limit_rings,omitempty" jsonschema:"description=Path to a local JSON file with AI plan usage (5 hour and weekly percent per provider) to show in the sidebar. Some other tool writes the file; Ta-Da only reads it and never fetches the numbers. Empty turns it off,example=~/.cache/limit-rings.json"`
 	// NotifyBell rings the terminal bell when a session in another tab
 	// starts waiting for you, finishes or fails.
 	NotifyBell bool `json:"notify_bell,omitempty" jsonschema:"description=Ring the terminal bell when a session you are not looking at starts waiting for you\\, finishes or fails,default=false"`
@@ -421,6 +423,16 @@ func (t *TUIOptions) RichBlocksEnabled() bool {
 		return false
 	}
 	return t == nil || t.RichBlocks == nil || *t.RichBlocks
+}
+
+// AmbientEnabled reports whether the calm activity line above the editor
+// is on. It is on unless options.tui.ambient is false or TADA_NO_AMBIENT
+// is set.
+func (t *TUIOptions) AmbientEnabled() bool {
+	if v, ok := os.LookupEnv("TADA_NO_AMBIENT"); ok && v != "" && v != "0" && !strings.EqualFold(v, "false") {
+		return false
+	}
+	return t == nil || t.Ambient == nil || *t.Ambient
 }
 
 // IntroEnabled reports whether the startup intro should play. It is on

@@ -61,6 +61,12 @@ talks to and what it does without asking:
   notification waits until they finish. Click the "needs you" count or press
   **Alt+0** to jump to the next tab waiting on you. See [Tabs](#tabs) for
   renaming, groups, reordering and saved tabs.
+- **Ambient line.** While the agent works, a thin line above the editor
+  breathes slowly and shifts color as the agent thinks, reads, edits or runs
+  commands, with a dim label such as "editing ui.go" at its end. Nothing pops
+  up. When a turn ends the line glows once (green when done, red when it
+  failed) and fades away. Turn it off with `option ui ambient off` in
+  `tadarc`, `options.tui.ambient` set to `false`, or `TADA_NO_AMBIENT=1`.
 - **Usage limits (opt-in).** Point `options.tui.limit_rings` at a local JSON
   file with your plans' 5 hour and weekly usage, and the sidebar and
   `tada status` show it. Some other tool writes the file; Ta-Da only reads
