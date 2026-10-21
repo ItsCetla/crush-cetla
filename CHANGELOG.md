@@ -24,6 +24,18 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   once and fades when the turn ends. Off with `option ui ambient off`,
   `options.tui.ambient: false` or `TADA_NO_AMBIENT=1`.
 
+### Fixed
+
+- Models behind a LiteLLM proxy now teach Ta-Da their context window from
+  the first overflow (`Max Input Tokens=…`), so auto-summarize and Magic
+  Context use the real limit instead of guessing 128k.
+- A window learned from an overflow is now used by Magic Context, its
+  `/ctx` commands and mid-turn summarizing, not only by the overflow retry.
+- A request that was summarized and re-run can be summarized again if it
+  makes progress and fills the window a second time (up to three times),
+  instead of failing with the provider's raw error. When Ta-Da gives up it
+  says "Context full" and what to do next.
+
 ## [0.5.13] - 2026-10-21
 
 ### Added

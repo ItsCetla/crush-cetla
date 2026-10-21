@@ -154,7 +154,7 @@
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/><path d="m15 16 2 2 3-3"/></svg></span>Long chats keep going</h3>
-            <p>When a conversation outgrows the model's context window, Ta-Da summarizes it and sends the request again instead of stopping with an error. Auto-summarize leaves room for the reply, and models without a published window learn theirs from the first overflow.</p>
+            <p>When a conversation outgrows the model's context window, Ta-Da summarizes it and sends the request again instead of stopping with an error, and summarizes again if a long task fills the window a second time. Auto-summarize leaves room for the reply, and models without a published window, including ones behind a LiteLLM proxy, learn theirs from the first overflow.</p>
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5M12 8v5l3 2"/></svg></span>Updates when you say so</h3>
@@ -172,7 +172,7 @@
       <div class="container">
         <div class="feature-grid feature-flip">
           <div class="feature-copy">
-            <span class="eyebrow">Tabs updated in 0.5.11</span>
+            <span class="eyebrow">Tabs updated in 0.5.14</span>
             <h2 id="chat-title">Tables, charts and tabs in the terminal.</h2>
             <p>Replies are easier to read without leaving the terminal. Everything is drawn locally from the reply's own text; nothing is fetched.</p>
             <ul>
@@ -182,6 +182,7 @@
               <li>Tabs you can arrange: <kbd>alt+r</kbd> renames one, <kbd>alt+g</kbd> puts it in a group whose chip folds on a click, and <kbd>alt+a</kbd> sets it aside so it stays quiet. Drag tabs or press <kbd>ctrl+shift+pgup</kbd>/<kbd>pgdn</kbd> to reorder them. Open tabs, names and groups come back the next time you start Ta-Da.</li>
               <li>A folder per tab: type <code>/cd ~/code/other-app</code> and that tab's AI, tools and context files work in the other project while the rest stay put. <code>/cd -</code> goes back.</li>
               <li>A state line under the session title says "Needs you · 2m ago", "Working · 5m" or "Done · just now". Opt in to tabs down the sidebar (<code>options.tui.vertical_tabs</code>), a terminal bell (<code>notify_bell</code>) or your running Claude Code sessions in the sidebar (<code>claude_sessions</code>, read from local files only).</li>
+              <li>An ambient line above the editor breathes and shifts colour while the agent thinks, reads, edits or runs commands, with a dim label like "editing ui.go". When the turn ends it glows once, green or red, and fades. Off with <code>options.tui.ambient: false</code> or <code>TADA_NO_AMBIENT=1</code>.</li>
               <li>Diffs from edits wrap long lines instead of cutting them off.</li>
             </ul>
             <p>Copying a reply still gives you the original markdown. Turn the drawing off with <code>options.tui.rich_blocks: false</code> or <code>TADA_NO_RICH=1</code>.</p>

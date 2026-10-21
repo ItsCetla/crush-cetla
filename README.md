@@ -67,6 +67,12 @@ talks to and what it does without asking:
   up. When a turn ends the line glows once (green when done, red when it
   failed) and fades away. Turn it off with `option ui ambient off` in
   `tadarc`, `options.tui.ambient` set to `false`, or `TADA_NO_AMBIENT=1`.
+- **Long chats keep going.** When a conversation outgrows the model's
+  context window, Ta-Da summarizes it and sends the request again. A
+  re-run that makes progress and fills the window again is summarized
+  again, up to three times. Models without a published window, including
+  ones behind a LiteLLM proxy, learn theirs from the first overflow error.
+  To set it up front, give the model a `context_window`.
 - **Usage limits (opt-in).** Point `options.tui.limit_rings` at a local JSON
   file with your plans' 5 hour and weekly usage, and the sidebar and
   `tada status` show it. Some other tool writes the file; Ta-Da only reads
