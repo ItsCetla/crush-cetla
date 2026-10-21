@@ -101,10 +101,10 @@ func (m *UI) handleClaudeSessions(msg claudeSessionsMsg) tea.Cmd {
 
 // claudeSessionLabel names a session: its name, else its folder.
 func claudeSessionLabel(s claudecode.LiveSession) string {
-	if name := strings.TrimSpace(s.Name); name != "" {
+	if name := cleanTabName(s.Name); name != "" {
 		return name
 	}
-	return cmp.Or(filepath.Base(s.Cwd), "session "+strconv.Itoa(s.PID))
+	return cmp.Or(cleanTabName(filepath.Base(s.Cwd)), "session "+strconv.Itoa(s.PID))
 }
 
 // claudeSessionsInfo renders the sidebar list of Claude Code sessions.

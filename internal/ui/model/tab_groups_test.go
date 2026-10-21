@@ -409,3 +409,29 @@ func TestAgoAndRunningAge(t *testing.T) {
 		require.Equal(t, want, runningAge(d), d.String())
 	}
 }
+
+func TestCleanTabName(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "work", cleanTabName("  work  "))
+	require.Equal(t, "redgreen", cleanTabName("\x1b[31mred\x1b[0m\x1b]0;title\x07green"))
+	require.Equal(t, "a b", cleanTabName("a\tb\x00\x9b"))
+	require.Equal(t, strings.Repeat("x", tabNameMax), cleanTabName(strings.Repeat("x", 200)))
+}
+
+func TestRestoredGroupNamesAreCleaned(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	u, _ := newTabsTestUI(t, "Alpha")
+	u.com.Workspace = &restoreWorkspace{
+		cfg:      &config.Config{Options: &config.Options{DataDirectory: dir}},
+		sessions: map[string]session.Session{"s1": {ID: "s1", Title: "One\x1b[2J"}},
+	}
+	data := `{"version":1,"tabs":[{"id":"s1","group":"g\u001b[2J"}],"collapsed":["g\u001b[2J","\u001b"]}`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, tabsFileName), []byte(data), 0o600))
+
+	msg, ok := u.restoreTabs()().(tabsRestoredMsg)
+	require.True(t, ok)
+	require.Equal(t, "g", msg.tabs[0].group)
+	require.Equal(t, "One", msg.tabs[0].title)
+	require.Equal(t, []string{"g"}, msg.collapsed)
+}

@@ -3,9 +3,12 @@ package model
 import (
 	"context"
 	"strings"
+	"unicode"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/charmbracelet/crush/internal/ui/util"
 )
@@ -54,6 +57,32 @@ type tabDrag struct {
 	id     string
 	active bool
 	moved  bool
+}
+
+// tabNameMax caps tab and group names, in runes.
+const tabNameMax = 80
+
+// cleanTabName makes a name safe to draw: escape sequences and other
+// control characters are dropped and the length is capped. Names read
+// from tabs.json or another program's files go through it.
+func cleanTabName(s string) string {
+	s = ansi.Strip(s)
+	var b strings.Builder
+	n := 0
+	for _, r := range s {
+		if n >= tabNameMax {
+			break
+		}
+		switch {
+		case r == '\t' || r == '\n' || r == '\r':
+			r = ' '
+		case !unicode.IsPrint(r):
+			continue
+		}
+		b.WriteRune(r)
+		n++
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // label is the prompt's lead-in.
@@ -132,6 +161,7 @@ func (m *UI) closeTabPrompt() {
 // renameTab gives a session a new title, in the tab at once and in the
 // database in the background.
 func (m *UI) renameTab(sessionID, title string) tea.Cmd {
+	title = cleanTabName(title)
 	if title == "" {
 		return nil
 	}
@@ -163,6 +193,7 @@ func (m *UI) renameTab(sessionID, title string) tea.Cmd {
 // group when name is empty. A tab joining a group moves to the end of
 // that group; a tab leaving one moves just past it.
 func (m *UI) setTabGroup(i int, name string) {
+	name = cleanTabName(name)
 	if i < 0 || i >= len(m.tabs) || m.tabs[i].group == name {
 		return
 	}

@@ -67,7 +67,7 @@ type tabHit struct {
 
 // tabTitle returns the label shown for a session.
 func tabTitle(s session.Session) string {
-	title := strings.TrimSpace(s.Title)
+	title := cleanTabName(s.Title)
 	if title == "" || strings.EqualFold(title, "new session") {
 		return tabDraftTitle
 	}
