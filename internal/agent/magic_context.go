@@ -72,6 +72,7 @@ func (a *sessionAgent) magicContextMessages(
 	stepTools []fantasy.AgentTool,
 	model Model,
 	systemPrompt string,
+	maxOutputTokens int64,
 ) ([]fantasy.Message, bool) {
 	mc := a.activeMagicContext()
 	if mc == nil {
@@ -103,7 +104,8 @@ func (a *sessionAgent) magicContextMessages(
 	res := mc.Transform(ctx, magiccontext.TransformInput{
 		SessionID:    sessionID,
 		Messages:     msgs,
-		ContextLimit: int(model.CatwalkCfg.ContextWindow),
+		InputTokens:  sess.PromptTokens + sess.CompletionTokens,
+		ContextLimit: magicContextLimit(model.CatwalkCfg.ContextWindow, maxOutputTokens),
 		ModelKey:     model.ModelCfg.Provider + "/" + model.ModelCfg.Model,
 		SystemHash:   systemHash(systemPrompt),
 		Reduce:       hasToolNamed(stepTools, magiccontext.CtxReduceToolName),
@@ -117,6 +119,21 @@ func (a *sessionAgent) magicContextMessages(
 		out = append(out, m)
 	}
 	return append(out, history...), true
+}
+
+// magicContextLimit is the prompt budget Magic Context works against: the
+// context window minus the reply the request reserves. Without this the
+// force and emergency bands sit above what the server accepts, so a
+// request at 88% of a 256k window with 32k max_tokens overflows before
+// any drop runs.
+func magicContextLimit(contextWindow, maxOutputTokens int64) int {
+	if contextWindow <= 0 {
+		return 0
+	}
+	if maxOutputTokens > 0 && maxOutputTokens < contextWindow/2 {
+		return int(contextWindow - maxOutputTokens)
+	}
+	return int(contextWindow)
 }
 
 // magicContextToolResult appends a tool-output reminder to a successful

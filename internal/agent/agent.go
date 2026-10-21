@@ -131,6 +131,10 @@ type SessionAgentCall struct {
 	// paths treat as covered by any present mark, preserving the
 	// pre-sequence behavior.
 	acceptSeq uint64
+	// overflowRetry marks the re-run of a turn that failed because the
+	// conversation outgrew the context window and was summarized. A
+	// second overflow on it fails normally instead of looping.
+	overflowRetry bool
 	// OnAuthRefresh, when non-nil, is called by fantasy when a stream
 	// fails with an authentication error (HTTP 401). The callback should
 	// refresh credentials and return nil on success, in which case
@@ -262,6 +266,10 @@ type sessionAgent struct {
 	// cancel. It is only raised by Cancel when acceptedRuns > 0, so an
 	// idle Escape never records a mark.
 	cancelMark *csync.Map[string, uint64]
+	// learnedWindows caches, per provider/model, a context window size
+	// an overflow error reported, for models the catalog lists without
+	// one. Values are int64.
+	learnedWindows sync.Map
 	// dispatchMuCreate guards lazy creation of per-session entries in
 	// dispatchMu so two goroutines can't race to lock different mutex
 	// instances for the same session.
@@ -903,6 +911,10 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 
 	var stepMessages []fantasy.Message
 	var shouldSummarize bool
+	// overflowed is set when the provider rejected the prompt for not
+	// fitting the context window and the turn will be summarized and
+	// re-run instead of failing.
+	var overflowed bool
 	sanitizedToolCalls := make(map[string]bool)
 	// Full names of tool calls that completed without error this turn.
 	// Written only from the streaming callbacks (which run sequentially)
@@ -972,7 +984,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 			// Magic Context rebuilds the prompt from the stored session
 			// on every step (tags, drops, compartments, reminders).
 			if a.magicContextActive() {
-				if mcMsgs, ok := a.magicContextMessages(callContext, call.SessionID, prepared.Messages, prepared.Tools, largeModel, systemPrompt); ok {
+				if mcMsgs, ok := a.magicContextMessages(callContext, call.SessionID, prepared.Messages, prepared.Tools, largeModel, systemPrompt, call.MaxOutputTokens); ok {
 					prepared.Messages = mcMsgs
 				}
 			}
@@ -1191,7 +1203,9 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 		},
 		StopWhen: []fantasy.StopCondition{
 			func(_ []fantasy.StepResult) bool {
-				cw := int64(largeModel.CatwalkCfg.ContextWindow)
+				// The catalog window, or one an earlier overflow error
+				// reported for this model.
+				cw := a.contextWindow(largeModel)
 				// If context window is unknown (0), skip auto-summarize
 				// to avoid immediately truncating custom/local models.
 				if cw == 0 {
@@ -1199,12 +1213,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 				}
 				tokens := currentSession.CompletionTokens + currentSession.PromptTokens
 				remaining := cw - tokens
-				var threshold int64
-				if cw > largeContextWindowThreshold {
-					threshold = largeContextWindowBuffer
-				} else {
-					threshold = int64(float64(cw) * smallContextWindowRatio)
-				}
+				threshold := summarizeThreshold(cw, call.MaxOutputTokens)
 				if (remaining <= threshold) && !a.disableAutoSummarize && !a.magicContextCompaction() {
 					shouldSummarize = true
 					return true
@@ -1307,8 +1316,25 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 		var requestTimedOutErr *requestTimeoutError
 		const defaultTitle = "Provider Error"
 		linkStyle := lipgloss.NewStyle().Foreground(charmtone.Guac).Underline(true)
+		isOverflow, reportedWindow := false, int64(0)
+		if !isCancelErr {
+			isOverflow, reportedWindow = contextOverflow(err)
+		}
+		if isOverflow {
+			a.learnContextWindow(largeModel, reportedWindow)
+			// Summarize and run the request again, once. Not for the
+			// Claude Code engine (it compacts on its own) or when the
+			// user turned auto-summarize off.
+			overflowed = !call.overflowRetry && !a.disableAutoSummarize &&
+				!largeModel.ClaudeCode && genCtx.Err() == nil
+			slog.Info("Prompt did not fit the context window",
+				"reported_window", reportedWindow, "retry", overflowed)
+		}
 		if isCancelErr {
 			currentAssistant.AddFinish(message.FinishReasonCanceled, "User canceled request", "")
+		} else if overflowed {
+			currentAssistant.AddFinish(message.FinishReasonError, "Context full",
+				"The conversation no longer fits the model's context window. Summarizing it and trying again.")
 		} else if errors.As(err, &requestTimedOutErr) {
 			// Checked before the provider branches so a deadline our own
 			// request timeout imposed is never reported as a provider error.
@@ -1343,15 +1369,71 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 		// tell the channel side something went wrong instead of leaving
 		// the sender hanging. sendChannelReply detaches from the run
 		// context so the notice survives a provider error that tore it down.
-		if channelErrorReplyWanted(call.Channel, err) {
-			a.sendChannelReply(ctx, call,
-				"Something went wrong while handling your message. Please try again.",
-				completedToolCalls)
+		if !overflowed {
+			if channelErrorReplyWanted(call.Channel, err) {
+				a.sendChannelReply(ctx, call,
+					"Something went wrong while handling your message. Please try again.",
+					completedToolCalls)
+			}
+			return nil, err
 		}
-		return nil, err
 	}
 
-	if shouldSummarize {
+	if overflowed {
+		overflowErr := err
+		err = nil
+		// Summarize runs whatever is queued behind the session when it
+		// finishes. Hold that queue aside so the retry of this request
+		// goes first.
+		mu := a.sessionMu(call.SessionID)
+		mu.Lock()
+		held, _ := a.messageQueue.Take(call.SessionID)
+		mu.Unlock()
+		a.activeRequests.Del(call.SessionID)
+		summarizeErr := a.Summarize(genCtx, call.SessionID, call.ProviderOptions, call.OnAuthRefresh)
+		summarized := false
+		if sess, getErr := a.sessions.Get(ctx, call.SessionID); getErr == nil {
+			summarized = sess.SummaryMessageID != "" && sess.SummaryMessageID != currentSession.SummaryMessageID
+		}
+		mu.Lock()
+		existing, _ := a.messageQueue.Get(call.SessionID)
+		switch {
+		case summarized:
+			if summarizeErr != nil {
+				// The summary landed; the error came from a prompt
+				// that was queued while it ran.
+				slog.Warn("Queued prompt failed after summarizing", "error", summarizeErr)
+			}
+			// Run the request again on the summarized session, ahead
+			// of anything that was queued behind it.
+			retry := call
+			retry.overflowRetry = true
+			retry.Prompt = fmt.Sprintf("The previous request failed because the conversation no longer fit in the context window, so it was summarized. The initial user request was: `%s`", call.Prompt)
+			queue := append([]SessionAgentCall{retry}, held...)
+			a.messageQueue.Set(call.SessionID, append(queue, existing...))
+		case summarizeErr == nil:
+			// Summarize returns nil without a summary when it was
+			// canceled. A cancel clears the queue, so drop the held
+			// prompts the same way.
+			a.publishCanceledQueueDrops(held)
+		default:
+			if len(held) > 0 {
+				a.messageQueue.Set(call.SessionID, append(held, existing...))
+			}
+		}
+		mu.Unlock()
+		if !summarized {
+			if summarizeErr != nil {
+				slog.Error("Summarizing after a context overflow failed", "error", summarizeErr)
+			}
+			if channelErrorReplyWanted(call.Channel, overflowErr) {
+				a.sendChannelReply(ctx, call,
+					"Something went wrong while handling your message. Please try again.",
+					completedToolCalls)
+			}
+			return nil, overflowErr
+		}
+	} else if shouldSummarize {
 		a.activeRequests.Del(call.SessionID)
 		if summarizeErr := a.Summarize(genCtx, call.SessionID, call.ProviderOptions, call.OnAuthRefresh); summarizeErr != nil {
 			return nil, summarizeErr
@@ -1374,7 +1456,7 @@ func (a *sessionAgent) Run(ctx context.Context, call SessionAgentCall) (result *
 	// replies when it actually finishes. Runs before the busy state is
 	// released so a follow-up push queued behind this turn cannot
 	// overtake its reply.
-	if currentAssistant != nil && (!shouldSummarize || len(currentAssistant.ToolCalls()) == 0) {
+	if currentAssistant != nil && !overflowed && (!shouldSummarize || len(currentAssistant.ToolCalls()) == 0) {
 		a.sendChannelReply(ctx, call, currentAssistant.Content().String(), completedToolCalls)
 	}
 
@@ -1553,41 +1635,61 @@ func (a *sessionAgent) Summarize(ctx context.Context, sessionID string, opts fan
 
 	summaryPromptText := buildSummaryPrompt(currentSession.Todos)
 
-	resp, err := agent.Stream(genCtx, fantasy.AgentStreamCall{
-		Prompt:          summaryPromptText,
-		Messages:        aiMsgs,
-		Headers:         sessionHeaders(sessionID),
-		ProviderOptions: opts,
-		OnAuthRefresh:   onAuthRefresh,
-		ModelProvider: func() fantasy.LanguageModel {
-			return a.largeModel.Get().Model
-		},
-		PrepareStep: func(callContext context.Context, options fantasy.PrepareStepFunctionOptions) (_ context.Context, prepared fantasy.PrepareStepResult, err error) {
-			prepared.Messages = options.Messages
-			if systemPromptPrefix != "" {
-				prepared.Messages = append([]fantasy.Message{fantasy.NewSystemMessage(systemPromptPrefix)}, prepared.Messages...)
-			}
-			return callContext, prepared, nil
-		},
-		OnReasoningDelta: func(id string, text string) error {
-			summaryMessage.AppendReasoningContent(text)
-			return a.messages.Update(genCtx, summaryMessage)
-		},
-		OnReasoningEnd: func(id string, reasoning fantasy.ReasoningContent) error {
-			// Handle anthropic signature.
-			if anthropicData, ok := reasoning.ProviderMetadata["anthropic"]; ok {
-				if signature, ok := anthropicData.(*anthropic.ReasoningOptionMetadata); ok && signature.Signature != "" {
-					summaryMessage.AppendReasoningSignature(signature.Signature)
+	stream := func(history []fantasy.Message, prompt string) (*fantasy.AgentResult, error) {
+		return agent.Stream(genCtx, fantasy.AgentStreamCall{
+			Prompt:          prompt,
+			Messages:        history,
+			Headers:         sessionHeaders(sessionID),
+			ProviderOptions: opts,
+			OnAuthRefresh:   onAuthRefresh,
+			ModelProvider: func() fantasy.LanguageModel {
+				return a.largeModel.Get().Model
+			},
+			PrepareStep: func(callContext context.Context, options fantasy.PrepareStepFunctionOptions) (_ context.Context, prepared fantasy.PrepareStepResult, err error) {
+				prepared.Messages = options.Messages
+				if systemPromptPrefix != "" {
+					prepared.Messages = append([]fantasy.Message{fantasy.NewSystemMessage(systemPromptPrefix)}, prepared.Messages...)
 				}
-			}
-			summaryMessage.FinishThinking()
-			return a.messages.Update(genCtx, summaryMessage)
-		},
-		OnTextDelta: func(id, text string) error {
-			summaryMessage.AppendContent(text)
-			return a.messages.Update(genCtx, summaryMessage)
-		},
-	})
+				return callContext, prepared, nil
+			},
+			OnReasoningDelta: func(id string, text string) error {
+				summaryMessage.AppendReasoningContent(text)
+				return a.messages.Update(genCtx, summaryMessage)
+			},
+			OnReasoningEnd: func(id string, reasoning fantasy.ReasoningContent) error {
+				// Handle anthropic signature.
+				if anthropicData, ok := reasoning.ProviderMetadata["anthropic"]; ok {
+					if signature, ok := anthropicData.(*anthropic.ReasoningOptionMetadata); ok && signature.Signature != "" {
+						summaryMessage.AppendReasoningSignature(signature.Signature)
+					}
+				}
+				summaryMessage.FinishThinking()
+				return a.messages.Update(genCtx, summaryMessage)
+			},
+			OnTextDelta: func(id, text string) error {
+				summaryMessage.AppendContent(text)
+				return a.messages.Update(genCtx, summaryMessage)
+			},
+		})
+	}
+	resp, err := stream(aiMsgs, summaryPromptText)
+	// The history may already be too big for the model: shrink it and
+	// try once more, as long as nothing was streamed yet.
+	if isOverflow, reported := contextOverflow(err); isOverflow && summaryMessage.Content().String() == "" {
+		a.learnContextWindow(largeModel, reported)
+		budget := int64(float64(cmp.Or(a.contextWindow(largeModel), reported)) * summaryHistoryShare)
+		if budget <= 0 {
+			budget = estimateMessageTokens(aiMsgs) / 2
+		}
+		trimmed, dropped := trimForSummary(aiMsgs, budget)
+		prompt := summaryPromptText
+		if dropped {
+			prompt += "\n\nThe oldest part of the conversation was left out because it no longer fit the context window; summarize what remains."
+		}
+		slog.Info("Summary request overflowed the context window; retrying with a trimmed history",
+			"budget_tokens", budget, "dropped_messages", dropped)
+		resp, err = stream(trimmed, prompt)
+	}
 	if err != nil {
 		isCancelErr := errors.Is(err, context.Canceled)
 		if isCancelErr {
@@ -2131,6 +2233,23 @@ func (a *sessionAgent) updateSessionUsage(model Model, session *session.Session,
 
 	session.Cost += cost
 	updateSessionTokenCounters(session, usage)
+}
+
+// summarizeThreshold returns how many free tokens must remain in the
+// context window before auto-summarize kicks in. It covers the headroom
+// for the next prompt plus the reply the next request reserves: servers
+// such as vLLM reject a request when prompt + max_tokens exceeds the
+// window, so a 20k buffer alone overflows when max_tokens is 32k. The
+// result is capped at half the window so a large max_tokens on a small
+// model can't trigger a summarize loop.
+func summarizeThreshold(contextWindow, maxOutputTokens int64) int64 {
+	var headroom int64
+	if contextWindow > largeContextWindowThreshold {
+		headroom = largeContextWindowBuffer
+	} else {
+		headroom = int64(float64(contextWindow) * smallContextWindowRatio)
+	}
+	return min(headroom+max(maxOutputTokens, 0), contextWindow/2)
 }
 
 // contextTokens returns the size of the prompt the provider processed for

@@ -13,6 +13,20 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   It allows the request and switches to Auto mode, so the run carries on
   without more prompts. Hidden when Auto is already on or while planning.
 
+### Fixed
+
+- **A conversation that outgrows the context window recovers on its own.**
+  When the provider says the request no longer fits, the session is
+  summarized and the request is sent again, once. If the history is too
+  big even to summarize, the oldest part is left out of the summary and
+  long tool output is shortened. Turned off with auto-summarize.
+- **Models without a known context window still auto-summarize.** The
+  window size reported in an overflow error is remembered for that model.
+- **Auto-summarize leaves room for the reply.** The threshold and Magic
+  Context now reserve the model's output tokens, so a full context no
+  longer cuts the answer short.
+- **`/compact` and `/summarize` find the Summarize Session command.**
+
 ## [0.5.10] - 2026-10-20
 
 ### Security

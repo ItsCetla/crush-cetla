@@ -470,7 +470,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 			NewCommandItem(c.com.Styles, "previous_tab", "Previous Tab", "ctrl+pgup", ActionPrevTab{}),
 			NewCommandItem(c.com.Styles, "close_tab", "Close Tab", "alt+w", ActionCloseTab{}),
 		)
-		commands = append(commands, NewCommandItem(c.com.Styles, "summarize", "Summarize Session", "", ActionSummarize{SessionID: c.sessionID}))
+		commands = append(commands, NewCommandItem(c.com.Styles, "summarize", "Summarize Session", "", ActionSummarize{SessionID: c.sessionID}).WithAliases("compact", "summarize"))
 		if opts := c.com.Config().Options; opts != nil && opts.MagicContextEnabled() {
 			for _, mc := range magiccontext.Commands {
 				commands = append(commands, NewCommandItem(c.com.Styles, "magic_context_"+mc.Name, "Magic Context: "+mc.Description, "",
