@@ -51,9 +51,10 @@ func TestEstimatedUsageStateSurvivesFetchModifySave(t *testing.T) {
 func TestSessionChannelPersists(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
+	// Release closes this test's own database. ResetPool would close the
+	// databases of tests running in parallel too.
 	t.Cleanup(func() {
 		require.NoError(t, db.Release(dataDir))
-		db.ResetPool()
 	})
 
 	conn, err := db.Connect(t.Context(), dataDir)
@@ -74,9 +75,10 @@ func TestSessionChannelPersists(t *testing.T) {
 func TestSessionWorkingDirPersists(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
+	// Release closes this test's own database. ResetPool would close the
+	// databases of tests running in parallel too.
 	t.Cleanup(func() {
 		require.NoError(t, db.Release(dataDir))
-		db.ResetPool()
 	})
 
 	conn, err := db.Connect(t.Context(), dataDir)
