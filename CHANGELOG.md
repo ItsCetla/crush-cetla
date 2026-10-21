@@ -7,6 +7,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.13] - 2026-10-21
+
 ### Added
 
 - **Machines are found and used without asking.** Ta-Da checks your
@@ -23,6 +25,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 - A machine that was offline when Ta-Da started, or had no model set, now
   takes work as soon as it comes online instead of after a restart.
+- The README privacy table now lists machines, including the new
+  `GET /props` check.
 
 ## [0.5.12] - 2026-10-21
 
@@ -574,7 +578,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.12...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.13...HEAD
+[0.5.13]: https://github.com/ItsCetla/tada/compare/v0.5.12...v0.5.13
 [0.5.12]: https://github.com/ItsCetla/tada/compare/v0.5.11...v0.5.12
 [0.5.11]: https://github.com/ItsCetla/tada/compare/v0.5.10...v0.5.11
 [0.5.10]: https://github.com/ItsCetla/tada/compare/v0.5.9...v0.5.10

@@ -1513,6 +1513,7 @@ connection it can make; if something isn't listed, Ta-Da doesn't do it.
 | Connection | When | How to turn it off |
 | --- | --- | --- |
 | Model providers you configure | Every turn, plus a `GET /models` discovery call against the same base URL | Remove the provider |
+| Machines you add | Chat calls with the prompts and files the AI sends, plus `GET /models` and `GET /props` checks at startup and before each prompt, all to the URL you gave the machine | Switch the machine off (`space` in `/machines`) or remove it |
 | MCP servers you configure | When they start, and their OAuth flow if they use one | Remove or disable the server |
 | OAuth refresh | For accounts you signed in with `tada login` | `tada logout` |
 | Your `claude` CLI | Only when you pick a Claude Code model. Ta-Da starts the CLI on your machine and the CLI talks to Anthropic itself | Pick another model, or `"disable": true` on the provider |

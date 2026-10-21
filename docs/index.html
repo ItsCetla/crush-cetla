@@ -130,7 +130,7 @@
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="9" height="7" rx="1"/><rect x="13" y="4" width="9" height="7" rx="1"/><rect x="7.5" y="15" width="9" height="6" rx="1"/><path d="M6.5 11v2h11v-2M12 13v2"/></svg></span>Your other computers, put to work</h3>
-            <p>Got an M1 with room for 4 agents and a 3060 Ti with room for 2? Type <code>/machines</code> to add them by IP, see which are online and how many slots are free, and switch them on or off. Or use <code>machine add</code> in <code>tadarc</code>, <code>tada machines add</code>, or just tell the AI. It hands them side work in parallel and falls back to your main model when one drops. Give each machine a role in <code>/model</code> → <strong>Machines</strong>, or let your main AI suggest one from its hardware and model.</p>
+            <p>Got an M1 with room for 4 agents and a 3060 Ti with room for 2? Type <code>/machines</code> to add them by IP, see which are online and how many slots are free, and switch them on or off. Or use <code>machine add</code> in <code>tadarc</code>, <code>tada machines add</code>, or just tell the AI. Ta-Da checks them at startup and before each prompt, reads how many agents each llama.cpp server runs, and hands them side work in parallel without being asked, falling back to your main model when one drops. Give each machine a role in <code>/model</code> → <strong>Machines</strong>, or let your main AI suggest one from its hardware and model.</p>
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-5"/><path d="M4 18h16"/></svg></span>Cockpit, budgets and missions</h3>
@@ -249,7 +249,7 @@
         </div>
         <ul class="checks">
           <li><strong>Model providers you configure.</strong> Chat completions, plus a <code>GET /models</code> discovery call against the same base URL.</li>
-          <li><strong>Machines you add.</strong> The same chat and <code>GET /models</code> calls to the URL you gave each machine, which receives the prompts and files the AI sends it.</li>
+          <li><strong>Machines you add.</strong> The same chat and <code>GET /models</code> calls to the URL you gave each machine, plus a <code>GET /props</code> on the same server to read how many agents it runs. The machine receives the prompts and files the AI sends it.</li>
           <li><strong>MCP servers you configure.</strong> Local processes, HTTP or SSE endpoints, and their OAuth flows if they use one.</li>
           <li><strong>OAuth refresh</strong> for accounts you signed in with <code>tada login</code>.</li>
           <li class="still"><strong>Your <code>claude</code> CLI, only when you pick a Claude Code model.</strong> Ta-Da starts the CLI on your machine; the CLI talks to Anthropic itself.</li>
