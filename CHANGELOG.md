@@ -7,6 +7,15 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-10-21
+
+### Security
+
+- **Built with Go 1.27.3**, which stops trusting compromised intermediate
+  certificates in `crypto/x509`
+  ([GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809)). 0.5.11 was built
+  with Go 1.27.2; update with `tada update`.
+
 ## [0.5.11] - 2026-10-21
 
 ### Added
@@ -548,7 +557,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.11...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.12...HEAD
+[0.5.12]: https://github.com/ItsCetla/tada/compare/v0.5.11...v0.5.12
 [0.5.11]: https://github.com/ItsCetla/tada/compare/v0.5.10...v0.5.11
 [0.5.10]: https://github.com/ItsCetla/tada/compare/v0.5.9...v0.5.10
 [0.5.9]: https://github.com/ItsCetla/tada/compare/v0.5.8...v0.5.9
