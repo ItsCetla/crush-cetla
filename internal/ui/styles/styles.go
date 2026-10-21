@@ -654,6 +654,16 @@ type Styles struct {
 		MarkDone    color.Color // finished, not yet looked at
 		MarkRead    color.Color // finished and seen
 		MarkFailed  color.Color // last turn failed
+
+		NeedsWash       color.Color    // background of a background tab that needs you
+		NeedsWashActive color.Color    // background of the viewed tab when it needs you
+		Prompt          lipgloss.Style // label of the rename / group prompt
+		Group           lipgloss.Style // tab group name chip
+		GroupCount      lipgloss.Style // tab count next to a collapsed group
+		Aside           lipgloss.Style // title of a tab set aside
+		Background      color.Color    // base the mark color blends start from
+		Needs           color.Color    // fixed "needs you" orange
+		SidebarActive   lipgloss.Style // the viewed tab's row in the sidebar list
 	}
 
 	// Pills styles for todo/queue pills

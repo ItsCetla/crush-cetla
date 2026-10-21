@@ -469,6 +469,11 @@ func (c *Commands) defaultCommands() []*CommandItem {
 			NewCommandItem(c.com.Styles, "next_tab", "Next Tab", "ctrl+pgdn", ActionNextTab{}),
 			NewCommandItem(c.com.Styles, "previous_tab", "Previous Tab", "ctrl+pgup", ActionPrevTab{}),
 			NewCommandItem(c.com.Styles, "close_tab", "Close Tab", "alt+w", ActionCloseTab{}),
+			NewCommandItem(c.com.Styles, "rename_tab", "Rename Tab", "alt+r", ActionRenameTab{}).WithAliases("rename", "title"),
+			NewCommandItem(c.com.Styles, "group_tab", "Group Tab", "alt+g", ActionGroupTab{}).WithAliases("group", "ungroup"),
+			NewCommandItem(c.com.Styles, "aside_tab", "Set Tab Aside", "alt+a", ActionAsideTab{}).WithAliases("aside", "mute"),
+			NewCommandItem(c.com.Styles, "move_tab_left", "Move Tab Left", "ctrl+shift+pgup", ActionMoveTab{Delta: -1}),
+			NewCommandItem(c.com.Styles, "move_tab_right", "Move Tab Right", "ctrl+shift+pgdn", ActionMoveTab{Delta: 1}),
 		)
 		commands = append(commands, NewCommandItem(c.com.Styles, "summarize", "Summarize Session", "", ActionSummarize{SessionID: c.sessionID}).WithAliases("compact", "summarize"))
 		if opts := c.com.Config().Options; opts != nil && opts.MagicContextEnabled() {

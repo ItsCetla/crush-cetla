@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"image/color"
 	"strconv"
 	"strings"
 	"time"
@@ -21,7 +22,8 @@ import (
 //
 //	⠋  working (the agent is running, or prompts are queued behind it)
 //	◎  needs you (a permission or question is waiting)
-//	✓  done; bold until you look at the tab, faint after
+//	✔  done, and you have not looked at the tab since
+//	✓  done and seen
 //	✗  the last turn failed
 //
 // The state is kept from agent events, not polled. A turn only counts as
@@ -30,14 +32,20 @@ import (
 
 const (
 	tabMarkNeeds  = "◎"
+	tabMarkUnread = "✔"
 	tabMarkDone   = "✓"
 	tabMarkFailed = "✗"
 	// tabSettleDelay gives a queued prompt time to start before a
 	// finished turn is called done, so a queue does not flash "done"
 	// between its turns.
 	tabSettleDelay = 400 * time.Millisecond
-	// tabSpinInterval is how often the working mark turns.
-	tabSpinInterval = 200 * time.Millisecond
+	// tabSpinInterval is how often the working mark turns: one full turn
+	// a second, calm enough to sit in the corner of the eye.
+	tabSpinInterval = 100 * time.Millisecond
+	// tabBlendDuration is how long a mark takes to fade to a new color
+	// when the status changes, and tabBlendInterval its frame time.
+	tabBlendDuration = 240 * time.Millisecond
+	tabBlendInterval = 60 * time.Millisecond
 	// tabAgeInterval is how often ages ("4m") refresh when nothing spins.
 	tabAgeInterval = 30 * time.Second
 	// tabMsgOwnersMax bounds the message-to-session map kept to place
@@ -78,6 +86,18 @@ type tabStatus struct {
 	// settle. cancelled records a cancel.
 	failed    bool
 	cancelled bool
+
+	// needReason says what the session waits for, for the notification.
+	needReason string
+	// announced is set once the current wait has been announced, so a
+	// burst of permission requests sends one notification.
+	announced bool
+
+	// shownKind is the mark kind last seen by Update. When it changes the
+	// mark fades from blendFrom to the new color, starting at blendAt.
+	shownKind tabMarkKind
+	blendFrom color.Color
+	blendAt   time.Time
 }
 
 // needsYou reports whether the session waits for the user.
@@ -223,6 +243,9 @@ func (m *UI) trackTabStatus(msg tea.Msg) tea.Cmd {
 		}
 		s.perms[key] = struct{}{}
 		s.since = now
+		if len(s.perms) == 1 && !s.asking {
+			s.needReason = fmt.Sprintf("Permission required to run \"%s\"", msg.Payload.ToolName)
+		}
 	case pubsub.Event[permission.PermissionNotification]:
 		if !msg.Payload.Granted && !msg.Payload.Denied {
 			return nil
@@ -242,6 +265,13 @@ func (m *UI) trackTabStatus(msg tea.Msg) tea.Cmd {
 		s := m.tabStatusFor(id)
 		s.asking = true
 		s.since = now
+		if len(s.perms) == 0 {
+			n := len(msg.Payload.Questions)
+			s.needReason = fmt.Sprintf("%d questions need your input", n)
+			if n == 1 {
+				s.needReason = "A question needs your input"
+			}
+		}
 	case pubsub.Event[question.Notification]:
 		// Only one question is pending at a time, so any resolution
 		// clears every tab's question.
@@ -308,13 +338,19 @@ func (m *UI) applyTabSettle(msg tabSettleMsg, now time.Time) tea.Cmd {
 	}
 	s.since = now
 	s.unread = !m.viewingSession(msg.sessionID)
-	if !finished || failed {
-		return nil
+	switch {
+	case failed:
+		return m.announce(msg.sessionID, notification.Notification{
+			Title:   "Ta-Da stopped",
+			Message: fmt.Sprintf("The agent's turn failed in \"%s\"", m.sessionTitleFor(msg.sessionID)),
+		})
+	case finished:
+		return m.announce(msg.sessionID, notification.Notification{
+			Title:   "Ta-Da is waiting...",
+			Message: fmt.Sprintf("Agent's turn completed in \"%s\"", m.sessionTitleFor(msg.sessionID)),
+		})
 	}
-	return m.sendNotification(notification.Notification{
-		Title:   "Ta-Da is waiting...",
-		Message: fmt.Sprintf("Agent's turn completed in \"%s\"", m.sessionTitleFor(msg.sessionID)),
-	})
+	return nil
 }
 
 // sessionTitleFor returns the tab title for sessionID.
@@ -338,11 +374,12 @@ func (m *UI) markViewedTabSeen() {
 	}
 }
 
-// tabsNeedingYou lists the indexes of tabs waiting for the user.
+// tabsNeedingYou lists the indexes of tabs waiting for the user. Tabs set
+// aside are left out.
 func (m *UI) tabsNeedingYou() []int {
 	var out []int
 	for i, t := range m.tabs {
-		if m.tabStatusOf(t.id).needsYou() {
+		if !t.aside && m.tabStatusOf(t.id).needsYou() {
 			out = append(out, i)
 		}
 	}
@@ -369,12 +406,15 @@ func (m *UI) jumpToNeedingTab() tea.Cmd {
 // or 0 when nothing on it changes with time.
 func (m *UI) tabTickInterval() time.Duration {
 	interval := time.Duration(0)
+	now := time.Now()
 	for _, t := range m.tabs {
 		s := m.tabStatusOf(t.id)
 		if s == nil {
 			continue
 		}
 		switch {
+		case s.blending(now):
+			return tabBlendInterval
 		case s.phase == tabWorking && !s.needsYou():
 			return tabSpinInterval
 		case s.phase != tabIdle || s.needsYou():
@@ -387,7 +427,7 @@ func (m *UI) tabTickInterval() time.Duration {
 // armTabTick starts the tab bar's clock when something on it moves.
 // Update calls it once at the end of every message.
 func (m *UI) armTabTick() tea.Cmd {
-	if m.tabTickArmed || !m.tabBarVisible() {
+	if m.tabTickArmed || (!m.tabBarVisible() && !m.sidebarTabsVisible()) {
 		return nil
 	}
 	d := m.tabTickInterval()
@@ -411,7 +451,7 @@ func (m *UI) tabMark(s *tabStatus, now time.Time) (string, tabMarkKind) {
 	case s.phase == tabFailed:
 		return tabMarkFailed, tabMarkKindFailed
 	case s.phase == tabDone && s.unread:
-		return tabMarkDone, tabMarkKindUnread
+		return tabMarkUnread, tabMarkKindUnread
 	case s.phase == tabDone:
 		return tabMarkDone, tabMarkKindRead
 	}
@@ -466,4 +506,57 @@ func needsLabel(n int) string {
 // dropTabStatus forgets a closed tab's status.
 func (m *UI) dropTabStatus(sessionID string) {
 	delete(m.tabStatuses, sessionID)
+}
+
+// blending reports whether the mark is still fading to a new color.
+func (s *tabStatus) blending(now time.Time) bool {
+	return s != nil && s.blendFrom != nil && now.Sub(s.blendAt) < tabBlendDuration
+}
+
+// noteMarkChanges starts a color fade for every mark whose kind changed.
+// Update calls it after the status bookkeeping, so the tick that drives
+// the fade is armed in the same pass.
+func (m *UI) noteMarkChanges(now time.Time) {
+	if m.com == nil || m.com.Styles == nil {
+		return
+	}
+	t := m.com.Styles.Tabs
+	for _, s := range m.tabStatuses {
+		_, kind := m.tabMark(s, now)
+		if kind == s.shownKind {
+			continue
+		}
+		from := t.Background
+		if s.shownKind != tabMarkNone {
+			from = tabMarkColor(t.MarkWorking, t.MarkNeeds, t.MarkDone, t.MarkRead, t.MarkFailed, s.shownKind)
+		}
+		s.shownKind = kind
+		s.blendFrom, s.blendAt = from, now
+	}
+}
+
+// markColor returns the color of a mark of the given kind, part way
+// through its fade when the status just changed.
+func (s *tabStatus) markColor(target color.Color, now time.Time) color.Color {
+	if !s.blending(now) || target == nil {
+		return target
+	}
+	p := float64(now.Sub(s.blendAt)) / float64(tabBlendDuration)
+	// Ease out: most of the change happens in the first frames.
+	p = 1 - (1-p)*(1-p)
+	return lerpColor(s.blendFrom, target, p)
+}
+
+// lerpColor mixes a and b, p of the way from a to b.
+func lerpColor(a, b color.Color, p float64) color.Color {
+	if a == nil {
+		return b
+	}
+	p = min(max(p, 0), 1)
+	ar, ag, ab, _ := a.RGBA()
+	br, bg, bb, _ := b.RGBA()
+	mix := func(x, y uint32) uint8 {
+		return uint8((float64(x>>8)*(1-p) + float64(y>>8)*p) + 0.5)
+	}
+	return color.RGBA{R: mix(ar, br), G: mix(ag, bg), B: mix(ab, bb), A: 0xff}
 }

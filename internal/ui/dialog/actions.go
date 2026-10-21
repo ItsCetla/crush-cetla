@@ -47,10 +47,15 @@ type ActionSelectModel struct {
 
 // Messages for commands
 type (
-	ActionNewSession              struct{}
-	ActionNextTab                 struct{}
-	ActionPrevTab                 struct{}
-	ActionCloseTab                struct{}
+	ActionNewSession struct{}
+	ActionNextTab    struct{}
+	ActionPrevTab    struct{}
+	ActionCloseTab   struct{}
+	ActionRenameTab  struct{}
+	ActionGroupTab   struct{}
+	ActionAsideTab   struct{}
+	// ActionMoveTab moves the tab in view Delta places along the bar.
+	ActionMoveTab                 struct{ Delta int }
 	ActionToggleHelp              struct{}
 	ActionToggleCompactMode       struct{}
 	ActionToggleThinking          struct{}

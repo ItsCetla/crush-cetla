@@ -370,6 +370,23 @@ type TUIOptions struct {
 	RichBlocks  *bool       `json:"rich_blocks,omitempty" jsonschema:"description=Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off,default=true"`
 	FoldTools   *bool       `json:"fold_tools,omitempty" jsonschema:"description=Fold a finished turn's tool calls and intermediate notes into one 'Worked for …' line that expands on click. The final answer\\, errors and approval requests stay visible,default=true"`
 	LimitRings  string      `json:"limit_rings,omitempty" jsonschema:"description=Path to a local JSON file with AI plan usage (5 hour and weekly percent per provider) to show in the sidebar. Some other tool writes the file; Ta-Da only reads it and never fetches the numbers. Empty turns it off,example=~/.cache/limit-rings.json"`
+	// NotifyBell rings the terminal bell when a session in another tab
+	// starts waiting for you, finishes or fails.
+	NotifyBell bool `json:"notify_bell,omitempty" jsonschema:"description=Ring the terminal bell when a session you are not looking at starts waiting for you\\, finishes or fails,default=false"`
+	// VerticalTabs lists the session tabs in the sidebar instead of the
+	// bar above the chat whenever the sidebar is shown.
+	VerticalTabs bool `json:"vertical_tabs,omitempty" jsonschema:"description=List session tabs in the sidebar instead of the tab bar above the chat whenever the sidebar is shown,default=false"`
+	// ClaudeSessions shows the interactive Claude Code sessions running
+	// on this machine in the sidebar.
+	ClaudeSessions bool `json:"claude_sessions,omitempty" jsonschema:"description=Show the interactive Claude Code sessions running on this machine in the sidebar and notify when one starts waiting for you. Reads the local session files under ~/.claude/sessions only,default=false"`
+	// RestoreTabs reopens the tabs of the last run in this project.
+	RestoreTabs *bool `json:"restore_tabs,omitempty" jsonschema:"description=Reopen the session tabs (with their groups) from the last run in this project on start,default=true"`
+}
+
+// RestoreTabsEnabled reports whether the last run's tabs are reopened on
+// start. It is on unless options.tui.restore_tabs is false.
+func (t *TUIOptions) RestoreTabsEnabled() bool {
+	return t == nil || t.RestoreTabs == nil || *t.RestoreTabs
 }
 
 // LimitRingsPath returns the usage-limits file to read, with a leading ~

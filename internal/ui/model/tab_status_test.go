@@ -81,7 +81,7 @@ func TestTabStatusBackgroundTurnEndsUnread(t *testing.T) {
 
 	u.trackTabStatus(created("sb", "m1", message.User))
 	require.Equal(t, tabMarkKindWorking, markOf(u, "sb"))
-	require.Equal(t, 200*time.Millisecond, u.tabTickInterval(), "a working tab spins")
+	require.Equal(t, tabSpinInterval, u.tabTickInterval(), "a working tab spins")
 
 	cmd := u.trackTabStatus(turnFinished("sb"))
 	require.NotNil(t, cmd, "a finished turn schedules a settle probe")
@@ -228,7 +228,7 @@ func TestTabBarShowsMarkAndAge(t *testing.T) {
 	u.tabStatusOf("sb").since = time.Now().Add(-5 * time.Minute)
 
 	view, _ := u.renderTabBar(200)
-	require.Contains(t, ansi.Strip(view), tabMarkDone+" 2 Beta 5m ×")
+	require.Contains(t, ansi.Strip(view), tabMarkUnread+" 2 Beta 5m ×", "a turn that ended out of view is unread")
 
 	narrow, _ := u.renderTabBar(28)
 	require.NotContains(t, ansi.Strip(narrow), "5m", "ages go first when the bar is tight")

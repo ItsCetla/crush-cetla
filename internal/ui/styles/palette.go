@@ -64,6 +64,7 @@ func PaletteFields() []PaletteField {
 		{"error", func(p Palette) string { return p.Error }, func(p *Palette, v string) { p.Error = v }},
 		{"warning", func(p Palette) string { return p.Warning }, func(p *Palette, v string) { p.Warning = v }},
 		{"warning_subtle", func(p Palette) string { return p.WarningSubtle }, func(p *Palette, v string) { p.WarningSubtle = v }},
+		{"needs", func(p Palette) string { return p.Needs }, func(p *Palette, v string) { p.Needs = v }},
 		{"attention", func(p Palette) string { return p.Attention }, func(p *Palette, v string) { p.Attention = v }},
 		{"busy", func(p Palette) string { return p.Busy }, func(p *Palette, v string) { p.Busy = v }},
 		{"info", func(p Palette) string { return p.Info }, func(p *Palette, v string) { p.Info = v }},
@@ -130,6 +131,7 @@ type Palette struct {
 	Error             string `json:"error,omitempty"`
 	Warning           string `json:"warning,omitempty"`
 	WarningSubtle     string `json:"warning_subtle,omitempty"`
+	Needs             string `json:"needs,omitempty"`
 	Attention         string `json:"attention,omitempty"`
 	Busy              string `json:"busy,omitempty"`
 	Info              string `json:"info,omitempty"`
@@ -202,6 +204,7 @@ func PaletteFromOpts(o quickStyleOpts) Palette {
 		Error:             colorToHex(o.error),
 		Warning:           colorToHex(o.warning),
 		WarningSubtle:     colorToHex(o.warningSubtle),
+		Needs:             colorToHex(o.needs),
 		Attention:         colorToHex(o.attention),
 		Busy:              colorToHex(o.busy),
 		Info:              colorToHex(o.info),
@@ -273,6 +276,7 @@ func (p Palette) ToQuickStyleOpts(base quickStyleOpts) quickStyleOpts {
 		error:             resolveColor(p.Error, base.error),
 		warning:           resolveColor(p.Warning, base.warning),
 		warningSubtle:     resolveColor(p.WarningSubtle, base.warningSubtle),
+		needs:             resolveColor(p.Needs, base.needs),
 		attention:         resolveColor(p.Attention, base.attention),
 		busy:              resolveColor(p.Busy, base.busy),
 		info:              resolveColor(p.Info, base.info),

@@ -1486,6 +1486,26 @@
           "examples": [
             "~/.cache/limit-rings.json"
           ]
+        },
+        "notify_bell": {
+          "type": "boolean",
+          "description": "Ring the terminal bell when a session you are not looking at starts waiting for you, finishes or fails",
+          "default": false
+        },
+        "vertical_tabs": {
+          "type": "boolean",
+          "description": "List session tabs in the sidebar instead of the tab bar above the chat whenever the sidebar is shown",
+          "default": false
+        },
+        "claude_sessions": {
+          "type": "boolean",
+          "description": "Show the interactive Claude Code sessions running on this machine in the sidebar and notify when one starts waiting for you. Reads the local session files under ~/.claude/sessions only",
+          "default": false
+        },
+        "restore_tabs": {
+          "type": "boolean",
+          "description": "Reopen the session tabs (with their groups) from the last run in this project on start",
+          "default": true
         }
       },
       "additionalProperties": false,

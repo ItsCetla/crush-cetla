@@ -77,6 +77,13 @@ type KeyMap struct {
 		Close key.Binding
 		Jump  key.Binding
 		Needs key.Binding
+		// Rename, Group and Aside edit the tab in view; MoveLeft and
+		// MoveRight reorder it.
+		Rename    key.Binding
+		Group     key.Binding
+		Aside     key.Binding
+		MoveLeft  key.Binding
+		MoveRight key.Binding
 	}
 
 	Initialize struct {
@@ -243,6 +250,27 @@ func DefaultKeyMap() KeyMap {
 	km.Tabs.Needs = key.NewBinding(
 		key.WithKeys("alt+0"),
 		key.WithHelp("alt+0", "go to tab that needs you"),
+	)
+	km.Tabs.Rename = key.NewBinding(
+		key.WithKeys("alt+r"),
+		key.WithHelp("alt+r", "rename tab"),
+	)
+	km.Tabs.Group = key.NewBinding(
+		key.WithKeys("alt+g"),
+		key.WithHelp("alt+g", "group tab"),
+	)
+	km.Tabs.Aside = key.NewBinding(
+		key.WithKeys("alt+a"),
+		key.WithHelp("alt+a", "set tab aside"),
+	)
+	// Not alt+shift+arrows: the editor uses those to select words.
+	km.Tabs.MoveLeft = key.NewBinding(
+		key.WithKeys("ctrl+shift+pgup"),
+		key.WithHelp("ctrl+shift+pgup", "move tab left"),
+	)
+	km.Tabs.MoveRight = key.NewBinding(
+		key.WithKeys("ctrl+shift+pgdown"),
+		key.WithHelp("ctrl+shift+pgdn", "move tab right"),
 	)
 
 	km.Chat.NewSession = key.NewBinding(

@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/crush/internal/ui/logo"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/ultraviolet/layout"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // modelInfo renders the current model information including reasoning
@@ -78,6 +79,9 @@ func (m *UI) updateSidebarScrollState() {
 	contentWidth := max(width-2, 1)
 
 	title := t.Sidebar.SessionTitle.Width(contentWidth).MaxHeight(2).Render(m.session.Title)
+	if state := m.sessionStateText(t.Control.Muted, time.Now()); state != "" {
+		title = lipgloss.JoinVertical(lipgloss.Left, title, ansi.Truncate(state, contentWidth, "…"))
+	}
 	cwd := common.PrettyPathWithBranch(t, m.com.Workspace.WorkingDir(), m.gitBranch, contentWidth)
 	sidebarLogo := m.sidebarLogo
 	if height < logoHeightBreakpoint {
@@ -109,6 +113,15 @@ func (m *UI) updateSidebarScrollState() {
 		"",
 	)
 	now := time.Now()
+	m.tabx.side = sidebarTabRows{start: -1, top: contentRect.Min.Y}
+	if list, rows := m.sessionsInfo(contentWidth, now); list != "" {
+		m.tabx.side.start = strings.Count(content, "\n") + 1
+		m.tabx.side.rows = rows
+		content = lipgloss.JoinVertical(lipgloss.Left, content, list, "")
+	}
+	if list := m.claudeSessionsInfo(contentWidth, now); list != "" {
+		content = lipgloss.JoinVertical(lipgloss.Left, content, list, "")
+	}
 	for _, s := range []string{m.missionInfo(contentWidth), m.controlInfo(contentWidth, now), m.limitsInfo(contentWidth, now)} {
 		if s != "" {
 			content = lipgloss.JoinVertical(lipgloss.Left, content, s, "")

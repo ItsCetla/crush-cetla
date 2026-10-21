@@ -53,7 +53,8 @@ func (h *header) refresh() {
 	h.logo = ""
 }
 
-// drawHeader draws the header for the given session. lspErrorCount comes
+// drawHeader draws the header for the given session. state is the
+// pre-rendered session state line, shown in compact mode. lspErrorCount comes
 // from the UI's memoized LSP state: drawing runs on every frame and must not
 // probe the workspace (a synchronous HTTP round-trip in client/server mode).
 func (h *header) drawHeader(
@@ -65,6 +66,7 @@ func (h *header) drawHeader(
 	width int,
 	lspErrorCount int,
 	gitBranch string,
+	state string,
 ) {
 	t := h.com.Styles
 	if width != h.width || compact != h.compact {
@@ -94,6 +96,7 @@ func (h *header) drawHeader(
 		detailsOpen,
 		availDetailWidth,
 		gitBranch,
+		state,
 	)
 
 	remainingWidth := width -
@@ -126,10 +129,16 @@ func renderHeaderDetails(
 	detailsOpen bool,
 	availWidth int,
 	gitBranch string,
+	state string,
 ) string {
 	t := com.Styles
 
 	var parts []string
+	// state is the pre-rendered session state ("⠋ Working · 5m"), so the
+	// header does not need to know about tab status.
+	if state != "" {
+		parts = append(parts, state)
+	}
 
 	if lspErrorCount > 0 {
 		parts = append(parts, t.LSP.ErrorDiagnostic.Render(fmt.Sprintf("%s%d", styles.LSPErrorIcon, lspErrorCount)))

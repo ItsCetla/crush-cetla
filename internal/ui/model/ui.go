@@ -401,6 +401,9 @@ type UI struct {
 	tabStatuses  map[string]*tabStatus
 	tabMsgOwners map[string]string
 	tabTickArmed bool
+	// tabx holds the tab extras: groups, the rename prompt, dragging,
+	// restored tabs and Claude Code sessions.
+	tabx tabExtras
 	// custom commands & mcp commands
 	customCommands []commands.CustomCommand
 	mcpPrompts     []commands.MCPPrompt
@@ -669,7 +672,7 @@ func (m *UI) Init() tea.Cmd {
 	// polling for checkouts made outside Ta-Da.
 	cmds = append(cmds, m.fetchGitBranch(), m.gitBranchTicker())
 	// Usage limits come from a local file some other tool writes (opt-in).
-	cmds = append(cmds, m.limitsPoll(0))
+	cmds = append(cmds, m.limitsPoll(0), m.claudeSessionsPoll(0), m.restoreTabs())
 	// Prime the memoized MCP state off-thread. There is deliberately no
 	// wait for server-side MCP initialization: the init gate is
 	// process-local and only armed where mcp.Initialize runs (the server),
@@ -858,10 +861,13 @@ func (m *UI) loadMCPrompts() tea.Msg {
 // Update handles updates to the UI model. The tab status bookkeeping runs
 // around the main update so it also sees messages handled by an early return.
 func (m *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	before := m.tabStatusSnapshot()
 	model, cmd := m.update(msg)
 	cmds := []tea.Cmd{cmd, m.trackTabStatus(msg)}
 	m.markViewedTabSeen()
-	cmds = append(cmds, m.armTabTick())
+	m.traceTabStatus(before, msg)
+	m.noteMarkChanges(time.Now())
+	cmds = append(cmds, m.announceTabEdges(), m.armTabTick(), m.saveTabsIfChanged())
 	return model, tea.Batch(cmds...)
 }
 
@@ -1202,11 +1208,12 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.openPermissionsDialog(msg.Payload); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-		if cmd := m.sendNotification(notification.Notification{
-			Title:   "Ta-Da is waiting...",
-			Message: fmt.Sprintf("Permission required to execute \"%s\"", msg.Payload.ToolName),
-		}); cmd != nil {
-			cmds = append(cmds, cmd)
+		// The notification goes out from announceTabEdges, once per wait.
+		if m.tabOwner(msg.Payload.SessionID) == "" {
+			cmds = append(cmds, m.sendNotification(notification.Notification{
+				Title:   "Ta-Da is waiting...",
+				Message: fmt.Sprintf("Permission required to run \"%s\"", msg.Payload.ToolName),
+			}))
 		}
 	case pubsub.Event[permission.PermissionNotification]:
 		m.handlePermissionNotification(msg.Payload)
@@ -1215,11 +1222,12 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case pubsub.Event[question.Request]:
 		m.openBatchFormDialog(msg.Payload)
 		m.chat.ScrollToBottom()
-		if cmd := m.sendNotification(notification.Notification{
-			Title:   "Ta-Da is waiting...",
-			Message: fmt.Sprintf("%d questions need your input", len(msg.Payload.Questions)),
-		}); cmd != nil {
-			cmds = append(cmds, cmd)
+		// The notification goes out from announceTabEdges, once per wait.
+		if m.tabOwner(msg.Payload.SessionID) == "" {
+			cmds = append(cmds, m.sendNotification(notification.Notification{
+				Title:   "Ta-Da is waiting...",
+				Message: fmt.Sprintf("%d questions need your input", len(msg.Payload.Questions)),
+			}))
 		}
 	case pubsub.Event[question.Notification]:
 		m.handleQuestionNotification(msg.Payload)
@@ -1289,6 +1297,15 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Clicks on the sessions list in the sidebar.
+		if (msg.Button == uv.MouseLeft || msg.Button == uv.MouseMiddle) && m.sidebarTabsVisible() &&
+			image.Pt(msg.X, msg.Y).In(m.layout.sidebar) {
+			if cmd, ok := m.handleSidebarTabClick(msg.Y, msg.Button == uv.MouseMiddle); ok {
+				cmds = append(cmds, cmd)
+				return m, tea.Batch(cmds...)
+			}
+		}
+
 		// Clicks on the session tab bar switch, close or add tabs.
 		if m.layout.tabs.Dy() > 0 && image.Pt(msg.X, msg.Y).In(m.layout.tabs) &&
 			(msg.Button == uv.MouseLeft || msg.Button == uv.MouseMiddle) {
@@ -1341,6 +1358,18 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Pass mouse events to dialogs first if any are open.
 		if m.dialog.HasDialogs() {
 			m.dialog.Update(msg)
+			return m, tea.Batch(cmds...)
+		}
+
+		if m.tabx.drag.active && msg.Button != uv.MouseLeft {
+			// The release was missed (it happened outside the window).
+			m.endTabDrag()
+		}
+		// A tab dragged along the bar moves as the pointer passes others.
+		if m.tabx.drag.active {
+			if m.layout.tabs.Dy() > 0 && msg.Y == m.layout.tabs.Min.Y {
+				m.dragTabTo(msg.X - m.layout.tabs.Min.X)
+			}
 			return m, tea.Batch(cmds...)
 		}
 
@@ -1400,6 +1429,11 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Pass mouse events to dialogs first if any are open.
 		if m.dialog.HasDialogs() {
 			m.dialog.Update(msg)
+			return m, tea.Batch(cmds...)
+		}
+
+		if m.tabx.drag.active {
+			m.endTabDrag()
 			return m, tea.Batch(cmds...)
 		}
 
@@ -1618,6 +1652,10 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.fetchGitBranch(), m.gitBranchTicker())
 	case limitsMsg:
 		cmds = append(cmds, m.handleLimits(msg))
+	case claudeSessionsMsg:
+		cmds = append(cmds, m.handleClaudeSessions(msg))
+	case tabsRestoredMsg:
+		m.handleTabsRestored(msg)
 	case util.InfoMsg:
 		if msg.Type == util.InfoTypeError {
 			slog.Error("Error reported", "error", msg.Msg)
@@ -2304,6 +2342,18 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		if cmd := m.closeActiveTab(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case dialog.ActionRenameTab:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		m.startTabPrompt(tabPromptRename)
+	case dialog.ActionGroupTab:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		m.startTabPrompt(tabPromptGroup)
+	case dialog.ActionAsideTab:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		m.toggleTabAside(m.activeTabIndex())
+	case dialog.ActionMoveTab:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		m.moveActiveTab(msg.Delta)
 	case dialog.ActionMagicContext:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, m.runMagicContextCommand(msg.Name, ""))
@@ -3191,6 +3241,17 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				}
 				return true
 			}
+		case key.Matches(msg, m.keyMap.Tabs.Rename) && m.state == uiChat && m.activeTabIndex() >= 0:
+			return m.startTabPrompt(tabPromptRename)
+		case key.Matches(msg, m.keyMap.Tabs.Group) && m.state == uiChat && m.activeTabIndex() >= 0:
+			return m.startTabPrompt(tabPromptGroup)
+		case key.Matches(msg, m.keyMap.Tabs.Aside) && m.state == uiChat && m.activeTabIndex() >= 0:
+			m.toggleTabAside(m.activeTabIndex())
+			return true
+		case key.Matches(msg, m.keyMap.Tabs.MoveLeft) && m.state == uiChat:
+			return m.moveActiveTab(-1)
+		case key.Matches(msg, m.keyMap.Tabs.MoveRight) && m.state == uiChat:
+			return m.moveActiveTab(1)
 		case key.Matches(msg, m.keyMap.Tabs.Jump) && len(m.tabs) > 0:
 			if m.state == uiChat || m.state == uiLanding {
 				n, _ := strconv.Atoi(strings.TrimPrefix(msg.String(), "alt+"))
@@ -3218,6 +3279,14 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			return true
 		}
 		return false
+	}
+
+	// The tab rename / group prompt takes every key while it is open,
+	// ctrl+c included (it cancels), unless a dialog popped up over it.
+	if !m.dialog.HasDialogs() {
+		if cmd, ok := m.handleTabPromptKey(msg); ok {
+			return cmd
+		}
 	}
 
 	if key.Matches(msg, m.keyMap.Quit) && !m.dialog.ContainsDialog(dialog.QuitID) {
@@ -3706,7 +3775,25 @@ func (m *UI) drawHeader(scr uv.Screen, area uv.Rectangle) {
 		area.Dx(),
 		m.lspErrorCount(),
 		m.gitBranch,
+		m.headerState(),
 	)
+}
+
+// headerState is the compact header's session state plus a badge for
+// other tabs that wait for the user.
+func (m *UI) headerState() string {
+	if !m.isCompact {
+		return ""
+	}
+	muted := m.com.Styles.Header.KeystrokeTip
+	state := m.sessionStateText(muted, time.Now())
+	if badge := m.otherTabsNeedingText(); badge != "" {
+		if state != "" {
+			state += " "
+		}
+		state += badge
+	}
+	return state
 }
 
 // Draw implements [uv.Drawable] and draws the UI model.
@@ -3855,6 +3942,11 @@ func (m *UI) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		}
 		if m.detailsOpen && m.isCompact {
 			// Don't show cursor if details overlay is open
+			return nil
+		}
+
+		if m.tabx.prompt != nil {
+			// The tab prompt draws its own cursor in the tab bar.
 			return nil
 		}
 
@@ -4136,7 +4228,7 @@ func (m *UI) FullHelp() [][]key.Binding {
 
 		binds = append(binds, mainBinds)
 		if len(m.tabs) >= 2 {
-			binds = append(binds, []key.Binding{k.Tabs.Jump, k.Tabs.Needs, k.Tabs.Next, k.Tabs.Prev, k.Tabs.Close})
+			binds = append(binds, []key.Binding{k.Tabs.Jump, k.Tabs.Needs, k.Tabs.Next, k.Tabs.Prev, k.Tabs.Close, k.Tabs.Rename, k.Tabs.Group, k.Tabs.Aside, k.Tabs.MoveLeft, k.Tabs.MoveRight})
 		}
 
 		switch m.focus {

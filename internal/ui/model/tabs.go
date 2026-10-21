@@ -37,6 +37,12 @@ const (
 type sessionTab struct {
 	id    string
 	title string
+	// group names the group the tab belongs to, or "" for none. Tabs of
+	// one group always sit next to each other.
+	group string
+	// aside marks a tab set aside: it stays open but never notifies and
+	// is left out of "needs you".
+	aside bool
 }
 
 // tabHitKind says what a click on part of the tab bar does.
@@ -47,6 +53,7 @@ const (
 	tabHitClose
 	tabHitNew
 	tabHitNeeds // the "N needs you" count: jump to the next such tab
+	tabHitGroup // a group chip: fold or unfold the group
 )
 
 // tabHit is a clickable span of the tab bar, in cells relative to the
@@ -55,6 +62,7 @@ type tabHit struct {
 	x0, x1 int
 	kind   tabHitKind
 	index  int
+	group  string
 }
 
 // tabTitle returns the label shown for a session.
@@ -68,6 +76,11 @@ func tabTitle(s session.Session) string {
 
 // tabBarVisible reports whether the current state shows the tab bar.
 func (m *UI) tabBarVisible() bool {
+	// The sidebar lists the tabs instead, but the bar still shows to
+	// hold the rename / group prompt.
+	if m.sidebarTabsVisible() && m.tabx.prompt == nil {
+		return false
+	}
 	switch m.state {
 	case uiChat, uiLanding:
 		return len(m.tabs) >= 1
@@ -218,9 +231,15 @@ func (m *UI) handleTabBarClick(x int, middle bool) tea.Cmd {
 				return nil
 			}
 			return m.newSessionFromTabs()
+		case h.kind == tabHitGroup:
+			if !middle {
+				m.toggleGroupCollapsed(h.group)
+			}
+			return nil
 		case h.kind == tabHitClose || middle:
 			return m.closeTab(h.index)
 		default:
+			m.startTabDrag(h.index)
 			return m.switchToTab(h.index)
 		}
 	}
@@ -229,7 +248,8 @@ func (m *UI) handleTabBarClick(x int, middle bool) tea.Cmd {
 
 // tabCell is one rendered tab, ready to lay out.
 type tabCell struct {
-	index int // index into m.tabs, or -1 for the landing draft
+	index int    // index into m.tabs, or -1 for the landing draft or a chip
+	group string // set on a group chip
 	title string
 	label string // rendered title part (index and title)
 	close string // rendered close mark, empty for the draft
@@ -243,6 +263,11 @@ func (m *UI) renderTabBar(width int) (string, []tabHit) {
 		return "", nil
 	}
 	t := m.com.Styles.Tabs
+	if p := m.tabx.prompt; p != nil {
+		label := t.Prompt.Render(p.label())
+		p.input.SetWidth(max(width-ansi.StringWidth(label)-2, 1))
+		return ansi.Truncate(label+" "+p.input.View(), width, ""), nil
+	}
 	active := m.activeTabIndex()
 	now := time.Now()
 
@@ -266,8 +291,10 @@ func (m *UI) renderTabBar(width int) (string, []tabHit) {
 	}
 
 	focus := len(cells) - 1
-	if active >= 0 {
-		focus = active
+	for i, c := range cells {
+		if active >= 0 && c.index == active {
+			focus = i
+		}
 	}
 
 	total := newW + tabCellsWidth(cells)
@@ -311,6 +338,9 @@ func (m *UI) renderTabBar(width int) (string, []tabHit) {
 		c := cells[i]
 		x0 := x
 		write(c.label)
+		if c.group != "" {
+			hits = append(hits, tabHit{x0: x0, x1: x, kind: tabHitGroup, index: -1, group: c.group})
+		}
 		if c.index >= 0 {
 			hits = append(hits, tabHit{x0: x0, x1: x, kind: tabHitSelect, index: c.index})
 			cx := x
@@ -334,52 +364,112 @@ func (m *UI) renderTabBar(width int) (string, []tabHit) {
 	return ansi.Truncate(b.String(), width, ""), hits
 }
 
-// tabCells renders each open tab. withAge adds how long ago its status
-// changed.
+// tabCells renders each open tab, with a chip before each group. A
+// folded group shows only its chip and, when it is in view, the active
+// tab. withAge adds how long ago each status changed.
 func (m *UI) tabCells(active int, now time.Time, withAge bool) []tabCell {
-	t := m.com.Styles.Tabs
 	cells := make([]tabCell, 0, len(m.tabs)+1)
 	for i, tab := range m.tabs {
-		isActive := i == active
-		titleStyle, indexStyle, closeStyle := t.Inactive, t.InactiveIndex, t.InactiveClose
-		if isActive {
-			titleStyle, indexStyle, closeStyle = t.Active, t.ActiveIndex, t.ActiveClose
+		if tab.group != "" && (i == 0 || m.tabs[i-1].group != tab.group) {
+			cells = append(cells, m.groupChip(tab.group, now))
 		}
-		st := m.tabStatusOf(tab.id)
-		var b strings.Builder
-		if mark, kind := m.tabMark(st, now); mark != "" {
-			markStyle := titleStyle.Bold(false).Foreground(tabMarkColor(t.MarkWorking, t.MarkNeeds, t.MarkDone, t.MarkRead, t.MarkFailed, kind))
-			if kind == tabMarkKindUnread || kind == tabMarkKindNeeds {
-				markStyle = markStyle.Bold(true)
-			}
-			b.WriteString(markStyle.Render(" " + mark))
+		if m.tabHidden(i, active) {
+			continue
 		}
-		if i < 9 {
-			b.WriteString(indexStyle.Render(" "+strconv.Itoa(i+1)) + titleStyle.Render(" "))
-		} else {
-			b.WriteString(titleStyle.Render(" "))
-		}
-		title := ansi.Truncate(tab.title, tabTitleMax, "…")
-		if st != nil && st.unread {
-			titleStyle = titleStyle.Bold(true)
-		}
-		b.WriteString(titleStyle.Render(title + " "))
-		if withAge {
-			if age := tabAge(st, now); age != "" {
-				b.WriteString(indexStyle.Render(age + " "))
-			}
-		}
-		label := b.String()
-		closeMark := closeStyle.Render(tabCloseMark + " ")
-		cells = append(cells, tabCell{
-			index: i,
-			title: title,
-			label: label,
-			close: closeMark,
-			width: ansi.StringWidth(label) + ansi.StringWidth(closeMark),
-		})
+		cells = append(cells, m.tabCell(i, i == active, now, withAge))
 	}
 	return cells
+}
+
+// groupChip renders the chip that starts a group: "▾ name" when open,
+// "▸ name 3" plus the most urgent member mark when folded.
+func (m *UI) groupChip(name string, now time.Time) tabCell {
+	t := m.com.Styles.Tabs
+	label := ansi.Truncate(name, tabTitleMax, "…")
+	var b strings.Builder
+	if !m.tabx.collapsed[name] {
+		b.WriteString(t.Group.Render(" ▾ " + label + " "))
+	} else {
+		b.WriteString(t.Group.Render(" ▸ " + label))
+		b.WriteString(t.GroupCount.Render(" " + strconv.Itoa(len(m.tabGroupMembers(name)))))
+		top := m.groupTopStatus(name)
+		if mark, kind := m.tabMark(top, now); mark != "" {
+			c := top.markColor(m.markKindColor(kind), now)
+			b.WriteString(t.Group.Foreground(c).Render(" " + mark))
+		}
+		b.WriteString(t.Group.Render(" "))
+	}
+	label = b.String()
+	return tabCell{index: -1, group: name, title: name, label: label, width: ansi.StringWidth(label)}
+}
+
+// markKindColor is the theme color of a mark kind.
+func (m *UI) markKindColor(kind tabMarkKind) color.Color {
+	t := m.com.Styles.Tabs
+	return tabMarkColor(t.MarkWorking, t.MarkNeeds, t.MarkDone, t.MarkRead, t.MarkFailed, kind)
+}
+
+// tabCell renders the tab at i.
+func (m *UI) tabCell(i int, isActive bool, now time.Time, withAge bool) tabCell {
+	t := m.com.Styles.Tabs
+	tab := m.tabs[i]
+	titleStyle, indexStyle, closeStyle := t.Inactive, t.InactiveIndex, t.InactiveClose
+	if isActive {
+		titleStyle, indexStyle, closeStyle = t.Active, t.ActiveIndex, t.ActiveClose
+	}
+	st := m.tabStatusOf(tab.id)
+	if tab.aside {
+		if isActive {
+			titleStyle = titleStyle.Italic(true)
+		} else {
+			titleStyle = t.Aside
+		}
+	}
+	// A tab waiting for the user gets a warm wash so it shows from
+	// across the bar, even without reading its mark.
+	if st.needsYou() && !tab.aside {
+		wash := t.NeedsWash
+		if isActive {
+			wash = t.NeedsWashActive
+		}
+		if wash != nil {
+			titleStyle = titleStyle.Background(wash)
+			indexStyle = indexStyle.Background(wash)
+			closeStyle = closeStyle.Background(wash)
+		}
+	}
+	var b strings.Builder
+	if mark, kind := m.tabMark(st, now); mark != "" {
+		markStyle := titleStyle.Bold(false).Italic(false).Foreground(st.markColor(m.markKindColor(kind), now))
+		if kind == tabMarkKindUnread || kind == tabMarkKindNeeds {
+			markStyle = markStyle.Bold(true)
+		}
+		b.WriteString(markStyle.Render(" " + mark))
+	}
+	if i < 9 {
+		b.WriteString(indexStyle.Render(" "+strconv.Itoa(i+1)) + titleStyle.Render(" "))
+	} else {
+		b.WriteString(titleStyle.Render(" "))
+	}
+	title := ansi.Truncate(tab.title, tabTitleMax, "…")
+	if st != nil && st.unread {
+		titleStyle = titleStyle.Bold(true)
+	}
+	b.WriteString(titleStyle.Render(title + " "))
+	if withAge {
+		if age := tabAge(st, now); age != "" {
+			b.WriteString(indexStyle.Render(age + " "))
+		}
+	}
+	label := b.String()
+	closeMark := closeStyle.Render(tabCloseMark + " ")
+	return tabCell{
+		index: i,
+		title: title,
+		label: label,
+		close: closeMark,
+		width: ansi.StringWidth(label) + ansi.StringWidth(closeMark),
+	}
 }
 
 // tabCellsWidth is the width of cells laid out with one-cell gaps.

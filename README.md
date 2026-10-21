@@ -59,7 +59,8 @@ talks to and what it does without asking:
   is done (bold until you look) or failed, and how long ago that changed. A
   session stays "working" while queued prompts run, and the "done"
   notification waits until they finish. Click the "needs you" count or press
-  **Alt+0** to jump to the next tab waiting on you.
+  **Alt+0** to jump to the next tab waiting on you. See [Tabs](#tabs) for
+  renaming, groups, reordering and saved tabs.
 - **Usage limits (opt-in).** Point `options.tui.limit_rings` at a local JSON
   file with your plans' 5 hour and weekly usage, and the sidebar and
   `tada status` show it. Some other tool writes the file; Ta-Da only reads
@@ -1088,6 +1089,42 @@ The file is one JSON object with one key per provider. Keys starting with
 
 A window with no number or no reset time shows as `—`. The same format is
 read by other agent hosts, so one writer can feed them all.
+
+### Tabs
+
+Every session you open stays as a tab above the chat.
+
+| Key | Action |
+| --- | --- |
+| Alt+1 … Alt+9 | Go to tab 1 to 9 |
+| Ctrl+PgUp / Ctrl+PgDn | Previous / next tab |
+| Alt+0 | Go to the next tab that needs you |
+| Alt+R | Rename the tab in view |
+| Alt+G | Put the tab in a group (empty name ungroups) |
+| Alt+A | Set the tab aside, or bring it back |
+| Ctrl+Shift+PgUp / PgDn | Move the tab left / right |
+| Alt+W | Close the tab |
+
+Rename and group open a one-line prompt over the tab bar: Enter saves, Esc
+or Ctrl+C cancels. You can also drag tabs to reorder them, middle-click to
+close one, and click a group's chip to fold it. A folded chip shows how many
+tabs it holds and the most urgent mark among them. A tab set aside is dimmed
+and never notifies. All of these are in the command palette too.
+
+The session in view shows its state under the sidebar title ("Needs you ·
+2m ago", "Working · 5m", "Done · just now", "Inactive · 3h"), or in the
+header in compact mode, next to a count of other tabs that need you.
+
+Options, all under `options.tui`:
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `restore_tabs` | `true` | Save open tabs, names, groups and folds per project and reopen them on start. |
+| `vertical_tabs` | `false` | List tabs, grouped, in the sidebar instead of the bar whenever the sidebar shows. |
+| `notify_bell` | `false` | Ring the terminal bell when a session you aren't looking at waits, finishes or fails. |
+| `claude_sessions` | `false` | List the interactive Claude Code sessions running on this machine in the sidebar, and notify when one waits for you. Reads only `~/.claude/sessions/*.json`. |
+
+Custom themes can set the `needs` color used for the "needs you" mark.
 
 ### Magic Context
 

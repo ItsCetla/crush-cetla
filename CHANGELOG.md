@@ -21,10 +21,37 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   without more prompts. Hidden when Auto is already on or while planning.
 - **Tab status marks.** Each tab shows a spinner while its session works,
   `◎` when it needs you, `✓` when it's done (bold until you look at it) and
-  `✗` when it failed, plus how long ago that changed. Ages drop out first
+  `✗` when it failed, plus how long ago that changed. A finished tab you
+  haven't looked at yet shows `✔`, and marks fade into their new color. Ages drop out first
   when the tab bar gets crowded. Sub-agent requests mark their parent tab.
 - **"Needs you" count in the tab bar.** Click it, or press **Alt+0**, to jump
   to the next tab waiting on a permission or a question.
+- **Rename, group and set aside tabs.** **Alt+R** renames the tab in view
+  and **Alt+G** puts it in a named group (empty name ungroups), both in a
+  one-line prompt over the tab bar. Groups get a chip you can click to fold
+  them; a folded chip shows the member count and the most urgent mark.
+  **Alt+A** sets a tab aside: it is dimmed and never notifies. All three are
+  also in the command palette.
+- **Reorder tabs.** Drag a tab with the mouse, or press
+  **Ctrl+Shift+PgUp/PgDn**. A tab steps over a whole group; a grouped tab at
+  the group's edge leaves it.
+- **Session state line.** Under the sidebar title, and in the compact header,
+  the session in view says "Needs you · 2m ago", "Working · 5m",
+  "Done · just now", "Failed" or "Inactive · 3h". The compact header also
+  counts other tabs that need you.
+- **Tabs come back on restart.** Open tabs, their names, groups and folds are
+  saved per project and reopened on the next start. Turn off with
+  `options.tui.restore_tabs: false`.
+- **Vertical tabs (opt-in).** `options.tui.vertical_tabs` lists the sessions,
+  grouped, in the sidebar instead of the bar above the chat.
+- **Terminal bell (opt-in).** `options.tui.notify_bell` rings the bell when a
+  session you aren't looking at starts waiting, finishes or fails.
+- **Claude Code sessions in the sidebar (opt-in).**
+  `options.tui.claude_sessions` lists the interactive Claude Code sessions
+  running on this machine and notifies when one starts waiting for you. It
+  only reads `~/.claude/sessions/*.json`; it never talks to the sessions.
+- **`needs` theme color** for the "needs you" mark, settable in custom theme
+  palettes.
 - **Usage limits in the sidebar and `tada status` (opt-in).** Set
   `options.tui.limit_rings` to a local JSON file with each plan's 5 hour and
   weekly usage. Ta-Da only reads the file; some other tool writes it. See
@@ -32,6 +59,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ### Changed
 
+- **Notifications fire once per change.** A burst of permission requests
+  sends one "waiting" notification, not one per request.
 - **A session stays "working" while queued prompts run.** The "Ta-Da is
   waiting" notification now waits until the queue is empty and the turn
   ended without an error. Canceling a run sends none.

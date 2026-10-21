@@ -48,10 +48,15 @@ type quickStyleOpts struct {
 	bgLeastVisible color.Color
 
 	// Statuses.
-	destructive       color.Color
-	error             color.Color
-	warning           color.Color
-	warningSubtle     color.Color
+	destructive   color.Color
+	error         color.Color
+	warning       color.Color
+	warningSubtle color.Color
+	// needs marks a session waiting for the user. It is a fixed orange
+	// rather than the theme's warning color, which in some themes is so
+	// green it reads as "done". Optional: unset picks an orange that
+	// reads on bgBase (see deriveNeedsColor).
+	needs             color.Color
 	attention         color.Color
 	busy              color.Color
 	info              color.Color
@@ -150,6 +155,32 @@ func (o *quickStyleOpts) deriveDiffColors() {
 	}
 }
 
+// Fixed "needs you" oranges for dark and light backgrounds, picked for
+// contrast against the usual background of each.
+var (
+	needsOnDark  = lipgloss.Color("#e8a33d")
+	needsOnLight = lipgloss.Color("#9a5700")
+)
+
+// deriveNeedsColor fills an unset needs color with the orange that reads
+// on bgBase.
+func (o *quickStyleOpts) deriveNeedsColor() {
+	if o.needs != nil {
+		return
+	}
+	o.needs = needsOnDark
+	if o.bgBase != nil && isLightColor(o.bgBase) {
+		o.needs = needsOnLight
+	}
+}
+
+// isLightColor reports whether c is a light color, by relative luminance.
+func isLightColor(c color.Color) bool {
+	r, g, b, _ := c.RGBA()
+	lum := 0.2126*float64(r>>8) + 0.7152*float64(g>>8) + 0.0722*float64(b>>8)
+	return lum > 140
+}
+
 // blendTint blends fg over bg in CIELAB (via lipgloss.Blend1D) with the
 // given fraction of fg: 0 returns bg, 1 returns fg.
 func blendTint(fg, bg color.Color, fraction float64) color.Color {
@@ -168,6 +199,7 @@ func blendTint(fg, bg color.Color, fraction float64) color.Color {
 // then add overrides as needed.
 func quickStyle(o quickStyleOpts) Styles {
 	o.deriveDiffColors()
+	o.deriveNeedsColor()
 
 	var (
 		base   = lipgloss.NewStyle().Foreground(o.fgBase)
@@ -1250,12 +1282,24 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Tabs.InactiveClose = inactiveTab.Foreground(o.fgMostSubtle)
 	s.Tabs.New = base.Foreground(o.primary).Bold(true)
 	s.Tabs.More = base.Foreground(o.fgMostSubtle)
-	s.Tabs.NeedsCount = base.Foreground(o.warning).Bold(true)
-	s.Tabs.MarkWorking = o.secondary
-	s.Tabs.MarkNeeds = o.warning
+	s.Tabs.NeedsCount = base.Foreground(o.needs).Bold(true)
+	// Work in progress is the normal state, so its mark stays quiet; the
+	// eye should land on what needs you.
+	s.Tabs.MarkWorking = o.fgSubtle
+	s.Tabs.MarkNeeds = o.needs
 	s.Tabs.MarkDone = o.success
 	s.Tabs.MarkRead = o.fgMostSubtle
 	s.Tabs.MarkFailed = o.error
+	// A tab that waits for you gets a faint orange wash.
+	s.Tabs.NeedsWash = blendTint(o.needs, o.bgLeastVisible, 0.18)
+	s.Tabs.NeedsWashActive = blendTint(o.needs, o.bgMostVisible, 0.22)
+	s.Tabs.Prompt = base.Foreground(o.needs).Bold(true)
+	s.Tabs.Group = base.Foreground(o.fgMoreSubtle).Bold(true)
+	s.Tabs.GroupCount = base.Foreground(o.fgMostSubtle)
+	s.Tabs.Aside = inactiveTab.Foreground(o.fgMostSubtle).Italic(true)
+	s.Tabs.Background = o.bgBase
+	s.Tabs.Needs = o.needs
+	s.Tabs.SidebarActive = base.Background(o.bgLessVisible)
 
 	// Tables and charts in assistant replies follow the theme palette:
 	// ember, amber, honey, live first, then the remaining accents.
