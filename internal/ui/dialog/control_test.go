@@ -309,3 +309,10 @@ func TestControl_MissionChecks(t *testing.T) {
 	require.Contains(t, short, "✗ exit 1")
 	require.NotContains(t, short, "✓ passed")
 }
+
+func TestEscapeHidden(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "go test ./...", escapeHidden("go test ./..."))
+	require.Equal(t, `exit 0\x1b[2K\x0dexit 1`, escapeHidden("exit 0\x1b[2K\rexit 1"))
+	require.Equal(t, `echo \u202esh`, escapeHidden("echo \u202esh"))
+}

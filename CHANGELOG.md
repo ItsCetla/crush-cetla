@@ -30,7 +30,9 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   yourself, or press space on it in the cockpit, which shows its full
   command. Only approved checks run unattended, so a mission file that
   came with a repository can't run its own commands, and checks run under
-  the bash tool's block list. Each check has a
+  the bash tool's block list. A check with hidden characters, such as
+  escape codes, line breaks or direction marks, is refused and never runs,
+  and the cockpit shows those characters spelled out. Each check has a
   5 minute timeout by default.
 
 - **Turn receipts.** The "Worked for …" line after each turn now reads

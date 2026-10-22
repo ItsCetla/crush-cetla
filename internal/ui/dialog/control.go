@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -874,9 +875,12 @@ func (c *Control) missionDetail(t *styles.Styles, m control.Mission, now time.Ti
 	// cut, because pressing space runs exactly what's shown.
 	var cmdLines []string
 	if c.critCursor < len(m.Criteria) && m.Criteria[c.critCursor].SelfChecking() {
-		wrapped := ansi.Hardwrap("$ "+m.Criteria[c.critCursor].Check, max(4, width-2), true)
+		wrapped := ansi.Hardwrap("$ "+escapeHidden(m.Criteria[c.critCursor].Check), max(4, width-2), true)
 		for l := range strings.SplitSeq(wrapped, "\n") {
 			cmdLines = append(cmdLines, "  "+t.Control.Muted.Render(l))
+		}
+		if control.HiddenChars(m.Criteria[c.critCursor].Check) {
+			cmdLines = append(cmdLines, "  "+t.Control.Warn.Render("Hidden characters (shown escaped), so this check can't run."))
 		}
 	}
 	allResults := len(lines)+len(m.Criteria)+len(cmdLines)+ran+noteLines <= c.height
@@ -890,9 +894,9 @@ func (c *Control) missionDetail(t *styles.Styles, m control.Mission, now time.Ti
 			prefix += t.Control.Muted.Render("⟳") + " "
 			textWidth -= 2
 		}
-		text := cr.Text
+		text := escapeHidden(cr.Text)
 		if cr.Done && cr.Note != "" {
-			text += " — " + cr.Note
+			text += " — " + escapeHidden(cr.Note)
 		}
 		row := prefix + ansi.Truncate(text, max(4, textWidth), "…")
 		if i == c.critCursor {
@@ -1041,4 +1045,25 @@ func (c *Control) ShortHelp() []key.Binding {
 // FullHelp implements help.KeyMap.
 func (c *Control) FullHelp() [][]key.Binding {
 	return [][]key.Binding{c.ShortHelp()}
+}
+
+// escapeHidden spells out characters a person can't see, such as escape
+// codes, line breaks and direction marks, so the cockpit shows what a
+// check really holds.
+func escapeHidden(s string) string {
+	if !control.HiddenChars(s) {
+		return s
+	}
+	var b strings.Builder
+	for _, r := range strings.ToValidUTF8(s, "\ufffd") {
+		switch {
+		case r == ' ' || unicode.IsPrint(r):
+			b.WriteRune(r)
+		case r < 0x80:
+			fmt.Fprintf(&b, "\\x%02x", r)
+		default:
+			fmt.Fprintf(&b, "\\u%04x", r)
+		}
+	}
+	return b.String()
 }

@@ -56,6 +56,9 @@ func askMissionChecks(ctx context.Context, missions *control.Missions, permissio
 		return fantasy.ToolResponse{}, true, nil
 	}
 	for _, c := range checks {
+		if control.HiddenChars(strings.TrimSpace(c)) {
+			return fantasy.NewTextErrorResponse("check command has hidden characters (escape codes, tabs, line breaks or direction marks); use one line of plain text"), false, nil
+		}
 		if banned := BannedCommandIn(c); banned != "" {
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("check command is not allowed for security reasons: %q", banned)), false, nil
 		}

@@ -252,11 +252,14 @@ type Command struct {
 
 // allowed is the shown command, as VerifyOptions.Allow.
 func (c Command) allowed() []string {
-	if s := strings.TrimSpace(c.Check); s != "" {
+	if s := strings.TrimSpace(c.Check); s != "" && !HiddenChars(s) {
 		return []string{s}
 	}
 	return nil
 }
+
+// hiddenCharsNotice tells the cockpit user why a check can't run.
+const hiddenCharsNotice = "This check's command has hidden characters, so it can't run from the cockpit. Edit the check to remove them."
 
 // unapprovedNotice tells the cockpit user which checks didn't run.
 func unapprovedNotice(cs []Criterion) string {
@@ -546,6 +549,9 @@ func (h *Hub) checkCriterion(ctx context.Context, c Command) (Reply, error) {
 		return Reply{Mission: &m}, nil
 	}
 	if len(ran) == 0 && cr.SelfChecking() {
+		if HiddenChars(cr.Check) {
+			return Reply{Mission: &m, Message: hiddenCharsNotice}, nil
+		}
 		if strings.TrimSpace(c.Check) != "" {
 			return Reply{Mission: &m, Message: "The check changed since it was shown, so it didn't run. Look at it again and press space to run it."}, nil
 		}

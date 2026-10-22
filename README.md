@@ -1091,9 +1091,11 @@ unattended only once you have approved it in that project: by granting
 that prompt, by typing it yourself, or by selecting it in the cockpit,
 which shows its full command, and pressing space to run it. Approvals are
 kept in Ta-Da's global data folder, so a mission file that came with a
-repository can't approve its own commands. Commands the bash tool bans are refused, both
-when the check is set and when it runs, and a check can set its own
-`timeout_seconds`.
+repository can't approve its own commands. Commands the bash tool bans are
+refused, both when the check is set and when it runs. A check must be one
+line of plain text: one with escape codes, tabs, line breaks or direction
+marks is refused, never runs, and shows in the cockpit with those
+characters spelled out. A check can set its own `timeout_seconds`.
 
 **`tada status`.** Prints one frame of the cockpit and exits, without
 starting a session, so it works in scripts, status bars and terminals with

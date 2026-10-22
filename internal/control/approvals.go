@@ -51,9 +51,13 @@ func (s *Missions) projectKey() string {
 func (s *Missions) ApproveChecks(ctx context.Context, commands ...string) error {
 	var add []string
 	for _, c := range commands {
-		if c = strings.TrimSpace(c); c != "" {
-			add = append(add, c)
+		if c = strings.TrimSpace(c); c == "" {
+			continue
 		}
+		if HiddenChars(c) {
+			return ErrHiddenChars
+		}
+		add = append(add, c)
 	}
 	if len(add) == 0 {
 		return nil
@@ -104,7 +108,7 @@ func (s *Missions) ApproveChecks(ctx context.Context, commands ...string) error 
 // check in this project.
 func (s *Missions) CheckApproved(command string) bool {
 	command = strings.TrimSpace(command)
-	if command == "" {
+	if command == "" || HiddenChars(command) {
 		return false
 	}
 	key := s.projectKey()

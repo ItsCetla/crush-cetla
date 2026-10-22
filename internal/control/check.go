@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/crush/internal/lock"
@@ -314,7 +315,9 @@ func (s *Missions) Verify(ctx context.Context, id string, o VerifyOptions) (Miss
 	var jobs []job
 	var approve []string
 	for _, c := range m.Criteria {
-		if !o.wants(c) {
+		// A check with hidden characters never runs: what the user saw
+		// may not be what it does.
+		if !o.wants(c) || HiddenChars(c.Check) {
 			continue
 		}
 		if o.allows(c.Check) {
@@ -425,4 +428,24 @@ func CheckFailure(c Criterion) string {
 	}
 	b.WriteString("Fix the problem, then check it again.")
 	return b.String()
+}
+
+// ErrHiddenChars is returned when a check command holds characters a
+// person can't see, such as escape codes, line breaks or direction
+// marks, so what's shown could differ from what runs.
+var ErrHiddenChars = errors.New("check command has hidden characters")
+
+// HiddenChars reports whether command is anything but one line of
+// visible text. Plain spaces are allowed; tabs, line breaks, escape and
+// other control or format characters are not.
+func HiddenChars(command string) bool {
+	if !utf8.ValidString(command) {
+		return true
+	}
+	for _, r := range command {
+		if r != ' ' && !unicode.IsPrint(r) {
+			return true
+		}
+	}
+	return false
 }
