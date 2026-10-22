@@ -702,6 +702,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		mouseLabel = "Enable Mouse"
 	}
 	commands = append(commands, NewCommandItem(c.com.Styles, "toggle_mouse", mouseLabel, "", ActionToggleMouseSupport{}).InGroup(CommandGroupView))
+	commands = append(commands, NewCommandItem(c.com.Styles, "open_settings", "Settings…", "", ActionOpenSettings{}).WithAliases("settings", "preferences", "options", "config").InGroup(CommandGroupApp))
 	commands = append(commands, updateCommandItem(c.com.Styles).InGroup(CommandGroupApp))
 
 	commands = append(

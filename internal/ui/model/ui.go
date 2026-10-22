@@ -968,6 +968,12 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case contextResultMsg:
 		m.handleContextResult(msg)
+	case settingSourcesMsg:
+		m.handleSettingSources(msg)
+	case settingResultMsg:
+		if cmd := m.handleSettingResult(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case promptQueueMsg:
 		cmds = append(cmds, m.applyPromptQueue(msg)...)
 	case lspStatesMsg:
@@ -2759,6 +2765,11 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		} else {
 			cmds = append(cmds, m.forkSession(msg.SessionID, msg.AtMessageID))
 		}
+	case dialog.ActionOpenSettings:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.openSettingsDialog())
+	case dialog.ActionSetSetting:
+		cmds = append(cmds, m.setSettingCmd(msg.Key, msg.Value))
 	case dialog.ActionTakeBack:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, m.takeBackCmd())
@@ -3566,6 +3577,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					m.randomizePlaceholders()
 					m.historyReset()
 					return m.openRewindDialog("")
+				}
+
+				if dialog.SettingsQuery(value) && !m.bangMode {
+					m.randomizePlaceholders()
+					m.historyReset()
+					return m.openSettingsDialog()
 				}
 
 				if arg, ok := parseCDCommand(value, m.bangMode); ok {
@@ -4507,6 +4524,13 @@ func (m *UI) toggleCompactMode() tea.Cmd {
 	if err != nil {
 		return util.ReportError(err)
 	}
+	return m.applyCompactMode(m.forceCompactMode)
+}
+
+// applyCompactMode switches the layout to compact mode or back, moving
+// focus off the sidebar when it goes away.
+func (m *UI) applyCompactMode(on bool) tea.Cmd {
+	m.forceCompactMode = on
 
 	var cmds []tea.Cmd
 	if m.forceCompactMode && m.focus == uiFocusSidebar {

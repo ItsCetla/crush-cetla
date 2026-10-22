@@ -1,0 +1,24 @@
+       ╭──────────────────────────────────────────────────────────────────────────╮
+       │ Settings ······························································· │
+       │ Display ─────────────────────────────────────────────────────────────── ┃│
+       │ Compact mode                                        On        tadarc    ┃│
+       │ Diff style                                          split     project   ┃│
+       │ Chat scrollbar                                      default   default   ┃│
+       │ Transparent background                              Off       default   ┃│
+       │ Rich tables and charts                              Off       env       ┃│
+       │ Fold tool calls                                     On        default   ┃│
+       │ Ambient line                                        On        default   ┃│
+       │ Tabs in sidebar                                     Off       default   ┃│
+       │ Startup intro                                       On        default   ┃│
+       │ Exit banner                                         default   default   ┃│
+       │ Behaviour ───────────────────────────────────────────────────────────── ││
+       │ Mouse                                               Off       tada.json ││
+       │ Restore tabs                                        On        default   ││
+       │ Notifications                                       auto      default   ││
+       │ Bell for other tabs                                 Off       default   ││
+       │ Auto-summarize                                      On        default   ││
+       │                                                                          │
+       │ Draw tables and charts in replies as styled blocks.                      │
+       │ Set by TADA_NO_RICH. Unset it to change this here.                       │
+       │ ↑↓ choose • space change • ←→ cycle • esc exit                           │
+       ╰──────────────────────────────────────────────────────────────────────────╯

@@ -103,6 +103,10 @@ Data directories (`~/.local/share/tada` on Unix-like systems and
 `%LOCALAPPDATA%\tada` on Windows) contain machine-owned JSON state. Ta-Da does
 not discover or execute a `tadarc` from those locations.
 
+The `/settings` screen saves its changes to `tada.json` in the global data
+directory. A project config still overrides those values, and a setting
+forced by an environment variable cannot be changed there.
+
 > [!NOTE]
 > Ta-Da also stores state data in `$XDG_DATA_HOME/tada`
 > (`%LOCALAPPDATA%\tada` on Windows). This is application state, and should

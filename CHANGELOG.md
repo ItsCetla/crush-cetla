@@ -128,6 +128,15 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   it. Arrow keys skip the headers, and typing still shows one flat list of
   matches. Recent commands are saved to `recent_commands.json` in the
   global data directory.
+- **A settings screen.** `/settings` (also `/preferences`, or **Settings…**
+  in the command palette) lists the everyday display, behaviour, privacy
+  and advanced options with their current values and where each one comes
+  from: default, `tadarc`, `tada.json`, a project config or an environment
+  variable. Space or enter flips a switch and left and right cycle a
+  choice. Changes are saved to `tada.json` in the global data directory
+  and most apply at once; the few that need a restart say so. Rows set by
+  an environment variable are locked, and a project config still wins over
+  a value saved here.
 
 ## [0.5.14] - 2026-10-21
 

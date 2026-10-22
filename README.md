@@ -110,6 +110,8 @@ talks to and what it does without asking:
   sessions. See [Magic Context](#magic-context).
 - **Grouped command palette.** `ctrl+p` sorts commands into sections
   with the five you used last on top; typing searches them all at once.
+- **Settings screen.** `/settings` shows the common options, where each
+  value comes from, and changes them without editing config files.
 
 Every fork change is listed in the [changelog](CHANGELOG.md).
 

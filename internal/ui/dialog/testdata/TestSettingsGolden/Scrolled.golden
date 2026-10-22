@@ -1,0 +1,24 @@
+       ╭──────────────────────────────────────────────────────────────────────────╮
+       │ Settings ······························································· │
+       │ Chat scrollbar                                      default   default   ││
+       │ Transparent background                              Off       default   ││
+       │ Rich tables and charts                              On        default   ┃│
+       │ Fold tool calls                                     On        default   ┃│
+       │ Ambient line                                        On        default   ┃│
+       │ Tabs in sidebar                                     Off       default   ┃│
+       │ Startup intro                                       On        default   ┃│
+       │ Exit banner                                         default   default   ┃│
+       │ Behaviour ───────────────────────────────────────────────────────────── ┃│
+       │ Mouse                                               Off       tada.json ┃│
+       │ Restore tabs                                        On        default   ┃│
+       │ Notifications                                       auto      default   ┃│
+       │ Bell for other tabs                                 Off       default   ┃│
+       │ Auto-summarize                                      On        default   ││
+       │ Claude Code sessions                                Off       default   ││
+       │ Privacy ─────────────────────────────────────────────────────────────── ││
+       │ Web tools                                           Off       default   ││
+       │                                                                          │
+       │ Let the agent fetch pages and files from the web.                        │
+       │ Applies now.                                                             │
+       │ ↑↓ choose • space change • ←→ cycle • esc exit                           │
+       ╰──────────────────────────────────────────────────────────────────────────╯
