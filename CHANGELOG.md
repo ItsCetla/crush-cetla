@@ -37,6 +37,12 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   reports tests only when the turn's last command was a test run, and
   drops the least important parts first on narrow windows.
 
+- **Cockpit summary in the status bar.** Next to the cost and network
+  pills, the status bar now shows how many permission requests and
+  questions wait across all tabs (`2 waiting`) and the open mission's
+  progress (`◆ 2/5`). On narrow windows the pills drop in order (cost,
+  then network, then mission) so what needs you stays in view.
+
 ## [0.5.14] - 2026-10-21
 
 ### Added

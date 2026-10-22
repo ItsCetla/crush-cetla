@@ -1,6 +1,8 @@
 package model
 
 import (
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +21,10 @@ const DefaultStatusTTL = 5 * time.Second
 // badgeLeftInset is the number of cells between the status bar's left edge
 // and the mode badge.
 const badgeLeftInset = 1
+
+// statusMinHelp is how many cells the help hints keep before the pills on
+// the right start dropping.
+const statusMinHelp = 24
 
 // Status is the status bar and help model.
 type Status struct {
@@ -42,6 +48,27 @@ type Status struct {
 	// none. netExternal colors it for traffic that left the machine.
 	net         string
 	netExternal bool
+
+	// waiting is how many permission requests and questions wait for the
+	// user across all tabs, and mission the open mission's progress
+	// ("◆ 2/5") or "". Both draw left of the network pill.
+	waiting int
+	mission string
+}
+
+// Pill priorities: when the status bar is too narrow for every pill, the
+// lowest one goes first.
+const (
+	pillPriorityCost = iota
+	pillPriorityNet
+	pillPriorityMission
+	pillPriorityWaiting
+)
+
+// statusPill is one rendered pill on the right of the status bar.
+type statusPill struct {
+	text     string
+	priority int
 }
 
 // costLevel picks the cost pill's color.
@@ -91,6 +118,79 @@ func (s *Status) SetCost(text string, level costLevel) {
 func (s *Status) SetNetwork(text string, external bool) {
 	s.net = text
 	s.netExternal = external
+}
+
+// SetCockpit sets the waiting and mission pills. Zero waiting and an
+// empty mission hide them.
+func (s *Status) SetCockpit(waiting int, mission string) {
+	s.waiting = waiting
+	s.mission = mission
+}
+
+// waitingPill renders the waiting pill, or "".
+func (s *Status) waitingPill() string {
+	if s.waiting <= 0 {
+		return ""
+	}
+	return s.com.Styles.Status.WaitingPill.Render(waitingText(s.waiting))
+}
+
+// waitingText renders "1 waiting" or "3 waiting".
+func waitingText(n int) string {
+	return strconv.Itoa(n) + " waiting"
+}
+
+// missionPill renders the mission pill, or "".
+func (s *Status) missionPill() string {
+	if s.mission == "" {
+		return ""
+	}
+	return s.com.Styles.Status.MissionPill.Render(s.mission)
+}
+
+// pills returns the right-hand pills in display order: waiting, mission,
+// network, cost. Hidden pills are left out.
+func (s *Status) pills() []statusPill {
+	all := []statusPill{
+		{s.waitingPill(), pillPriorityWaiting},
+		{s.missionPill(), pillPriorityMission},
+		{s.netPill(), pillPriorityNet},
+		{s.costPill(), pillPriorityCost},
+	}
+	out := all[:0]
+	for _, p := range all {
+		if p.text != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// fitPills joins the pills that fit in budget cells, keeping their order.
+// It drops the lowest priority pill first until the rest fit.
+func fitPills(pills []statusPill, budget int) string {
+	keep := slices.Clone(pills)
+	width := func() int {
+		w := 0
+		for _, p := range keep {
+			w += lipgloss.Width(p.text)
+		}
+		return w
+	}
+	for len(keep) > 0 && width() > budget {
+		low := 0
+		for i, p := range keep {
+			if p.priority < keep[low].priority {
+				low = i
+			}
+		}
+		keep = slices.Delete(keep, low, low+1)
+	}
+	var b strings.Builder
+	for _, p := range keep {
+		b.WriteString(p.text)
+	}
+	return b.String()
 }
 
 // netPill renders the network pill, or "".
@@ -165,13 +265,15 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 		helpStyle := s.com.Styles.Status.Help
 		helpWidth := area.Dx() - helpStyle.GetPaddingLeft() - helpStyle.GetPaddingRight()
 		badge := s.modeBadge()
-		pill := s.netPill() + s.costPill()
-		pillWidth := lipgloss.Width(pill)
-		if pill != "" && area.Dx() < 60 {
-			// Narrow terminals keep the hints; the cockpit has the cost
-			// and the network receipt.
-			pill, pillWidth = "", 0
+		// The pills get what's left after the badge and a minimum of
+		// hints. Narrow terminals drop the least urgent pills first; the
+		// cockpit has the rest.
+		budget := area.Dx() - statusMinHelp - 1
+		if badge != "" {
+			budget -= lipgloss.Width(badge) + 1 + badgeLeftInset
 		}
+		pill := fitPills(s.pills(), budget)
+		pillWidth := lipgloss.Width(pill)
 		if pillWidth > 0 {
 			helpWidth -= pillWidth + 1
 		}

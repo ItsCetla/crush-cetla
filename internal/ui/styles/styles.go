@@ -631,6 +631,12 @@ type Styles struct {
 		NetPill         lipgloss.Style
 		NetPillExternal lipgloss.Style
 
+		// Cockpit pills left of the network pill: how many permission
+		// requests and questions wait across all tabs, and the open
+		// mission's progress ("◆ 2/5").
+		WaitingPill lipgloss.Style
+		MissionPill lipgloss.Style
+
 		ErrorIndicator   lipgloss.Style
 		WarnIndicator    lipgloss.Style
 		InfoIndicator    lipgloss.Style

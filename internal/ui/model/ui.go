@@ -3930,6 +3930,7 @@ func (m *UI) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	m.status.SetMode(m.mode, m.yoloModeCached(), m.editsModeCached())
 	m.status.SetCost(m.costPillText())
 	m.status.SetNetwork(m.networkPillText())
+	m.status.SetCockpit(m.cockpitWaiting(), m.missionPillText())
 	m.status.Draw(scr, layout.status)
 
 	// Draw completions popup if open

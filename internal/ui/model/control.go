@@ -294,3 +294,37 @@ func (m *UI) costPillText() (string, costLevel) {
 	}
 	return text + " today", level
 }
+
+// cockpitWaiting returns how many permission requests and questions wait
+// for the user across every tab. It reads the tab marks, which follow
+// agent events, and falls back to the hub's flag when no tab knows of the
+// request yet.
+func (m *UI) cockpitWaiting() int {
+	n := 0
+	for _, s := range m.tabStatuses {
+		n += len(s.perms)
+		if s.asking {
+			n++
+		}
+	}
+	if n == 0 {
+		if s := m.controlSnapshot(); s != nil && s.State.Waiting {
+			return 1
+		}
+	}
+	return n
+}
+
+// missionPillText returns the status bar's mission pill, "◆ 2/5" for the
+// session's open mission, or "" when there's none or it has no criteria.
+func (m *UI) missionPillText() string {
+	s := m.controlSnapshot()
+	if s == nil || s.Mission == nil || !s.Mission.Status.Open() {
+		return ""
+	}
+	done, total := s.Mission.Progress()
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf("◆ %d/%d", done, total)
+}

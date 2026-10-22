@@ -210,3 +210,47 @@ func TestToggleInputModeWithControlHub(t *testing.T) {
 	}
 	require.Equal(t, []bool{true, false}, edits)
 }
+
+func TestCockpitWaiting(t *testing.T) {
+	t.Parallel()
+	u := newTestUI()
+	require.Zero(t, u.cockpitWaiting())
+
+	u.ctl.snap = &control.Snapshot{State: permission.ControlState{Waiting: true}}
+	require.Equal(t, 1, u.cockpitWaiting(), "the hub's flag counts when no tab knows")
+
+	u.tabStatusFor("a").perms = map[string]struct{}{"t1": {}, "t2": {}}
+	u.tabStatusFor("b").asking = true
+	u.tabStatusFor("c")
+	require.Equal(t, 3, u.cockpitWaiting())
+}
+
+func TestMissionPillText(t *testing.T) {
+	t.Parallel()
+	u := newTestUI()
+	require.Empty(t, u.missionPillText())
+
+	m := &control.Mission{
+		Title:  "Ship it",
+		Status: control.MissionActive,
+		Criteria: []control.Criterion{
+			{ID: 1, Text: "tests pass", Done: true},
+			{ID: 2, Text: "docs"},
+		},
+	}
+	u.ctl.snap = &control.Snapshot{Mission: m}
+	require.Equal(t, "◆ 1/2", u.missionPillText())
+
+	m.Status = control.MissionPaused
+	require.Equal(t, "◆ 1/2", u.missionPillText())
+
+	m.Status = control.MissionDone
+	require.Empty(t, u.missionPillText(), "a closed mission has no pill")
+
+	m.Status = control.MissionActive
+	m.Criteria = nil
+	require.Empty(t, u.missionPillText(), "a mission without criteria has no pill")
+
+	u.ctl.unavailable = true
+	require.Empty(t, u.missionPillText())
+}
