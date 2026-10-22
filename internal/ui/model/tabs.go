@@ -43,6 +43,8 @@ type sessionTab struct {
 	// aside marks a tab set aside: it stays open but never notifies and
 	// is left out of "needs you".
 	aside bool
+	// dir is the session's working folder, or "" for the launch folder.
+	dir string
 }
 
 // tabHitKind says what a click on part of the tab bar does.
@@ -115,15 +117,17 @@ func (m *UI) trackSessionTab(s *session.Session) {
 	}
 	if i := m.tabIndex(s.ID); i >= 0 {
 		m.tabs[i].title = tabTitle(*s)
+		m.tabs[i].dir = s.WorkingDir
 		return
 	}
-	m.tabs = append(m.tabs, sessionTab{id: s.ID, title: tabTitle(*s)})
+	m.tabs = append(m.tabs, sessionTab{id: s.ID, title: tabTitle(*s), dir: s.WorkingDir})
 }
 
 // updateTabTitle refreshes the title of the tab for s, if one is open.
 func (m *UI) updateTabTitle(s session.Session) {
 	if i := m.tabIndex(s.ID); i >= 0 {
 		m.tabs[i].title = tabTitle(s)
+		m.tabs[i].dir = s.WorkingDir
 	}
 }
 
@@ -181,9 +185,12 @@ func (m *UI) cycleTab(delta int) tea.Cmd {
 // closeTab closes the tab at i. Closing the tab being viewed shows its
 // neighbour, or the landing page when it was the last tab. Closing a tab
 // only hides it; the session itself is kept.
-func (m *UI) closeTab(i int) tea.Cmd {
+func (m *UI) closeTab(i int) (cmd tea.Cmd) {
 	if i < 0 || i >= len(m.tabs) {
 		return nil
+	}
+	if hint := m.worktreeCloseHint(m.tabs[i]); hint != nil {
+		defer func() { cmd = tea.Batch(cmd, hint) }()
 	}
 	if i != m.activeTabIndex() {
 		m.removeTab(i)
@@ -456,6 +463,13 @@ func (m *UI) tabCell(i int, isActive bool, now time.Time, withAge bool) tabCell 
 		titleStyle = titleStyle.Bold(true)
 	}
 	b.WriteString(titleStyle.Render(title + " "))
+	if wt, ok := m.tabWorktree(tab); ok {
+		mark := "⎇ " + ansi.Truncate(cmpDir(wt.branch, wt.name), tabWorktreeMax, "…")
+		if wt.dirty > 0 {
+			mark += "*"
+		}
+		b.WriteString(indexStyle.Render(mark + " "))
+	}
 	if withAge {
 		if age := tabAge(st, now); age != "" {
 			b.WriteString(indexStyle.Render(age + " "))

@@ -82,7 +82,7 @@ func (m *UI) restoreTabs() tea.Cmd {
 			if err != nil || s.ParentSessionID != "" {
 				continue
 			}
-			tabs = append(tabs, sessionTab{id: s.ID, title: tabTitle(s), group: cleanTabName(t.Group), aside: t.Aside})
+			tabs = append(tabs, sessionTab{id: s.ID, title: tabTitle(s), group: cleanTabName(t.Group), aside: t.Aside, dir: s.WorkingDir})
 		}
 		var collapsed []string
 		for _, g := range saved.Collapsed {

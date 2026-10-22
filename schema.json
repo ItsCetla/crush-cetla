@@ -1169,6 +1169,14 @@
         "budget": {
           "$ref": "#/$defs/BudgetOptions",
           "description": "Spend budgets. When counted spend reaches a limit Ta-Da asks before the next model call. Flat-rate plans are not counted"
+        },
+        "worktree_dir": {
+          "type": "string",
+          "description": "Directory that holds the Git worktrees /worktree creates. The repository name and branch are appended. Relative paths are resolved against the main checkout; ~ is expanded",
+          "default": "../.tada-worktrees",
+          "examples": [
+            "~/worktrees"
+          ]
         }
       },
       "additionalProperties": false,

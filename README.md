@@ -1257,8 +1257,9 @@ command palette shows it too.
 
 A few things stay with the start folder: language servers, project config
 (`.crush.json`, MCP servers, skills) and Magic Context's project memory. A
-moved tab hides the git branch in the header, and on the Claude Code engine
-it starts a new Claude Code session with the chat so far replayed.
+moved tab hides the git branch in the header unless it is in a worktree,
+and on the Claude Code engine it starts a new Claude Code session with the
+chat so far replayed.
 
 Options, all under `options.tui`:
 
@@ -1336,6 +1337,29 @@ type a message. Ctrl+S stages and commits only the picked files and shows
 the new commit's short hash; if git refuses (a hook fails, say) the error
 stays on screen and nothing is lost. Ta-Da never pushes and adds no
 `Co-Authored-By` lines to these commits.
+#### Worktrees
+
+To let several tabs change one repository at once, give each its own git
+worktree. `/worktree <branch> [base]` (or `/wt`) moves the tab in view into
+the worktree for `branch`, creating the worktree, and the branch from `base`
+or the current branch, when needed. It works like `/cd` into that folder,
+and the tab bar shows `⎇ branch`, with a `*` while there are uncommitted
+changes. The AI's system prompt names the branch too.
+
+| Command | What it does |
+| --- | --- |
+| `/worktree` | List the repository's worktrees: Enter moves the tab there, `n` opens a new worktree tab, `d` removes one. |
+| `/worktree <branch> [base]` | Move the tab into the worktree for `branch`. |
+| `/worktree rm <branch>` | Remove that worktree. The branch is kept. |
+
+**Switch Worktree…** and **New Worktree Tab…** in the command palette do the
+same. A worktree with uncommitted changes is only removed after you confirm,
+and one an open tab works in is never removed. Closing a tab leaves its
+worktree on disk and tells you how to remove it.
+
+New worktrees go in `../.tada-worktrees/<repo>/<branch>` beside the
+repository. Set another place, relative to the main checkout, with
+`option worktree-dir ../wt` in `tadarc` (`options.worktree_dir` in JSON).
 
 ### Magic Context
 

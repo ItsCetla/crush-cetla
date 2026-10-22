@@ -605,6 +605,9 @@ type Options struct {
 	Artifacts *ArtifactsOptions `json:"artifacts,omitempty" jsonschema:"description=Artifacts: HTML pages\\, Markdown documents and slide decks the agent publishes to a local viewer on 127.0.0.1"`
 	// Budget caps counted model spend. See BudgetOptions.
 	Budget *BudgetOptions `json:"budget,omitempty" jsonschema:"description=Spend budgets. When counted spend reaches a limit Ta-Da asks before the next model call. Flat-rate plans are not counted"`
+	// WorktreeDir is where /worktree creates Git worktrees. See
+	// internal/worktree.
+	WorktreeDir string `json:"worktree_dir,omitempty" jsonschema:"description=Directory that holds the Git worktrees /worktree creates. The repository name and branch are appended. Relative paths are resolved against the main checkout; ~ is expanded,default=../.tada-worktrees,example=~/worktrees"`
 }
 
 // webTools are the built-in tools that make outbound network requests on

@@ -37,10 +37,10 @@ func (m *UI) tabWorkingDir() string {
 
 // tabGitBranch returns the git branch to show next to the tab's folder.
 // The branch is polled for the launch folder only, so a tab moved with
-// /cd shows none.
+// /cd shows none, unless it moved into a worktree.
 func (m *UI) tabGitBranch() string {
-	if m.tabFolder() != "" {
-		return ""
+	if dir := m.tabFolder(); dir != "" {
+		return m.wt.info[dir].branch
 	}
 	return m.gitBranch
 }
@@ -105,6 +105,7 @@ func (m *UI) handleSessionWorkingDir(msg sessionWorkingDirMsg) tea.Cmd {
 	if m.session != nil && m.session.ID == msg.session.ID {
 		m.session.WorkingDir = msg.session.WorkingDir
 	}
+	m.setTabDir(msg.session.ID, msg.session.WorkingDir)
 	dir := cmpDir(msg.session.WorkingDir, m.com.Workspace.WorkingDir())
 	text := "This tab now works in " + home.Short(dir)
 	if msg.session.WorkingDir == "" {

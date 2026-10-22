@@ -109,6 +109,19 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   `c` to have the small model draft a semantic commit message from the
   diff and recent history, edit it, and commit with Ctrl+S. Errors stay
   on screen; nothing is ever pushed.
+- **A worktree per tab.** `/worktree <branch> [base]` (also `/wt`) moves
+  the tab in view into a worktree of its own for that branch, creating
+  the branch from `base` (or the current branch) when needed, so several
+  tabs can work on one repository without stepping on each other. New
+  worktrees go in `../.tada-worktrees/<repo>/` next to the repository, or
+  wherever `option worktree-dir` says. The tab bar marks such tabs with
+  `⎇ branch` and a `*` while they have uncommitted changes, and the system
+  prompt names the branch. `/worktree` alone (or **Switch Worktree…** in
+  the command palette) lists the worktrees to switch to, open as a new
+  tab with `n`, or remove with `d`; **New Worktree Tab…** opens a new tab
+  in one. `/worktree rm <branch>` removes one, asking first when it has
+  uncommitted changes and refusing while a tab works in it; the branch
+  is always kept. Closing a tab leaves its worktree on disk and says so.
 
 ## [0.5.14] - 2026-10-21
 

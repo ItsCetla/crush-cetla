@@ -214,6 +214,9 @@ func (c *Commands) HandleMsg(msg tea.Msg) Action {
 			if arg, ok := CDQuery(typed); ok && arg != "" {
 				return ActionChangeDir{Arg: arg}
 			}
+			if wt, ok := WorktreeQuery(typed); ok && (wt.Name != "" || wt.Remove || wt.Err != "") {
+				return wt.Action()
+			}
 			if selectedItem := c.list.SelectedItem(); selectedItem != nil {
 				if item, ok := selectedItem.(*CommandItem); ok && item != nil {
 					return item.Action()
@@ -465,6 +468,8 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		NewCommandItem(c.com.Styles, "resume", "Resume Conversation", "", ActionOpenResume{}).WithAliases("resume", "continue", "history"),
 		NewCommandItem(c.com.Styles, "tab_folder", "Tab Folder", "", ActionChangeDir{}).WithAliases("cd", "directory", "dir", "folder"),
 		NewCommandItem(c.com.Styles, "review_changes", "Review changes…", "alt+v", ActionOpenDialog{ReviewID}).WithAliases("commit", "diff", "review", "git"),
+		NewCommandItem(c.com.Styles, "switch_worktree", "Switch Worktree…", "", ActionOpenWorktrees{}).WithAliases("worktree", "worktrees", "wt"),
+		NewCommandItem(c.com.Styles, "new_worktree_tab", "New Worktree Tab…", "", ActionNewWorktreeTab{}).WithAliases("branch"),
 		NewCommandItem(c.com.Styles, "switch_model", "Switch Model", "ctrl+l", ActionOpenDialog{ModelsID}),
 	}
 

@@ -557,6 +557,9 @@ String Keys:
   initialize-as string             context filename created by tada init
   notifications string             notification style: auto, native, osc, bell,
                                    or disabled
+  worktree-dir string              where /worktree puts new worktrees, relative
+                                   to the main checkout (default
+                                   ../.tada-worktrees/<repo>)
   attribution-trailer-style string attribution trailer: none, co-authored-by,
                                    or assisted-by
 

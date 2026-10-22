@@ -408,6 +408,8 @@ type UI struct {
 	// tabx holds the tab extras: groups, the rename prompt, dragging,
 	// restored tabs and Claude Code sessions.
 	tabx tabExtras
+	// wt caches the worktrees the tabs work in; see worktree.go.
+	wt worktreeState
 	// custom commands & mcp commands
 	customCommands []commands.CustomCommand
 	mcpPrompts     []commands.MCPPrompt
@@ -1684,7 +1686,17 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case gitBranchUpdatedMsg:
 		m.gitBranch = msg.branch
 	case gitBranchPollMsg:
-		cmds = append(cmds, m.fetchGitBranch(), m.gitBranchTicker())
+		cmds = append(cmds, m.fetchGitBranch(), m.gitBranchTicker(), m.refreshWorktreeTabs())
+	case worktreeSwitchedMsg:
+		cmds = append(cmds, m.handleWorktreeSwitched(msg))
+	case worktreeTabMsg:
+		cmds = append(cmds, m.handleWorktreeTab(msg))
+	case worktreeListMsg:
+		m.handleWorktreeList(msg)
+	case worktreeRemovedMsg:
+		cmds = append(cmds, m.handleWorktreeRemoved(msg))
+	case worktreeTabsMsg:
+		m.handleWorktreeTabs(msg)
 	case limitsMsg:
 		cmds = append(cmds, m.handleLimits(msg))
 	case claudeSessionsMsg:
@@ -2330,6 +2342,9 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		m.dialog.CloseDialog(dialog.ResumeID)
 		cmds = append(cmds, m.loadSession(msg.Session.ID))
 
+	case dialog.ActionOpenWorktrees, dialog.ActionWorktree, dialog.ActionSwitchWorktree,
+		dialog.ActionNewWorktreeTab, dialog.ActionRemoveWorktree:
+		cmds = append(cmds, m.runWorktreeAction(msg))
 	case dialog.ActionChangeDir:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		if cmd := m.runCDCommand(msg.Arg); cmd != nil {
@@ -3544,6 +3559,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					m.randomizePlaceholders()
 					m.historyReset()
 					return m.runCDCommand(arg)
+				}
+
+				if wt, ok := dialog.WorktreeQuery(value); ok && !m.bangMode {
+					m.randomizePlaceholders()
+					m.historyReset()
+					return m.runWorktreeAction(wt.Action())
 				}
 
 				if name, args, ok := m.parseMagicContextCommand(value); ok {

@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/crush/internal/home"
 	"github.com/charmbracelet/crush/internal/shell"
 	"github.com/charmbracelet/crush/internal/skills"
+	"github.com/charmbracelet/crush/internal/worktree"
 )
 
 // Prompt represents a template-based prompt generator.
@@ -30,11 +31,14 @@ type Prompt struct {
 }
 
 type PromptDat struct {
-	Provider           string
-	Model              string
-	Config             config.Config
-	WorkingDir         string
-	IsGitRepo          bool
+	Provider   string
+	Model      string
+	Config     config.Config
+	WorkingDir string
+	IsGitRepo  bool
+	// Worktree is the branch of the linked git worktree the working
+	// directory is in, or "" when it is not in one.
+	Worktree           string
 	Platform           string
 	Date               string
 	GitStatus          string
@@ -232,6 +236,9 @@ func (p *Prompt) promptData(ctx context.Context, provider, model string, store *
 		AvailSkillXML: availSkillXML,
 	}
 	if isGit {
+		if wt, ok := worktree.Lookup(workingDir); ok {
+			data.Worktree = wt.Branch
+		}
 		var err error
 		data.GitStatus, err = getGitStatus(ctx, workingDir)
 		if err != nil {

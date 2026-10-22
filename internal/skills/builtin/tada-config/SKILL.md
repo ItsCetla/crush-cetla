@@ -193,7 +193,8 @@ option reset <list-key>    # clear a list option back to empty
   disables automatic summarization. `provider-auto-update` and `metrics` are
   still accepted but deprecated and have no effect: the provider catalog only
   changes through `tada update-providers`, and this fork has no telemetry.
-- **String keys**: `data-directory`, `initialize-as`, `notifications`.
+- **String keys**: `data-directory`, `initialize-as`, `notifications`,
+  `worktree-dir`.
 - **Attribution keys**: `attribution-trailer-style` (`none`, `co-authored-by`,
   `assisted-by`) and `attribution-generated-with` (boolean).
 - **UI settings**: `option ui compact BOOL`, `option ui diff auto|unified|split`,

@@ -8,7 +8,8 @@ You are an agent for Ta-Da. Given the user's prompt, you should use the tools av
 
 <env>
 Working directory: {{.WorkingDir}}
-Is directory a git repo: {{if .IsGitRepo}} yes {{else}} no {{end}}
+Is directory a git repo: {{if .IsGitRepo}} yes {{else}} no {{end}}{{if .Worktree}}
+Git worktree: this session works in a separate git worktree on branch {{.Worktree}}; commit there, not in the main checkout{{end}}
 Platform: {{.Platform}}
 Today's date: {{.Date}}
 </env>
