@@ -444,6 +444,24 @@ dialog.
 | Charmtone Pantera | `charmtone-panther` (default) |
 | Gruvbox Dark | `gruvbox-dark` |
 
+### Diffs
+
+Edit, write and permission diffs go side by side once there are at least
+160 columns for them, and stay inline below that. To pick one for good,
+set `diff_mode` to `split` or `unified` (`auto` is the default), or put
+`option ui diff split` in your `tadarc`. The permissions dialog still
+toggles between the two for the diff in front of you.
+
+```json
+{
+  "options": {
+    "tui": {
+      "diff_mode": "split"
+    }
+  }
+}
+```
+
 ### LSPs
 
 Ta-Da can use LSPs for additional context to help inform its decisions, just

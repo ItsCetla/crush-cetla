@@ -123,7 +123,9 @@ type WriteToolRenderContext struct{}
 
 // RenderTool implements the [ToolRenderer] interface.
 func (w *WriteToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *ToolRenderOpts) string {
-	cappedWidth := cappedMessageWidth(width)
+	// The item gets the full width so its diff can go side by side; the
+	// rest of the write stays as narrow as other tools.
+	cappedWidth := cappedMessageWidth(min(width, maxTextWidth))
 	if opts.IsPending() {
 		return pendingTool(sty, "Write", opts.Anim, opts.Compact)
 	}
@@ -151,7 +153,7 @@ func (w *WriteToolRenderContext) RenderTool(sty *styles.Styles, width int, opts 
 		var meta tools.WriteResponseMetadata
 		if err := json.Unmarshal([]byte(opts.Result.Metadata), &meta); err == nil && meta.Diff != "" {
 			errLine := toolErrorContent(sty, opts.Result, cappedWidth)
-			diff := toolOutputDiffContentFromUnified(sty, meta.Diff, cappedWidth, opts.ExpandedContent)
+			diff := toolOutputDiffContentFromUnified(sty, meta.Diff, width, opts.ExpandedContent, opts.DiffMode)
 			return strings.Join([]string{header, "", errLine, "", diff}, "\n")
 		}
 		return joinToolParts(header, toolErrorContent(sty, opts.Result, cappedWidth))
@@ -223,7 +225,7 @@ func (e *EditToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *
 		return joinToolParts(header, body)
 	}
 
-	diff := toolOutputDiffContent(sty, file, meta.OldContent, meta.NewContent, width, opts.ExpandedContent)
+	diff := toolOutputDiffContent(sty, file, meta.OldContent, meta.NewContent, width, opts.ExpandedContent, opts.DiffMode)
 
 	// On error (e.g. denied permission), show the error above the diff. An
 	// edit can also fail before there is any diff to show — refusing to touch
@@ -304,7 +306,7 @@ func (m *MultiEditToolRenderContext) RenderTool(sty *styles.Styles, width int, o
 	}
 
 	// Render diff with optional failed edits note.
-	diff := toolOutputMultiEditDiffContent(sty, file, meta, len(params.Edits), width, opts.ExpandedContent)
+	diff := toolOutputMultiEditDiffContent(sty, file, meta, len(params.Edits), width, opts.ExpandedContent, opts.DiffMode)
 
 	// On error (e.g. denied permission), show the error above the diff. An
 	// edit can also fail before there is any diff to show — refusing to touch

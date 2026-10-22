@@ -72,7 +72,7 @@ func TestRenderToolResultTextContent(t *testing.T) {
 			t.Fatalf("json.MarshalIndent() error = %v", err)
 		}
 		expected := styPtr.Tool.Body.Render(toolOutputCodeContent(styPtr, "result.json", string(prettyResult), 0, widths.Body, false))
-		got := renderToolResultTextContent(styPtr, content, widths, false)
+		got := renderToolResultTextContent(styPtr, content, widths, false, "")
 		if got != expected {
 			t.Fatal("renderToolResultTextContent() did not choose JSON rendering")
 		}
@@ -87,8 +87,8 @@ func TestRenderToolResultTextContent(t *testing.T) {
 -# Old
 +# New
 `
-		expected := toolOutputDiffContentFromUnified(styPtr, content, widths.Diff, false)
-		got := renderToolResultTextContent(styPtr, content, widths, false)
+		expected := toolOutputDiffContentFromUnified(styPtr, content, widths.Diff, false, "")
+		got := renderToolResultTextContent(styPtr, content, widths, false, "")
 		if got != expected {
 			t.Fatal("renderToolResultTextContent() did not choose diff rendering")
 		}
@@ -98,7 +98,7 @@ func TestRenderToolResultTextContent(t *testing.T) {
 		t.Parallel()
 		content := "# Title\n\nBody"
 		expected := styPtr.Tool.Body.Render(toolOutputCodeContent(styPtr, "result.md", content, 0, widths.Body, false))
-		got := renderToolResultTextContent(styPtr, content, widths, false)
+		got := renderToolResultTextContent(styPtr, content, widths, false, "")
 		if got != expected {
 			t.Fatal("renderToolResultTextContent() did not choose markdown rendering")
 		}
@@ -108,7 +108,7 @@ func TestRenderToolResultTextContent(t *testing.T) {
 		t.Parallel()
 		content := "plain text"
 		expected := styPtr.Tool.Body.Render(toolOutputPlainContent(styPtr, content, widths.Body, false))
-		got := renderToolResultTextContent(styPtr, content, widths, false)
+		got := renderToolResultTextContent(styPtr, content, widths, false, "")
 		if got != expected {
 			t.Fatal("renderToolResultTextContent() did not choose plain rendering")
 		}

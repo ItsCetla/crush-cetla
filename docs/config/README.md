@@ -614,7 +614,8 @@ Usage:
 
 Available Keys:
   compact bool                  use the compact chat layout
-  diff unified|split            choose unified or side-by-side diffs
+  diff auto|unified|split       choose unified or side-by-side diffs; auto
+                                (default) goes side by side from 160 columns
   transparent bool              use the terminal background
   mouse bool                    enable terminal mouse capture for clicks,
                                 selection, and scrolling in the TUI (default

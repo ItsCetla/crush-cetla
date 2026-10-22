@@ -434,6 +434,7 @@ func (m *Chat) SetMessages(msgs ...chat.MessageItem) tea.Cmd {
 	m.idInxMap = make(map[string]int)
 	m.scrollbarVisible = false // Reset scrollbar visibility on new session load
 	msgs = m.withFolds(msgs)
+	m.applyDiffMode(msgs)
 
 	items := make([]list.Item, len(msgs))
 	for i, msg := range msgs {
@@ -463,6 +464,7 @@ func (m *Chat) AppendMessages(msgs ...chat.MessageItem) {
 		msgs = append(append(make([]chat.MessageItem, 0, len(msgs)+1), msgs...), pending)
 	}
 	msgs = m.withFolds(msgs)
+	m.applyDiffMode(msgs)
 
 	items := make([]list.Item, len(msgs))
 	indexOffset := m.list.Len()
@@ -478,6 +480,29 @@ func (m *Chat) AppendMessages(msgs ...chat.MessageItem) {
 	}
 	m.list.AppendItems(items...)
 	m.refoldFrom(indexOffset)
+}
+
+// diffMode returns the configured diff mode, or empty for auto.
+func (m *Chat) diffMode() string {
+	if m.com == nil || m.com.Workspace == nil {
+		return ""
+	}
+	cfg := m.com.Config()
+	if cfg == nil || cfg.Options == nil || cfg.Options.TUI == nil {
+		return ""
+	}
+	return cfg.Options.TUI.DiffMode
+}
+
+// applyDiffMode hands the configured diff mode to the items that draw
+// diffs.
+func (m *Chat) applyDiffMode(msgs []chat.MessageItem) {
+	mode := m.diffMode()
+	for _, msg := range msgs {
+		if d, ok := msg.(chat.DiffModeSetter); ok {
+			d.SetDiffMode(mode)
+		}
+	}
 }
 
 // containsMessage reports whether any of msgs carries the given id.

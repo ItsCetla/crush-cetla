@@ -184,6 +184,26 @@ func TestOption_UIExitBanner(t *testing.T) {
 	require.Contains(t, err.Error(), "expects default, compact, or none")
 }
 
+func TestOption_UIDiff(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "tadarc")
+	for _, mode := range []string{"auto", "unified", "split"} {
+		jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(`option ui diff `+mode))
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(jsonBytes, &result))
+
+		ui := result["options"].(map[string]any)["tui"].(map[string]any)
+		require.Equal(t, mode, ui["diff_mode"])
+	}
+
+	_, err := LoadShellConfig(t.Context(), path, []byte(`option ui diff sideways`))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expects auto, unified, or split")
+}
+
 func TestOption_BoolShorthand(t *testing.T) {
 	t.Parallel()
 

@@ -528,8 +528,8 @@ func (c *Config) applyEnv(resolver VariableResolver) {
 // Configs loaded from disk get this via setDefaults; configs arriving over the
 // wire from a Ta-Da server need the same treatment before the UI reads them.
 //
-// DiffMode is deliberately left alone: the permissions dialog reads its zero
-// value as "choose split or unified from the terminal width".
+// DiffMode is deliberately left alone: the UI reads its zero value, like
+// "auto", as "choose split or unified from the window width".
 func (c *Config) NormalizeOptions() {
 	if c.Options == nil {
 		c.Options = &Options{}

@@ -26,12 +26,16 @@ const (
 func TestToolOutputDiffContentWraps(t *testing.T) {
 	t.Parallel()
 
-	for _, width := range []int{160, 100} {
+	for _, tc := range []struct {
+		width int
+		mode  string
+	}{{160, "split"}, {100, "unified"}} {
+		width := tc.width
 		t.Run(fmt.Sprintf("Width%d", width), func(t *testing.T) {
 			t.Parallel()
 
 			sty := styles.CharmtonePantera()
-			out := toolOutputDiffContent(&sty, "copy.ps1", wrapDiffOld, wrapDiffNew, width, true)
+			out := toolOutputDiffContent(&sty, "copy.ps1", wrapDiffOld, wrapDiffNew, width, true, tc.mode)
 			plain := ansi.Strip(out)
 			if os.Getenv("CRUSH_PRINT_DIFF") != "" {
 				t.Logf("width %d:\n%s", width, plain)

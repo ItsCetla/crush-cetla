@@ -196,7 +196,7 @@ option reset <list-key>    # clear a list option back to empty
 - **String keys**: `data-directory`, `initialize-as`, `notifications`.
 - **Attribution keys**: `attribution-trailer-style` (`none`, `co-authored-by`,
   `assisted-by`) and `attribution-generated-with` (boolean).
-- **UI settings**: `option ui compact BOOL`, `option ui diff unified|split`,
+- **UI settings**: `option ui compact BOOL`, `option ui diff auto|unified|split`,
   `option ui transparent BOOL`, `option ui mouse BOOL` (default `true`;
   disable to let the terminal/tmux handle selection, copy/paste, and
   scrolling), `option ui scrollbar default|always|never`,

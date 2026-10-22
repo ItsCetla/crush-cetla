@@ -130,7 +130,7 @@ func parseUnifiedDiff(content string) []parsedDiffFile {
 	return result
 }
 
-func toolOutputDiffContentFromUnified(sty *styles.Styles, content string, width int, expanded bool) string {
+func toolOutputDiffContentFromUnified(sty *styles.Styles, content string, width int, expanded bool, diffMode string) string {
 	files := parseUnifiedDiff(content)
 	if len(files) == 0 {
 		bodyWidth := width - toolBodyLeftPaddingTotal
@@ -147,7 +147,7 @@ func toolOutputDiffContentFromUnified(sty *styles.Styles, content string, width 
 		if len(files) > 1 {
 			formatter = formatter.FileName(f.path)
 		}
-		if width > maxTextWidth {
+		if common.SplitDiff(diffMode, bodyWidth) {
 			formatter = formatter.Split()
 		}
 		formatted := formatter.String()

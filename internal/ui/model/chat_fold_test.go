@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -334,4 +335,32 @@ func TestFoldTurnCost(t *testing.T) {
 	m.chat.UpdateTurnCost(1.67)
 	require.InDelta(t, 0.42, foldOf(t, m, "u1").Cost(), 1e-9)
 	require.Contains(t, ansi.Strip(foldOf(t, m, "u1").RawRender(200)), "$0.42")
+}
+
+// options.tui.diff_mode reaches the tool items that draw diffs, both when
+// a session loads and when items arrive later.
+func TestChatAppliesDiffMode(t *testing.T) {
+	m := newFoldUIWith(t, &config.Config{Options: &config.Options{TUI: &config.TUIOptions{DiffMode: config.DiffModeSplit}}})
+
+	edit := func(id string) chat.ToolMessageItem {
+		input := `{"file_path":"/tmp/main.go","old_string":"oldValue","new_string":"newValue"}`
+		meta := `{"additions":1,"removals":1,"old_content":"var x = oldValue\n","new_content":"var x = newValue\n"}`
+		return chat.NewEditToolMessageItem(m.com.Styles,
+			message.ToolCall{ID: id, Name: "edit", Input: input, Finished: true},
+			&message.ToolResult{ToolCallID: id, Name: "edit", Content: "ok", Metadata: meta}, false)
+	}
+	sideBySide := func(item chat.ToolMessageItem) bool {
+		for _, line := range strings.Split(ansi.Strip(item.RawRender(100)), "\n") {
+			if strings.Contains(line, "oldValue") && strings.Contains(line, "newValue") {
+				return true
+			}
+		}
+		return false
+	}
+
+	first, second := edit("e1"), edit("e2")
+	m.chat.SetMessages(first)
+	m.chat.AppendMessages(second)
+	require.True(t, sideBySide(first), "split mode draws a narrow diff side by side")
+	require.True(t, sideBySide(second))
 }

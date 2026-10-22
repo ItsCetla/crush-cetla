@@ -45,6 +45,12 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   progress (`◆ 2/5`). On narrow windows the pills drop in order (cost,
   then network, then mission) so what needs you stays in view.
 
+- **Side-by-side diffs on wide windows.** Edit, write and permission
+  diffs switch to side by side once they have 160 columns, in the chat as
+  well as the permissions dialog. The `diff_mode` option (`option ui diff`
+  in `tadarc`) now takes `auto`, the default, besides `split` and
+  `unified`, and the chat follows it too, not just the dialog.
+
 ## [0.5.14] - 2026-10-21
 
 ### Added

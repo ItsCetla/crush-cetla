@@ -67,7 +67,7 @@ option ui completions-max-items 200`)
 func TestShellConfigOptionUIRejectsInvalidValue(t *testing.T) {
 	_, err := loadCrushShErr(t, `option ui diff side-by-side`)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "expects unified or split")
+	require.Contains(t, err.Error(), "expects auto, unified, or split")
 }
 
 func TestShellConfigOptionAttribution(t *testing.T) {

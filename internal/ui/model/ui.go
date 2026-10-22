@@ -6193,8 +6193,11 @@ func (m *UI) openPermissionsDialog(perm permission.PermissionRequest) tea.Cmd {
 
 	// Get diff mode from config.
 	var opts []dialog.PermissionsOption
-	if diffMode := m.com.Config().Options.TUI.DiffMode; diffMode != "" {
-		opts = append(opts, dialog.WithDiffMode(diffMode == "split"))
+	switch m.com.Config().Options.TUI.DiffMode {
+	case config.DiffModeSplit:
+		opts = append(opts, dialog.WithDiffMode(true))
+	case config.DiffModeUnified:
+		opts = append(opts, dialog.WithDiffMode(false))
 	}
 
 	// Offer "Allow & Continue in Auto" unless Auto is already on. Plan

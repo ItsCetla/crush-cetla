@@ -1416,10 +1416,12 @@
         "diff_mode": {
           "type": "string",
           "enum": [
+            "auto",
             "unified",
             "split"
           ],
-          "description": "Diff mode for the TUI interface"
+          "description": "How the TUI draws diffs: unified (inline), split (side by side), or auto (side by side when the window is wide enough)",
+          "default": "auto"
         },
         "active_theme": {
           "type": "string",

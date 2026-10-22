@@ -74,6 +74,12 @@ type Compactable interface {
 	SetCompact(compact bool)
 }
 
+// DiffModeSetter is an interface for tool items that draw diffs. The mode is
+// one of the config.DiffMode values; empty means auto.
+type DiffModeSetter interface {
+	SetDiffMode(mode string)
+}
+
 // SpinningState contains the state passed to SpinningFunc for custom spinning logic.
 type SpinningState struct {
 	ToolCall message.ToolCall
@@ -112,6 +118,9 @@ type ToolRenderOpts struct {
 	Compact         bool
 	IsSpinning      bool
 	Status          ToolStatus
+	// DiffMode picks unified or side-by-side diffs; empty means auto. See
+	// common.SplitDiff.
+	DiffMode string
 }
 
 // IsPending returns true if the tool call is still pending (not finished and
@@ -165,6 +174,8 @@ type baseToolMessageItem struct {
 	hasCappedWidth bool
 	// isCompact indicates this tool should render in compact mode.
 	isCompact bool
+	// diffMode is how the tool's diffs are drawn; empty means auto.
+	diffMode string
 	// spinningFunc allows tools to override the default spinning logic.
 	// If nil, uses the default: !toolCall.Finished && !canceled.
 	spinningFunc SpinningFunc
@@ -184,8 +195,11 @@ func newBaseToolMessageItem(
 	toolRenderer ToolRenderer,
 	canceled bool,
 ) *baseToolMessageItem {
-	// we only do full width for diffs (as far as I know)
-	hasCappedWidth := toolCall.Name != tools.EditToolName && toolCall.Name != tools.MultiEditToolName
+	// Tools that draw file diffs get the full width so wide windows can show
+	// them side by side; their renderers cap everything else themselves.
+	hasCappedWidth := toolCall.Name != tools.EditToolName &&
+		toolCall.Name != tools.MultiEditToolName &&
+		toolCall.Name != tools.WriteToolName
 
 	status := ToolStatusRunning
 	if canceled {
@@ -311,6 +325,16 @@ func (t *baseToolMessageItem) SetCompact(compact bool) {
 	t.Bump()
 }
 
+// SetDiffMode implements the DiffModeSetter interface.
+func (t *baseToolMessageItem) SetDiffMode(mode string) {
+	if t.diffMode == mode {
+		return
+	}
+	t.diffMode = mode
+	t.clearCache()
+	t.Bump()
+}
+
 // ID returns the unique identifier for this tool message item.
 func (t *baseToolMessageItem) ID() string {
 	return t.toolCall.ID
@@ -359,6 +383,7 @@ func (t *baseToolMessageItem) RawRender(width int) string {
 			Compact:         t.isCompact,
 			IsSpinning:      t.isSpinning(),
 			Status:          t.computeStatus(),
+			DiffMode:        t.diffMode,
 		})
 
 		// Prepend hook indicator if hooks ran for this tool call.
@@ -1096,7 +1121,7 @@ func formatSize(bytes int) string {
 }
 
 // toolOutputDiffContent renders a diff between old and new content.
-func toolOutputDiffContent(sty *styles.Styles, file, oldContent, newContent string, width int, expanded bool) string {
+func toolOutputDiffContent(sty *styles.Styles, file, oldContent, newContent string, width int, expanded bool, diffMode string) string {
 	bodyWidth := width - toolBodyLeftPaddingTotal
 
 	formatter := common.DiffFormatter(sty).
@@ -1105,8 +1130,8 @@ func toolOutputDiffContent(sty *styles.Styles, file, oldContent, newContent stri
 		Width(bodyWidth).
 		Wrap(true)
 
-	// Use split view for wide terminals.
-	if width > maxTextWidth {
+	// Use split view for wide windows, or when the user asked for it.
+	if common.SplitDiff(diffMode, bodyWidth) {
 		formatter = formatter.Split()
 	}
 
@@ -1147,7 +1172,7 @@ func formatNonZero(value int) string {
 }
 
 // toolOutputMultiEditDiffContent renders a diff with optional failed edits note.
-func toolOutputMultiEditDiffContent(sty *styles.Styles, file string, meta tools.MultiEditResponseMetadata, totalEdits, width int, expanded bool) string {
+func toolOutputMultiEditDiffContent(sty *styles.Styles, file string, meta tools.MultiEditResponseMetadata, totalEdits, width int, expanded bool, diffMode string) string {
 	bodyWidth := width - toolBodyLeftPaddingTotal
 
 	formatter := common.DiffFormatter(sty).
@@ -1156,8 +1181,8 @@ func toolOutputMultiEditDiffContent(sty *styles.Styles, file string, meta tools.
 		Width(bodyWidth).
 		Wrap(true)
 
-	// Use split view for wide terminals.
-	if width > maxTextWidth {
+	// Use split view for wide windows, or when the user asked for it.
+	if common.SplitDiff(diffMode, bodyWidth) {
 		formatter = formatter.Split()
 	}
 

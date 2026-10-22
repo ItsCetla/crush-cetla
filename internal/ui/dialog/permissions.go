@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/agent/tools"
+	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/stringext"
@@ -55,8 +56,6 @@ const (
 	simpleSizeRatio = 0.6
 	// simpleHeightRatio is the height ratio for simple content dialogs.
 	simpleHeightRatio = 0.5
-	// splitModeMinWidth is the minimum width to enable split diff mode.
-	splitModeMinWidth = 140
 	// layoutSpacingLines is the number of empty lines used for layout spacing.
 	layoutSpacingLines = 4
 	// minWindowWidth is the minimum window width before forcing fullscreen.
@@ -186,7 +185,8 @@ var _ Dialog = (*Permissions)(nil)
 // PermissionsOption configures the permissions dialog.
 type PermissionsOption func(*Permissions)
 
-// WithDiffMode sets the initial diff mode (split or unified).
+// WithDiffMode sets the initial diff mode (split or unified). Without it the
+// dialog picks one from its width.
 func WithDiffMode(split bool) PermissionsOption {
 	return func(p *Permissions) {
 		p.diffSplitMode = &split
@@ -458,7 +458,9 @@ func (p *Permissions) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	// applies for RenderContext dialogs.
 	helpView := shortHelpLine(&p.help, p.ShortHelp(), contentWidth)
 
-	p.defaultDiffSplitMode = width >= splitModeMinWidth
+	// Without a diff_mode setting, go side by side when the diff has as
+	// much room as the chat needs for it.
+	p.defaultDiffSplitMode = common.SplitDiff(config.DiffModeAuto, contentWidth)
 
 	// Pre-render content to measure its actual height, then fit the
 	// scrollable viewport into whatever height the fixed chrome leaves.

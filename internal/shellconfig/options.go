@@ -278,8 +278,8 @@ func optionUI(options map[string]any, args []string, stderr io.Writer) error {
 		}
 		ui[jsonKey] = parsed
 	case "diff":
-		if value != "unified" && value != "split" {
-			return usage(stderr, fmt.Sprintf("option ui diff expects unified or split, got %q", value))
+		if value != "auto" && value != "unified" && value != "split" {
+			return usage(stderr, fmt.Sprintf("option ui diff expects auto, unified, or split, got %q", value))
 		}
 		ui["diff_mode"] = value
 	case "scrollbar":
