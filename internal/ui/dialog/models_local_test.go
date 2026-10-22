@@ -200,3 +200,26 @@ func TestUniqueProviderID(t *testing.T) {
 	require.Equal(t, "ollama-3", uniqueProviderID("ollama", map[string]bool{"ollama": true, "ollama-2": true}))
 	require.Equal(t, "local", uniqueProviderID("", map[string]bool{}))
 }
+
+// A server that didn't identify itself is labeled and never pre-selected.
+func TestModelsUnidentifiedServerNotPreselected(t *testing.T) {
+	t.Parallel()
+
+	m, _ := newTestLocalModels(t, nil)
+	action := m.HandleMsg(localServersMsg{servers: []discover.LocalServer{{
+		Kind:         discover.KindOpenAICompat,
+		Name:         "Local server",
+		Root:         "http://localhost:8080",
+		BaseURL:      "http://localhost:8080/v1",
+		ProviderType: "openai-compat",
+		ProviderID:   "local",
+		Models:       []discover.LocalModel{{ID: "mystery"}},
+	}}})
+	require.Nil(t, action)
+	require.Len(t, m.localPicks, 1)
+	require.Empty(t, m.firstLocalItemID())
+
+	scr := uv.NewScreenBuffer(100, 40)
+	m.Draw(scr, image.Rect(0, 0, 100, 40))
+	require.Contains(t, ansi.Strip(scr.Render()), "Unidentified server on localhost:8080")
+}

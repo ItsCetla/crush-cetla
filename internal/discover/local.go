@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"charm.land/catwalk/pkg/catwalk"
 )
@@ -124,7 +125,7 @@ func probeOllama(ctx context.Context, root string) (*LocalServer, error) {
 			Version string `json:"version"`
 		}
 		if getJSON(ctx, root+"/api/version", &v) == nil {
-			version = v.Version
+			version = label(v.Version, 32)
 		}
 	})
 
@@ -160,7 +161,7 @@ func probeOllama(ctx context.Context, root string) (*LocalServer, error) {
 		if !isChatModel(id) {
 			continue
 		}
-		s.Models = append(s.Models, LocalModel{ID: id, ParameterSize: m.Details.ParameterSize})
+		s.Models = append(s.Models, LocalModel{ID: id, ParameterSize: label(m.Details.ParameterSize, 16)})
 	}
 	return s, nil
 }
@@ -214,9 +215,35 @@ func probeOpenAI(ctx context.Context, kind ServerKind, root string) (*LocalServe
 }
 
 // isChatModel leaves out embedding models, which can't hold a
-// conversation.
+// conversation, and IDs that aren't plain printable text. Any process on
+// this computer can answer a probe, so an ID carrying escape sequences or
+// invisible characters is dropped rather than printed or saved.
 func isChatModel(id string) bool {
-	return id != "" && !strings.Contains(strings.ToLower(id), "embed")
+	if id == "" || len(id) > 256 || strings.Contains(strings.ToLower(id), "embed") {
+		return false
+	}
+	for _, r := range id {
+		if !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// label keeps only the printable characters of a server-supplied display
+// string, such as a version, and caps its length.
+func label(s string, limit int) string {
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return -1
+	}, s)
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > limit {
+		s = string(r[:limit])
+	}
+	return s
 }
 
 func getJSON(ctx context.Context, url string, v any) error {

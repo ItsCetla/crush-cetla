@@ -158,3 +158,23 @@ func TestProbeTimesOutSlowServers(t *testing.T) {
 	require.Len(t, got, 1)
 	require.Equal(t, KindLMStudio, got[0].Kind)
 }
+
+// Any process on this computer can answer a probe, so what it sends is
+// cleaned before it reaches a terminal or the config.
+func TestProbeCleansServerText(t *testing.T) {
+	t.Parallel()
+
+	root := serve(t, map[string]string{
+		"/api/version": `{"version":"0.1\u001b]0;pwned\u0007"}`,
+		"/api/tags": `{"models":[
+			{"name":"evil\u001b[2Jmodel"},
+			{"name":"rtl\u202emodel"},
+			{"name":"good:7b","details":{"parameter_size":"7B\u001b[31m"}}
+		]}`,
+	})
+
+	got := Probe(context.Background(), []Target{{Kind: KindOllama, Root: root}}, time.Second)
+	require.Len(t, got, 1)
+	require.Equal(t, "0.1]0;pwned", got[0].Version)
+	require.Equal(t, []LocalModel{{ID: "good:7b", ParameterSize: "7B[31m"}}, got[0].Models)
+}

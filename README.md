@@ -1350,7 +1350,9 @@ OpenAI-compatible server on `localhost:8080`. Each check gives up after
 listed at the top of the picker under "running on this computer". Picking
 one saves the server as a provider in your global config, so it's there
 next time. Servers you've already configured aren't listed twice, and
-embedding models are left out.
+embedding models are left out. A server on `:8080` that doesn't say it's
+llama.cpp is listed as "Unidentified server" and is never picked for you,
+since any program on this computer could be listening there.
 
 To see what's running from the command line, along with the tadarc line
 to add each server:

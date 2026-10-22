@@ -166,7 +166,9 @@ func (m *Models) localGroups() []ModelGroup {
 func (m *Models) firstLocalItemID() string {
 	for _, it := range m.list.VisibleItems() {
 		if mi, ok := it.(*ModelItem); ok {
-			if _, local := m.localPicks[mi.ID()]; local {
+			// Only a server that identified itself is picked for the
+			// user; an unidentified one must be chosen deliberately.
+			if p, local := m.localPicks[mi.ID()]; local && p.server.Kind != discover.KindOpenAICompat {
 				return mi.ID()
 			}
 		}
@@ -175,6 +177,9 @@ func (m *Models) firstLocalItemID() string {
 }
 
 func localGroupTitle(s discover.LocalServer) string {
+	if s.Kind == discover.KindOpenAICompat {
+		return "Unidentified server on " + hostPort(s.Root) + " · make sure you know what it is"
+	}
 	name := s.Name
 	if s.Version != "" {
 		name += " " + s.Version
