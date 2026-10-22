@@ -76,7 +76,24 @@ type Options struct {
 	// with an error, for example while auto mode would approve the
 	// agents' tool calls without asking.
 	Ready func() error
+	// ApproveChecks, when set, is asked before a machine's checks run on
+	// its work. Checks run the code the agent wrote, so nothing runs
+	// unless it says yes. When it is nil, checks don't run.
+	ApproveChecks func(ctx context.Context, req CheckApproval) (bool, error)
 }
+
+// CheckApproval asks to run a mission's checks on one machine's work.
+type CheckApproval struct {
+	Machine   string
+	WorkDir   string
+	SessionID string
+	// Checks are the checks that would run. None of them is skipped.
+	Checks []control.SwarmCheck
+}
+
+// checksNotAllowed is the skip reason for checks the user didn't let
+// run on an agent's work.
+const checksNotAllowed = "you didn't let the checks run on this machine's work"
 
 // Engine runs swarms. It is safe for concurrent use.
 type Engine struct {
@@ -304,6 +321,46 @@ func (e *Engine) checkAssign(ctx context.Context, m control.Mission, assign map[
 	return names, nil
 }
 
+// checks runs the assignment's checks on its worktree once the user
+// allows it. Checks that need no approval to be skipped come back skipped
+// without asking.
+func (e *Engine) checks(ctx context.Context, missionID string, a control.SwarmAssignment) ([]control.SwarmCheck, error) {
+	planned, err := e.opts.Missions.PlanChecksIn(missionID, a.Criteria)
+	if err != nil {
+		return nil, err
+	}
+	var runnable []control.SwarmCheck
+	for _, c := range planned {
+		if c.Skipped == "" {
+			runnable = append(runnable, c)
+		}
+	}
+	if len(runnable) == 0 {
+		return planned, nil
+	}
+	ok := false
+	if e.opts.ApproveChecks != nil {
+		ok, err = e.opts.ApproveChecks(ctx, CheckApproval{
+			Machine:   a.Machine,
+			WorkDir:   a.Worktree,
+			SessionID: a.SessionID,
+			Checks:    runnable,
+		})
+		if err != nil && ctx.Err() == nil {
+			slog.Warn("Failed to ask about swarm checks", "machine", a.Machine, "error", err)
+		}
+	}
+	if !ok {
+		for i := range planned {
+			if planned[i].Skipped == "" {
+				planned[i].Skipped = checksNotAllowed
+			}
+		}
+		return planned, nil
+	}
+	return e.opts.Missions.RunPlannedChecks(ctx, missionID, a.Worktree, planned)
+}
+
 // work runs one assignment's agent, commits what it did, runs the checks
 // and records the outcome.
 func (e *Engine) work(run control.SwarmRun, a control.SwarmAssignment, l lease, m control.Mission) {
@@ -351,7 +408,7 @@ func (e *Engine) work(run control.SwarmRun, a control.SwarmAssignment, l lease, 
 
 	var checkErr error
 	if agentErr == nil && commitErr == nil && ctx.Err() == nil {
-		a.Checks, checkErr = e.opts.Missions.RunChecksIn(ctx, run.MissionID, a.Worktree, a.Criteria)
+		a.Checks, checkErr = e.checks(ctx, run.MissionID, a)
 	}
 
 	a.Finished = time.Now()

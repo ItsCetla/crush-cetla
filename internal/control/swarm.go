@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -305,11 +307,10 @@ func (h *Hub) swarmOp(ctx context.Context, c Command) (Reply, error) {
 	return Reply{}, fmt.Errorf("unknown control op %q", c.Op)
 }
 
-// RunChecksIn runs the given criteria's check commands in dir, a worktree
-// of the project, without recording the results on the mission. Only
-// commands the user approved in this project run; the rest come back
-// skipped. Criteria without checks are left out.
-func (s *Missions) RunChecksIn(ctx context.Context, id, dir string, criteria []int) ([]SwarmCheck, error) {
+// PlanChecksIn returns the checks RunChecksIn would run for the given
+// criteria, without running any. Checks that wouldn't run come back with
+// Skipped set. Criteria without checks are left out.
+func (s *Missions) PlanChecksIn(id string, criteria []int) ([]SwarmCheck, error) {
 	m, err := s.read(id)
 	if err != nil {
 		return nil, err
@@ -327,6 +328,45 @@ func (s *Missions) RunChecksIn(ctx context.Context, id, dir string, criteria []i
 		case !s.CheckApproved(c.Check):
 			sc.Skipped = "you haven't approved this check yet"
 		}
+		out = append(out, sc)
+	}
+	return out, nil
+}
+
+// RunChecksIn runs the given criteria's check commands in dir, a worktree
+// of the project, without recording the results on the mission. Only
+// commands the user approved in this project run; the rest come back
+// skipped. Criteria without checks are left out.
+func (s *Missions) RunChecksIn(ctx context.Context, id, dir string, criteria []int) ([]SwarmCheck, error) {
+	planned, err := s.PlanChecksIn(id, criteria)
+	if err != nil {
+		return nil, err
+	}
+	return s.RunPlannedChecks(ctx, id, dir, planned)
+}
+
+// RunPlannedChecks runs the checks PlanChecksIn returned, in dir. A check
+// whose command changed since, or stopped being approved, is skipped. The
+// worktree holds code an agent wrote, so the checks run without the
+// environment variables that look like secrets (see ScrubEnv).
+func (s *Missions) RunPlannedChecks(ctx context.Context, id, dir string, planned []SwarmCheck) ([]SwarmCheck, error) {
+	m, err := s.read(id)
+	if err != nil {
+		return nil, err
+	}
+	env := ScrubEnv(os.Environ())
+	out := make([]SwarmCheck, 0, len(planned))
+	for _, sc := range planned {
+		c := m.Criterion(sc.Criterion)
+		switch {
+		case sc.Skipped != "":
+		case c == nil || c.Check != sc.Command:
+			sc.Skipped = "the check changed while the swarm ran"
+		case HiddenChars(sc.Command):
+			sc.Skipped = "the command has hidden characters"
+		case !s.CheckApproved(sc.Command):
+			sc.Skipped = "you haven't approved this check yet"
+		}
 		if sc.Skipped != "" {
 			out = append(out, sc)
 			continue
@@ -334,7 +374,7 @@ func (s *Missions) RunChecksIn(ctx context.Context, id, dir string, criteria []i
 		if ctx.Err() != nil {
 			return out, ctx.Err()
 		}
-		r := RunCheck(ctx, dir, c.Check, c.CheckTimeout(), s.blockFuncs)
+		r := runCheck(ctx, dir, sc.Command, c.CheckTimeout(), s.blockFuncs, env)
 		if r.Canceled {
 			return out, ctx.Err()
 		}
@@ -343,6 +383,52 @@ func (s *Missions) RunChecksIn(ctx context.Context, id, dir string, criteria []i
 		out = append(out, sc)
 	}
 	return out, nil
+}
+
+// secretEnvWords are the parts of an environment variable's name that
+// mark it as a likely secret.
+var secretEnvWords = []string{
+	"KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PASS", "CREDENTIAL",
+	"AUTH", "SESSION", "COOKIE", "PRIVATE", "SIGNING",
+}
+
+// secretEnvPrefixes are the prefixes of environment variables that belong
+// to cloud and model provider accounts.
+var secretEnvPrefixes = []string{
+	"AWS_", "AZURE_", "GOOGLE_", "GCLOUD_", "GH_", "GITHUB_", "GITLAB_",
+	"ANTHROPIC_", "OPENAI_", "GEMINI_", "OPENROUTER_", "GROQ_", "MISTRAL_",
+	"DEEPSEEK_", "XAI_", "HF_", "HUGGINGFACE_", "VERTEX", "BEDROCK_",
+	"COPILOT_", "MINIMAX_", "VERCEL_", "CEREBRAS_", "ZAI_", "NPM_",
+	"DOCKER_", "SSH_", "GPG_", "TADA_", "CRUSH_",
+}
+
+// ScrubEnv returns env without the variables whose names look like
+// secrets or provider credentials. It goes by name only, so a secret kept
+// under an unusual name gets through.
+func ScrubEnv(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		upper := strings.ToUpper(name)
+		secret := slices.ContainsFunc(secretEnvPrefixes, func(p string) bool {
+			return strings.HasPrefix(upper, p)
+		})
+		if !secret {
+			for _, part := range strings.FieldsFunc(upper, func(r rune) bool { return r == '_' || r == '-' || r == '.' }) {
+				if slices.ContainsFunc(secretEnvWords, func(w string) bool {
+					// PASS only counts on its own, so PASSTHROUGH stays.
+					return part == w || (w != "PASS" && strings.HasSuffix(part, w))
+				}) {
+					secret = true
+					break
+				}
+			}
+		}
+		if !secret {
+			out = append(out, kv)
+		}
+	}
+	return out
 }
 
 // TickChecked ticks the criteria whose swarm checks passed, as long as

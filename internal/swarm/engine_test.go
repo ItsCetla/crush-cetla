@@ -89,6 +89,10 @@ type harness struct {
 	act map[string]func(dir string)
 	// ready is what the engine's Ready hook returns.
 	ready error
+	// denyChecks makes the engine's ApproveChecks hook say no.
+	denyChecks bool
+	// approvals are the check approvals the engine asked for.
+	approvals []CheckApproval
 }
 
 func newHarness(t *testing.T) *harness {
@@ -134,6 +138,12 @@ func newHarness(t *testing.T) *harness {
 		},
 		Agent: h.agent,
 		Ready: func() error { return h.ready },
+		ApproveChecks: func(_ context.Context, req CheckApproval) (bool, error) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			h.approvals = append(h.approvals, req)
+			return !h.denyChecks, nil
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = h.engine.Close(context.Background()) })
@@ -217,6 +227,13 @@ func TestEngineRunsEachMachineInItsOwnWorktree(t *testing.T) {
 	require.Equal(t, control.SwarmCheckPass, alpha.CheckState())
 	require.Len(t, beta.Checks, 1)
 	require.True(t, beta.Checks[0].Passed)
+
+	// Each machine's checks were asked about before they ran.
+	require.Len(t, h.approvals, 2)
+	for _, req := range h.approvals {
+		require.Equal(t, "session-"+req.Machine, req.SessionID)
+		require.Len(t, req.Checks, 1)
+	}
 
 	// The project checkout is untouched until a merge.
 	require.NoFileExists(t, filepath.Join(h.repo, "a.txt"))
@@ -513,4 +530,18 @@ func TestEngineMergesTheRecordedCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(h.repo, "a.txt"))
 	require.Equal(t, alpha.Commit, runGit(t, h.repo, "rev-parse", "HEAD^2"))
+}
+
+func TestEngineSkipsChecksTheUserDenies(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.denyChecks = true
+	h.write["alpha"] = map[string]string{"a.txt": "a\n"}
+	run := h.start(t, map[string][]int{"alpha": {1}})
+	alpha := *run.Assignment("alpha")
+
+	require.Equal(t, control.SwarmDone, alpha.Status)
+	require.Len(t, alpha.Checks, 1)
+	require.False(t, alpha.Checks[0].Passed)
+	require.Equal(t, checksNotAllowed, alpha.Checks[0].Skipped)
 }

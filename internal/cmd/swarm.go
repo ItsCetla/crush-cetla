@@ -199,7 +199,7 @@ func writePermissionPrompt(w io.Writer, req permission.PermissionRequest, machin
 	if machine != "" {
 		who = machine
 	}
-	_, _ = fmt.Fprintf(w, "\n%s wants to run %s", who, req.ToolName)
+	_, _ = fmt.Fprintf(w, "\n%s wants to run %s", cleanLine(who), cleanLine(req.ToolName))
 	if req.Path != "" {
 		_, _ = fmt.Fprintf(w, " in %s", strconv.QuoteToASCII(req.Path))
 	}
@@ -223,13 +223,13 @@ func writeSwarmPlan(w io.Writer, p control.SwarmPlan) {
 	if title == "" {
 		title = p.MissionID
 	}
-	_, _ = fmt.Fprintf(w, "Swarm for %s (%d open criteria)\n\n", title, p.Open)
+	_, _ = fmt.Fprintf(w, "Swarm for %s (%d open criteria)\n\n", cleanLine(title), p.Open)
 	for _, a := range p.Assignments {
-		_, _ = fmt.Fprintf(w, "%s", a.Machine)
+		_, _ = fmt.Fprintf(w, "%s", cleanLine(a.Machine))
 		if a.Model != "" {
-			_, _ = fmt.Fprintf(w, " (%s)", a.Model)
+			_, _ = fmt.Fprintf(w, " (%s)", cleanLine(a.Model))
 		}
-		_, _ = fmt.Fprintf(w, " on %s\n", a.Branch)
+		_, _ = fmt.Fprintf(w, " on %s\n", cleanLine(a.Branch))
 		for i, id := range a.Criteria {
 			text := ""
 			if i < len(a.CriteriaText) {
@@ -239,7 +239,7 @@ func writeSwarmPlan(w io.Writer, p control.SwarmPlan) {
 		}
 	}
 	for _, s := range p.Skipped {
-		_, _ = fmt.Fprintf(w, "Left out %s: %s\n", s.Machine, cleanLine(s.Reason))
+		_, _ = fmt.Fprintf(w, "Left out %s: %s\n", cleanLine(s.Machine), cleanLine(s.Reason))
 	}
 	switch {
 	case p.Open == 0:
@@ -265,7 +265,7 @@ func writeSwarmRun(w io.Writer, r control.SwarmRun, now time.Time) {
 	}
 	_, _ = fmt.Fprintf(w, "%s  %s", r.ID, cleanLine(title))
 	if r.Target != "" {
-		_, _ = fmt.Fprintf(w, "  into %s", r.Target)
+		_, _ = fmt.Fprintf(w, "  into %s", cleanLine(r.Target))
 	}
 	_, _ = fmt.Fprintf(w, "  %s  %s\n", control.Money(r.Cost()), control.Ago(r.Created, now))
 	for _, a := range r.Assignments {
@@ -274,7 +274,7 @@ func writeSwarmRun(w io.Writer, r control.SwarmRun, now time.Time) {
 			check = "pending"
 		}
 		_, _ = fmt.Fprintf(w, "  %-14s %-10s checks %-8s %8s  +%d -%d  %s\n",
-			a.Machine, a.Status, check, control.Money(a.Cost), a.Added, a.Removed, a.Branch)
+			cleanLine(a.Machine), a.Status, check, control.Money(a.Cost), a.Added, a.Removed, cleanLine(a.Branch))
 		if a.Error != "" {
 			_, _ = fmt.Fprintf(w, "    ! %s\n", cleanLine(a.Error))
 		}
@@ -362,9 +362,9 @@ func runSwarmSettle(cmd *cobra.Command, op control.Op, runID, machine string) er
 	}
 	switch {
 	case r.Message != "":
-		_, _ = fmt.Fprintln(out, r.Message)
+		_, _ = fmt.Fprintln(out, cleanLine(r.Message))
 	case op == control.OpSwarmDiscard:
-		_, _ = fmt.Fprintf(out, "Discarded %s's branch.\n", machine)
+		_, _ = fmt.Fprintf(out, "Discarded %s's branch.\n", cleanLine(machine))
 	}
 	return nil
 }

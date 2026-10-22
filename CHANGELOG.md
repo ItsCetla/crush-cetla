@@ -19,8 +19,11 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   branch; merging ticks only the criteria whose approved checks passed.
   `tada swarm status`, `merge` and `discard` do the same from the shell.
   Every swarm tool call goes through your permission prompts, a swarm
-  refuses to start in auto mode, and its tools are confined to its
-  worktree.
+  refuses to start in auto mode (and its tool calls are refused if auto
+  mode is turned on mid-run), and its tools, glob patterns included, are
+  confined to its worktree. Checks on a machine's work ask before they
+  run, even in auto mode, skip any check whose command changed mid-run,
+  and run without secret-looking environment variables.
 
 - **Live privacy receipt.** Ta-Da now counts every host it talks to over
   HTTP, per session: model providers, MCP servers, web tools, fleet

@@ -819,6 +819,8 @@ func (p *Permissions) renderDefaultContent(width int) string {
 		var paramStr string
 		if str, ok := p.permission.Params.(string); ok {
 			paramStr = str
+		} else if b, err := json.Marshal(p.permission.Params); err == nil {
+			paramStr = string(b)
 		} else {
 			paramStr = fmt.Sprintf("%v", p.permission.Params)
 		}

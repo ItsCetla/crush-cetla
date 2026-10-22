@@ -3,12 +3,14 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 
 	"github.com/charmbracelet/crush/internal/agent"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/fleet"
+	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/swarm"
 	"github.com/charmbracelet/crush/internal/worktree"
 )
@@ -43,8 +45,9 @@ func (app *App) setupSwarm(store *config.ConfigStore) {
 		Acquire: func(ctx context.Context, name string) (*fleet.Lease, error) {
 			return fleet.Default().Acquire(ctx, store.Config(), name)
 		},
-		Agent: app.runSwarmAgent,
-		Ready: app.swarmReady,
+		Agent:         app.runSwarmAgent,
+		Ready:         app.swarmReady,
+		ApproveChecks: app.approveSwarmChecks,
 	})
 	if err != nil {
 		slog.Warn("Swarms unavailable", "error", err)
@@ -61,6 +64,32 @@ func (app *App) swarmReady() error {
 		return agent.ErrSwarmAutoMode
 	}
 	return nil
+}
+
+// swarmChecksToolName is the tool name the permission prompt for running
+// a machine's checks shows.
+const swarmChecksToolName = "swarm_checks"
+
+// approveSwarmChecks asks, through the permission prompt, before a
+// mission's checks run on code a swarm agent wrote. It never approves on
+// its own, including in auto mode.
+func (app *App) approveSwarmChecks(ctx context.Context, req swarm.CheckApproval) (bool, error) {
+	if app.Permissions == nil || app.Permissions.SkipRequests() {
+		return false, nil
+	}
+	cmds := make([]string, 0, len(req.Checks))
+	for _, c := range req.Checks {
+		cmds = append(cmds, c.Command)
+	}
+	return app.Permissions.Request(ctx, permission.CreatePermissionRequest{
+		SessionID:   req.SessionID,
+		ToolCallID:  "swarm-checks-" + req.Machine,
+		ToolName:    swarmChecksToolName,
+		Action:      "run",
+		Path:        req.WorkDir,
+		Description: fmt.Sprintf("Run the mission's checks on %s's work. They run the code the agent wrote, without its secrets in their environment.", req.Machine),
+		Params:      map[string]any{"commands": cmds},
+	})
 }
 
 // runSwarmAgent runs one machine's agent through the coordinator, which

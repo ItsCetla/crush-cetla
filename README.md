@@ -1636,18 +1636,26 @@ Swarm agents are kept on a short leash:
 
 - **Every tool call asks you.** Swarm agents use the same permission
   prompts and `PreToolUse` hooks as the main agent, and nothing approves
-  them for you. A swarm won't start while auto mode is on, and
-  `tada swarm` refuses `--auto`. Run from the shell, `tada swarm start`
+  them for you. A swarm won't start while auto mode is on, its tool calls
+  are refused if you turn auto mode on while it runs, and `tada swarm`
+  refuses `--auto`. Run from the shell, `tada swarm start`
   asks each prompt in the terminal and shows the tool's input quoted.
 - **Only file and shell tools.** A swarm agent gets bash, edit, multiedit,
   write, view, ls, glob, grep, todos and the job tools, and only those of
   them the coder agent is allowed. It never gets the agent, mission,
   machines, web or MCP tools, so it can't start more agents or swarms.
-- **Its worktree only.** Tool calls whose path or working folder leads
-  outside the assignment's worktree are refused. (The bash tool still runs
+- **Its worktree only.** Tool calls whose path, working folder or glob
+  pattern leads outside the assignment's worktree, or into its `.git`
+  folder, are refused. (The bash tool still runs
   whatever command you approve, so read bash prompts before you grant them.)
-- **Checks you approved.** A criterion's check runs in the worktree only
-  when you approved its command, the same rule missions use.
+- **Checks ask first.** A criterion's check runs in the worktree only
+  when you approved its command, the same rule missions use, and because
+  it runs the code the agent wrote, Ta-Da asks again before running a
+  machine's checks. Auto mode never answers that prompt for you. A check
+  whose command changed while the swarm ran is skipped, and checks run
+  without environment variables whose names look like secrets (`*_KEY`,
+  `*_TOKEN`, `AWS_*`, `GITHUB_*` and the like). That filter goes by name
+  only, so a secret in an oddly named variable still gets through.
 - **Careful merges.** Swarm commits and merges skip the repository's
   hooks. A merge refuses a checkout with uncommitted changes, and a merge
   that conflicts is aborted, leaving your branch as it was.

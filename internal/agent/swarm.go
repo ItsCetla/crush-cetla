@@ -207,20 +207,21 @@ func (c *coordinator) swarmTools(coder config.Agent, dir, modelID string) []fant
 	if pre := cfg.Hooks[hooks.EventPreToolUse]; len(pre) > 0 {
 		runner = hooks.NewRunner(pre, dir, c.cfg.WorkingDir())
 	}
-	return confineTools(all, coder.AllowedTools, dir, runner)
+	return confineTools(all, coder.AllowedTools, dir, runner, c.permissions.SkipRequests)
 }
 
 // confineTools keeps the swarm tools the coder agent is allowed, wraps
-// each so it refuses paths outside dir, and wraps that in the hook runner
-// when there is one.
-func confineTools(all []fantasy.AgentTool, allowed []string, dir string, runner *hooks.Runner) []fantasy.AgentTool {
+// each so it refuses paths outside dir and refuses every call while
+// autoMode reports true, and wraps that in the hook runner when there is
+// one.
+func confineTools(all []fantasy.AgentTool, allowed []string, dir string, runner *hooks.Runner, autoMode func() bool) []fantasy.AgentTool {
 	var out []fantasy.AgentTool
 	for _, t := range all {
 		name := t.Info().Name
 		if !slices.Contains(swarmToolNames, name) || !slices.Contains(allowed, name) {
 			continue
 		}
-		var wrapped fantasy.AgentTool = &confinedTool{AgentTool: t, root: dir, name: name}
+		var wrapped fantasy.AgentTool = &confinedTool{AgentTool: t, root: dir, name: name, autoMode: autoMode}
 		if runner != nil {
 			wrapped = newHookedTool(wrapped, runner)
 		}
@@ -241,19 +242,31 @@ const confinedShellParam = "shell_id"
 var errInvalidToolInput = errors.New("the tool input isn't a valid JSON object")
 
 // confinedTool refuses a tool call whose path parameters lead outside
-// root or into git's files.
+// root or into git's files. It also refuses every call while auto mode is
+// on, since auto mode can be turned on after the swarm started.
 type confinedTool struct {
 	fantasy.AgentTool
-	root string
-	name string
+	root     string
+	name     string
+	autoMode func() bool
+}
+
+// confinedPatternParams are the glob patterns each tool resolves against
+// its search folder.
+var confinedPatternParams = map[string]string{
+	tools.GlobToolName: "pattern",
+	tools.GrepToolName: "include",
 }
 
 func (t *confinedTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	if t.autoMode != nil && t.autoMode() {
+		return fantasy.NewTextErrorResponse(ErrSwarmAutoMode.Error()), nil
+	}
 	if err := confineInput(t.root, call.Input); err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
-	if t.name == tools.GlobToolName {
-		if err := confineGlobInput(t.root, call.Input); err != nil {
+	if param, ok := confinedPatternParams[t.name]; ok {
+		if err := confineGlobInput(t.root, call.Input, param); err != nil {
 			return fantasy.NewTextErrorResponse(err.Error()), nil
 		}
 	}
@@ -348,16 +361,18 @@ func stringParam(key string, raw json.RawMessage) (string, error) {
 	return *s, nil
 }
 
-// confineGlobInput refuses a glob pattern that could reach outside root.
-// The glob tool joins the pattern's fixed prefix onto its search folder,
-// so a pattern such as "../../etc/*" would walk out of the worktree.
-func confineGlobInput(root, input string) error {
+// confineGlobInput refuses a glob pattern in the param parameter that
+// could reach outside root. The glob tool joins the pattern's fixed prefix
+// onto its search folder, so a pattern such as "../../etc/*" would walk
+// out of the worktree. Grep's include only filters, but gets the same
+// check.
+func confineGlobInput(root, input, param string) error {
 	params, err := topLevelParams(input)
 	if err != nil {
 		return err
 	}
 	for key, raw := range params {
-		if !strings.EqualFold(key, "pattern") {
+		if !strings.EqualFold(key, param) {
 			continue
 		}
 		pattern, err := stringParam(key, raw)

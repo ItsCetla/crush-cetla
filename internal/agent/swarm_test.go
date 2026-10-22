@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"charm.land/fantasy"
@@ -141,7 +142,7 @@ func TestConfineToolsFiltersAndConfines(t *testing.T) {
 	// tools even though they are allowed.
 	allowed := []string{tools.ViewToolName, tools.BashToolName, "agent", "fetch"}
 
-	got := confineTools(all, allowed, root, nil)
+	got := confineTools(all, allowed, root, nil, nil)
 	var names []string
 	for _, tl := range got {
 		names = append(names, tl.Info().Name)
@@ -166,6 +167,32 @@ func TestConfineToolsFiltersAndConfines(t *testing.T) {
 	resp = call("/etc/passwd")
 	require.True(t, resp.IsError)
 	require.Contains(t, resp.Content, "outside this swarm's worktree")
+	require.Len(t, ran, 1, "the wrapped tool must not run")
+}
+
+func TestConfineToolsRefusesWhileAutoMode(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	var ran []string
+	var auto atomic.Bool
+	got := confineTools(
+		[]fantasy.AgentTool{swarmFakeTool(tools.ViewToolName, &ran)},
+		[]string{tools.ViewToolName}, root, nil, auto.Load,
+	)
+	require.Len(t, got, 1)
+	call := func() fantasy.ToolResponse {
+		resp, err := got[0].Run(t.Context(), fantasy.ToolCall{ID: "1", Name: tools.ViewToolName, Input: `{"path": "a.txt"}`})
+		require.NoError(t, err)
+		return resp
+	}
+
+	require.False(t, call().IsError)
+	// Auto mode turned on after the swarm started.
+	auto.Store(true)
+	resp := call()
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "auto mode is on")
 	require.Len(t, ran, 1, "the wrapped tool must not run")
 }
 
@@ -208,7 +235,7 @@ func TestConfineGlobInput(t *testing.T) {
 		`{"pattern": "internal/*.go", "path": "."}`,
 		`{"pattern": "a..b/*.go"}`,
 	} {
-		require.NoError(t, confineGlobInput(root, ok), ok)
+		require.NoError(t, confineGlobInput(root, ok, "pattern"), ok)
 	}
 	for _, bad := range []string{
 		`{"pattern": "../../etc/*"}`,
@@ -221,6 +248,9 @@ func TestConfineGlobInput(t *testing.T) {
 		`{"pattern": "..\\x"}`,
 		`{"pattern": 5}`,
 	} {
-		require.Error(t, confineGlobInput(root, bad), bad)
+		require.Error(t, confineGlobInput(root, bad, "pattern"), bad)
 	}
+	// Grep's include gets the same check, and its regex pattern doesn't.
+	require.NoError(t, confineGlobInput(root, `{"pattern": "../x", "include": "*.go"}`, "include"))
+	require.Error(t, confineGlobInput(root, `{"pattern": "x", "include": "../../*"}`, "include"))
 }

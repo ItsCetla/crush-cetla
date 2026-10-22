@@ -87,6 +87,10 @@ func ParseCriterion(s string) (text, check string) {
 // says why. block is the deny-list the command runs under; nil allows
 // everything.
 func RunCheck(ctx context.Context, dir, command string, timeout time.Duration, block []shell.BlockFunc) CheckResult {
+	return runCheck(ctx, dir, command, timeout, block, os.Environ())
+}
+
+func runCheck(ctx context.Context, dir, command string, timeout time.Duration, block []shell.BlockFunc, env []string) CheckResult {
 	if timeout <= 0 {
 		timeout = DefaultCheckTimeout
 	}
@@ -98,7 +102,7 @@ func RunCheck(ctx context.Context, dir, command string, timeout time.Duration, b
 	err := shell.Run(runCtx, shell.RunOptions{
 		Command:    command,
 		Cwd:        dir,
-		Env:        os.Environ(),
+		Env:        env,
 		Stdout:     out,
 		Stderr:     out,
 		BlockFuncs: block,
