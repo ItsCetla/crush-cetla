@@ -1,0 +1,39 @@
+
+
+
+
+
+
+
+
+
+               ╭────────────────────────────────────────────────────────────────────╮
+               │ Commands ························································· │
+               │                                                                    │
+               │ > Type to filter                                                   │
+               │                                                                    │
+               │ Set Tab Aside                                               alt+a  │
+               │ Move Tab Left                                     ctrl+shift+pgup  │
+               │ Move Tab Right                                    ctrl+shift+pgdn  │
+               │ Model ──────────────────────────────────────────────────────────── │
+               │ Switch Model                                               ctrl+l  │
+               │ Machines                                                           │
+               │ Control ────────────────────────────────────────────────────────── │
+               │ Toggle Auto Mode                                           ctrl+y  │
+               │ Open Control Cockpit                                       ctrl+\  │
+               │ Take Back Control                                          ctrl+q  │
+               │ Tools ──────────────────────────────────────────────────────────── │
+               │ Open Artifacts Gallery                                             │
+               │ View ───────────────────────────────────────────────────────────── │
+               │ Notification Style                                                 │
+               │                                                                    │
+               │ tab switch selection • ↑/↓ choose • enter confirm • esc cancel     │
+               ╰────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+

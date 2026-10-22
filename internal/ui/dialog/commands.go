@@ -2,6 +2,7 @@ package dialog
 
 import (
 	"os"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -74,6 +75,17 @@ type Commands struct {
 
 	dockerMCPAvailable     *bool
 	dockerMCPCheckInFlight bool
+
+	// recent lists recently used system command IDs, most recent first.
+	recent []string
+	// flatItems is the ungrouped command order used while filtering, so
+	// ranking is the same as without sections; groupedItems has section
+	// headers and the Recent section, shown when the filter is empty.
+	flatItems    []list.FilterableItem
+	groupedItems []list.FilterableItem
+	// chosen is the ID of the system command picked last, for the caller
+	// to record as recently used (see TakeChosen).
+	chosen string
 }
 
 var _ Dialog = (*Commands)(nil)
@@ -190,20 +202,10 @@ func (c *Commands) HandleMsg(msg tea.Msg) Action {
 			return ActionClose{}
 		case key.Matches(msg, c.keyMap.Previous):
 			c.list.Focus()
-			if c.list.IsSelectedFirst() {
-				c.list.SelectLast()
-			} else {
-				c.list.SelectPrev()
-			}
-			c.list.ScrollToSelected()
+			c.moveSelection(-1)
 		case key.Matches(msg, c.keyMap.Next):
 			c.list.Focus()
-			if c.list.IsSelectedLast() {
-				c.list.SelectFirst()
-			} else {
-				c.list.SelectNext()
-			}
-			c.list.ScrollToSelected()
+			c.moveSelection(1)
 		case key.Matches(msg, c.keyMap.Select):
 			// The palette opens on "/", so "/resume auth bug" arrives here
 			// as "resume auth bug".
@@ -219,7 +221,7 @@ func (c *Commands) HandleMsg(msg tea.Msg) Action {
 			}
 			if selectedItem := c.list.SelectedItem(); selectedItem != nil {
 				if item, ok := selectedItem.(*CommandItem); ok && item != nil {
-					return item.Action()
+					return c.choose(item)
 				}
 			}
 		case key.Matches(msg, c.keyMap.Tab):
@@ -237,7 +239,7 @@ func (c *Commands) HandleMsg(msg tea.Msg) Action {
 			for _, item := range c.list.FilteredItems() {
 				if item, ok := item.(*CommandItem); ok && item != nil {
 					if msg.String() == item.Shortcut() {
-						return item.Action()
+						return c.choose(item)
 					}
 				}
 			}
@@ -245,9 +247,7 @@ func (c *Commands) HandleMsg(msg tea.Msg) Action {
 			c.input, cmd = c.input.Update(msg)
 			value := c.input.Value()
 			if value != prevValue {
-				c.list.SetFilter(value)
-				c.list.ScrollToTop()
-				c.list.SetSelected(0)
+				c.applyFilter(value)
 			}
 			return ActionCmd{cmd}
 		}
@@ -415,11 +415,14 @@ func (c *Commands) setCommandItems(commandType CommandType) {
 	c.selected = commandType
 
 	commandItems := []list.FilterableItem{}
+	c.groupedItems = nil
 	switch c.selected {
 	case SystemCommands:
-		for _, cmd := range c.defaultCommands() {
+		defaults := c.defaultCommands()
+		for _, cmd := range defaults {
 			commandItems = append(commandItems, cmd)
 		}
+		c.groupedItems = groupCommandItems(c.com.Styles, defaults, c.recent)
 	case UserCommands:
 		for _, cmd := range c.customCommands {
 			var action Action
@@ -453,44 +456,126 @@ func (c *Commands) setCommandItems(commandType CommandType) {
 		}
 	}
 
-	c.list.SetItems(commandItems...)
-	c.list.SetFilter("")
-	c.list.ScrollToTop()
-	c.list.SetSelected(0)
+	c.flatItems = commandItems
 	c.input.SetValue("")
+	c.applyFilter("")
+}
+
+// applyFilter shows the items matching query. An empty query shows the
+// sectioned list (when there is one); a non-empty query ranks the flat
+// list, so section headers drop out and the order matches an ungrouped
+// palette. The first command is selected.
+func (c *Commands) applyFilter(query string) {
+	items := c.flatItems
+	if query == "" && c.groupedItems != nil {
+		items = c.groupedItems
+	}
+	c.list.SetItems(items...)
+	c.list.SetFilter(query)
+	c.list.ScrollToTop()
+	c.list.SetSelected(-1)
+	if idx := c.nextCommandIndex(-1, 1); idx >= 0 {
+		c.list.SetSelected(idx)
+	}
+}
+
+// nextCommandIndex returns the index of the first command after from in
+// direction step (1 or -1), wrapping around the ends and skipping section
+// headers, or -1 when there is none.
+func (c *Commands) nextCommandIndex(from, step int) int {
+	n := c.list.Len()
+	if n == 0 {
+		return -1
+	}
+	idx := from
+	if idx < 0 && step < 0 {
+		idx = n
+	}
+	for range n {
+		idx = ((idx+step)%n + n) % n
+		if _, ok := c.list.ItemAt(idx).(*CommandItem); ok {
+			return idx
+		}
+	}
+	return -1
+}
+
+// moveSelection moves the selection by step (1 or -1) to the next
+// command, wrapping around and skipping section headers. A command right
+// under a header scrolls the header into view with it.
+func (c *Commands) moveSelection(step int) {
+	idx := c.nextCommandIndex(c.list.Selected(), step)
+	if idx < 0 {
+		return
+	}
+	c.list.SetSelected(idx)
+	c.list.ScrollToSelected()
+	if idx > 0 {
+		if _, ok := c.list.ItemAt(idx - 1).(*commandSectionHeader); ok {
+			if offsetIdx, _ := c.list.ScrollPosition(); offsetIdx >= idx {
+				c.list.ScrollToIndex(idx - 1)
+			}
+		}
+	}
+}
+
+// choose returns item's action and remembers a system command as the one
+// picked, so the caller can record it as recently used.
+func (c *Commands) choose(item *CommandItem) Action {
+	if c.selected == SystemCommands {
+		c.chosen = item.id
+	}
+	return item.Action()
+}
+
+// TakeChosen returns the ID of the system command picked since the last
+// call, or "" when none was, and clears it.
+func (c *Commands) TakeChosen() string {
+	id := c.chosen
+	c.chosen = ""
+	return id
+}
+
+// SetRecent sets the recently used command IDs (most recent first) shown
+// in the Recent section, and rebuilds the system command list.
+func (c *Commands) SetRecent(ids []string) {
+	c.recent = slices.Clone(ids)
+	if c.selected == SystemCommands {
+		c.setCommandItems(c.selected)
+	}
 }
 
 // defaultCommands returns the list of default system commands.
 func (c *Commands) defaultCommands() []*CommandItem {
 	commands := []*CommandItem{
-		NewCommandItem(c.com.Styles, "new_session", "New Session", "ctrl+n", ActionNewSession{}).WithAliases("clear"),
-		NewCommandItem(c.com.Styles, "switch_session", "Sessions", "ctrl+s", ActionOpenDialog{SessionsID}),
-		NewCommandItem(c.com.Styles, "resume", "Resume Conversation", "", ActionOpenResume{}).WithAliases("resume", "continue", "history"),
-		NewCommandItem(c.com.Styles, "tab_folder", "Tab Folder", "", ActionChangeDir{}).WithAliases("cd", "directory", "dir", "folder"),
-		NewCommandItem(c.com.Styles, "review_changes", "Review changes…", "alt+v", ActionOpenDialog{ReviewID}).WithAliases("commit", "diff", "review", "git"),
-		NewCommandItem(c.com.Styles, "switch_worktree", "Switch Worktree…", "", ActionOpenWorktrees{}).WithAliases("worktree", "worktrees", "wt"),
-		NewCommandItem(c.com.Styles, "new_worktree_tab", "New Worktree Tab…", "", ActionNewWorktreeTab{}).WithAliases("branch"),
-		NewCommandItem(c.com.Styles, "switch_model", "Switch Model", "ctrl+l", ActionOpenDialog{ModelsID}),
+		NewCommandItem(c.com.Styles, "new_session", "New Session", "ctrl+n", ActionNewSession{}).WithAliases("clear").InGroup(CommandGroupSession),
+		NewCommandItem(c.com.Styles, "switch_session", "Sessions", "ctrl+s", ActionOpenDialog{SessionsID}).InGroup(CommandGroupSession),
+		NewCommandItem(c.com.Styles, "resume", "Resume Conversation", "", ActionOpenResume{}).WithAliases("resume", "continue", "history").InGroup(CommandGroupSession),
+		NewCommandItem(c.com.Styles, "tab_folder", "Tab Folder", "", ActionChangeDir{}).WithAliases("cd", "directory", "dir", "folder").InGroup(CommandGroupTabs),
+		NewCommandItem(c.com.Styles, "review_changes", "Review changes…", "alt+v", ActionOpenDialog{ReviewID}).WithAliases("commit", "diff", "review", "git").InGroup(CommandGroupSession),
+		NewCommandItem(c.com.Styles, "switch_worktree", "Switch Worktree…", "", ActionOpenWorktrees{}).WithAliases("worktree", "worktrees", "wt").InGroup(CommandGroupTabs),
+		NewCommandItem(c.com.Styles, "new_worktree_tab", "New Worktree Tab…", "", ActionNewWorktreeTab{}).WithAliases("branch").InGroup(CommandGroupTabs),
+		NewCommandItem(c.com.Styles, "switch_model", "Switch Model", "ctrl+l", ActionOpenDialog{ModelsID}).InGroup(CommandGroupModel),
 	}
 
 	// Only show compact command if there's an active session
 	if c.hasSession {
 		commands = append(commands,
-			NewCommandItem(c.com.Styles, "next_tab", "Next Tab", "ctrl+pgdn", ActionNextTab{}),
-			NewCommandItem(c.com.Styles, "previous_tab", "Previous Tab", "ctrl+pgup", ActionPrevTab{}),
-			NewCommandItem(c.com.Styles, "close_tab", "Close Tab", "alt+w", ActionCloseTab{}),
-			NewCommandItem(c.com.Styles, "rename_tab", "Rename Tab", "alt+r", ActionRenameTab{}).WithAliases("rename", "title"),
-			NewCommandItem(c.com.Styles, "group_tab", "Group Tab", "alt+g", ActionGroupTab{}).WithAliases("group", "ungroup"),
-			NewCommandItem(c.com.Styles, "aside_tab", "Set Tab Aside", "alt+a", ActionAsideTab{}).WithAliases("aside", "mute"),
-			NewCommandItem(c.com.Styles, "move_tab_left", "Move Tab Left", "ctrl+shift+pgup", ActionMoveTab{Delta: -1}),
-			NewCommandItem(c.com.Styles, "move_tab_right", "Move Tab Right", "ctrl+shift+pgdn", ActionMoveTab{Delta: 1}),
+			NewCommandItem(c.com.Styles, "next_tab", "Next Tab", "ctrl+pgdn", ActionNextTab{}).InGroup(CommandGroupTabs),
+			NewCommandItem(c.com.Styles, "previous_tab", "Previous Tab", "ctrl+pgup", ActionPrevTab{}).InGroup(CommandGroupTabs),
+			NewCommandItem(c.com.Styles, "close_tab", "Close Tab", "alt+w", ActionCloseTab{}).InGroup(CommandGroupTabs),
+			NewCommandItem(c.com.Styles, "rename_tab", "Rename Tab", "alt+r", ActionRenameTab{}).WithAliases("rename", "title").InGroup(CommandGroupTabs),
+			NewCommandItem(c.com.Styles, "group_tab", "Group Tab", "alt+g", ActionGroupTab{}).WithAliases("group", "ungroup").InGroup(CommandGroupTabs),
+			NewCommandItem(c.com.Styles, "aside_tab", "Set Tab Aside", "alt+a", ActionAsideTab{}).WithAliases("aside", "mute").InGroup(CommandGroupTabs),
+			NewCommandItem(c.com.Styles, "move_tab_left", "Move Tab Left", "ctrl+shift+pgup", ActionMoveTab{Delta: -1}).InGroup(CommandGroupTabs),
+			NewCommandItem(c.com.Styles, "move_tab_right", "Move Tab Right", "ctrl+shift+pgdn", ActionMoveTab{Delta: 1}).InGroup(CommandGroupTabs),
 		)
-		commands = append(commands, NewCommandItem(c.com.Styles, "summarize", "Summarize Session", "", ActionSummarize{SessionID: c.sessionID}).WithAliases("compact", "summarize"))
-		commands = append(commands, NewCommandItem(c.com.Styles, "export_session", "Export Session", "", ActionExportSession{SessionID: c.sessionID}).WithAliases("export", "share", "html"))
+		commands = append(commands, NewCommandItem(c.com.Styles, "summarize", "Summarize Session", "", ActionSummarize{SessionID: c.sessionID}).WithAliases("compact", "summarize").InGroup(CommandGroupSession))
+		commands = append(commands, NewCommandItem(c.com.Styles, "export_session", "Export Session", "", ActionExportSession{SessionID: c.sessionID}).WithAliases("export", "share", "html").InGroup(CommandGroupSession))
 		if opts := c.com.Config().Options; opts != nil && opts.MagicContextEnabled() {
 			for _, mc := range magiccontext.Commands {
 				commands = append(commands, NewCommandItem(c.com.Styles, "magic_context_"+mc.Name, "Magic Context: "+mc.Description, "",
-					ActionMagicContext{SessionID: c.sessionID, Name: mc.Name}).WithAliases(mc.Name))
+					ActionMagicContext{SessionID: c.sessionID, Name: mc.Name}).WithAliases(mc.Name).InGroup(CommandGroupSession))
 			}
 		}
 	}
@@ -509,20 +594,20 @@ func (c *Commands) defaultCommands() []*CommandItem {
 				if selectedModel.Think {
 					status = "Disable"
 				}
-				commands = append(commands, NewCommandItem(c.com.Styles, "toggle_thinking", status+" Thinking Mode", "", ActionToggleThinking{}))
+				commands = append(commands, NewCommandItem(c.com.Styles, "toggle_thinking", status+" Thinking Mode", "", ActionToggleThinking{}).InGroup(CommandGroupModel))
 			}
 
 			// OpenAI models: reasoning effort dialog
 			if len(model.ReasoningLevels) > 0 {
 				commands = append(commands, NewCommandItem(c.com.Styles, "select_reasoning_effort", "Select Reasoning Effort", "", ActionOpenDialog{
 					DialogID: ReasoningID,
-				}))
+				}).InGroup(CommandGroupModel))
 			}
 		}
 	}
 	// Only show toggle compact mode command if window width is larger than compact breakpoint (120)
 	if c.windowWidth >= sidebarCompactModeBreakpoint && c.hasSession {
-		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_sidebar", "Toggle Sidebar", "ctrl+b", ActionToggleCompactMode{}))
+		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_sidebar", "Toggle Sidebar", "ctrl+b", ActionToggleCompactMode{}).InGroup(CommandGroupView))
 	}
 	if c.hasSession {
 		cfgPrime := c.com.Config()
@@ -531,7 +616,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		if model != nil && model.SupportsImages {
 			commands = append(commands, NewCommandItem(c.com.Styles, "file_picker", "Open File Picker", "ctrl+f", ActionOpenDialog{
 				DialogID: FilePickerID,
-			}))
+			}).InGroup(CommandGroupTools))
 		}
 	}
 
@@ -541,24 +626,24 @@ func (c *Commands) defaultCommands() []*CommandItem {
 	// because os.Getenv does IO is breaks the TEA paradigm and is generally an
 	// antipattern.
 	if os.Getenv("EDITOR") != "" {
-		commands = append(commands, NewCommandItem(c.com.Styles, "open_external_editor", "Open External Editor", "ctrl+o", ActionExternalEditor{}))
+		commands = append(commands, NewCommandItem(c.com.Styles, "open_external_editor", "Open External Editor", "ctrl+o", ActionExternalEditor{}).InGroup(CommandGroupTools))
 	}
 
 	// Add Docker MCP command if available and not already enabled.
 	if !cfg.IsDockerMCPEnabled() && c.dockerMCPAvailable != nil && *c.dockerMCPAvailable {
-		commands = append(commands, NewCommandItem(c.com.Styles, "enable_docker_mcp", "Enable Docker MCP Catalog", "", ActionEnableDockerMCP{}))
+		commands = append(commands, NewCommandItem(c.com.Styles, "enable_docker_mcp", "Enable Docker MCP Catalog", "", ActionEnableDockerMCP{}).InGroup(CommandGroupTools))
 	}
 
 	// Add disable Docker MCP command if it's currently enabled
 	if cfg.IsDockerMCPEnabled() {
-		commands = append(commands, NewCommandItem(c.com.Styles, "disable_docker_mcp", "Disable Docker MCP Catalog", "", ActionDisableDockerMCP{}))
+		commands = append(commands, NewCommandItem(c.com.Styles, "disable_docker_mcp", "Disable Docker MCP Catalog", "", ActionDisableDockerMCP{}).InGroup(CommandGroupTools))
 	}
 
 	// Toggle MCP servers for this repository when any are configured.
 	if len(cfg.MCP) > 0 {
 		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_mcps", "Toggle MCPs", "", ActionOpenDialog{
 			DialogID: MCPTogglesID,
-		}))
+		}).InGroup(CommandGroupTools))
 	}
 
 	if c.hasTodos || c.hasQueue {
@@ -571,18 +656,18 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		default:
 			label = "Toggle To-Dos"
 		}
-		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_pills", label, "ctrl+t", ActionTogglePills{}))
+		commands = append(commands, NewCommandItem(c.com.Styles, "toggle_pills", label, "ctrl+t", ActionTogglePills{}).InGroup(CommandGroupView))
 	}
 
 	// Add a command for selecting notification style via picker dialog.
 	notificationLabel := "Notification Style"
-	commands = append(commands, NewCommandItem(c.com.Styles, "select_notifications", notificationLabel, "", ActionOpenDialog{DialogID: NotificationsID}))
+	commands = append(commands, NewCommandItem(c.com.Styles, "select_notifications", notificationLabel, "", ActionOpenDialog{DialogID: NotificationsID}).InGroup(CommandGroupView))
 
 	commands = append(
 		commands,
-		NewCommandItem(c.com.Styles, "toggle_yolo", "Toggle Auto Mode", "ctrl+y", ActionToggleYoloMode{}),
-		NewCommandItem(c.com.Styles, "toggle_help", "Toggle Help", "ctrl+g", ActionToggleHelp{}),
-		NewCommandItem(c.com.Styles, "init", "Initialize Project", "", ActionInitializeProject{}),
+		NewCommandItem(c.com.Styles, "toggle_yolo", "Toggle Auto Mode", "ctrl+y", ActionToggleYoloMode{}).InGroup(CommandGroupControl),
+		NewCommandItem(c.com.Styles, "toggle_help", "Toggle Help", "ctrl+g", ActionToggleHelp{}).InGroup(CommandGroupApp),
+		NewCommandItem(c.com.Styles, "init", "Initialize Project", "", ActionInitializeProject{}).InGroup(CommandGroupSession),
 	)
 
 	// Add transparent background toggle.
@@ -590,25 +675,25 @@ func (c *Commands) defaultCommands() []*CommandItem {
 	if cfg != nil && cfg.Options != nil && cfg.Options.TUI.IsTransparent() {
 		transparentLabel = "Enable Background Color"
 	}
-	commands = append(commands, NewCommandItem(c.com.Styles, "toggle_transparent", transparentLabel, "", ActionToggleTransparentBackground{}))
+	commands = append(commands, NewCommandItem(c.com.Styles, "toggle_transparent", transparentLabel, "", ActionToggleTransparentBackground{}).InGroup(CommandGroupView))
 
-	commands = append(commands, NewCommandItem(c.com.Styles, "switch_theme", "Themes", "", ActionOpenDialog{ThemeID}))
+	commands = append(commands, NewCommandItem(c.com.Styles, "switch_theme", "Themes", "", ActionOpenDialog{ThemeID}).InGroup(CommandGroupView))
 
 	commands = append(commands,
-		NewCommandItem(c.com.Styles, "open_control", "Open Control Cockpit", "ctrl+\\", ActionOpenControl{}).WithAliases("control", "cockpit", "cost", "missions", "actions"),
-		NewCommandItem(c.com.Styles, "take_back", "Take Back Control", "ctrl+q", ActionTakeBack{}).WithAliases("stop", "manual"),
-		NewCommandItem(c.com.Styles, "open_machines", "Machines", "", ActionOpenMachines{}).WithAliases("machines", "machine", "fleet", "ollama", "local models"),
-		NewCommandItem(c.com.Styles, "open_context", "Context Settings", "", ActionOpenContext{}).WithAliases("context", "magic context", "magic-context", "auto-summarize"),
+		NewCommandItem(c.com.Styles, "open_control", "Open Control Cockpit", "ctrl+\\", ActionOpenControl{}).WithAliases("control", "cockpit", "cost", "missions", "actions").InGroup(CommandGroupControl),
+		NewCommandItem(c.com.Styles, "take_back", "Take Back Control", "ctrl+q", ActionTakeBack{}).WithAliases("stop", "manual").InGroup(CommandGroupControl),
+		NewCommandItem(c.com.Styles, "open_machines", "Machines", "", ActionOpenMachines{}).WithAliases("machines", "machine", "fleet", "ollama", "local models").InGroup(CommandGroupModel),
+		NewCommandItem(c.com.Styles, "open_context", "Context Settings", "", ActionOpenContext{}).WithAliases("context", "magic context", "magic-context", "auto-summarize").InGroup(CommandGroupSession),
 	)
 	if c.hasSession {
 		commands = append(commands,
-			NewCommandItem(c.com.Styles, "open_rewind", "Rewind…", "", ActionOpenRewind{}).WithAliases("undo", "checkpoint", "restore", "revert").WithDescription("Turn the session back to any earlier turn, restoring files, chat or both."),
-			NewCommandItem(c.com.Styles, "fork_session", "Fork Session", "", ActionForkSession{}).WithAliases("branch", "copy", "duplicate").WithDescription("Copy this session's chat and file history into a new tab to try another direction."),
+			NewCommandItem(c.com.Styles, "open_rewind", "Rewind…", "", ActionOpenRewind{}).WithAliases("undo", "checkpoint", "restore", "revert").WithDescription("Turn the session back to any earlier turn, restoring files, chat or both.").InGroup(CommandGroupSession),
+			NewCommandItem(c.com.Styles, "fork_session", "Fork Session", "", ActionForkSession{}).WithAliases("branch", "copy", "duplicate").WithDescription("Copy this session's chat and file history into a new tab to try another direction.").InGroup(CommandGroupSession),
 		)
 	}
 
 	if cfg == nil || cfg.Options.ArtifactsEnabled() {
-		commands = append(commands, NewCommandItem(c.com.Styles, "open_artifacts", "Open Artifacts Gallery", "", ActionOpenArtifacts{}).WithAliases("artifacts"))
+		commands = append(commands, NewCommandItem(c.com.Styles, "open_artifacts", "Open Artifacts Gallery", "", ActionOpenArtifacts{}).WithAliases("artifacts").InGroup(CommandGroupTools))
 	}
 
 	// Add mouse support toggle.
@@ -616,12 +701,12 @@ func (c *Commands) defaultCommands() []*CommandItem {
 	if cfg != nil && cfg.Options != nil && cfg.Options.TUI.Mouse != nil && !*cfg.Options.TUI.Mouse {
 		mouseLabel = "Enable Mouse"
 	}
-	commands = append(commands, NewCommandItem(c.com.Styles, "toggle_mouse", mouseLabel, "", ActionToggleMouseSupport{}))
-	commands = append(commands, updateCommandItem(c.com.Styles))
+	commands = append(commands, NewCommandItem(c.com.Styles, "toggle_mouse", mouseLabel, "", ActionToggleMouseSupport{}).InGroup(CommandGroupView))
+	commands = append(commands, updateCommandItem(c.com.Styles).InGroup(CommandGroupApp))
 
 	commands = append(
 		commands,
-		NewCommandItem(c.com.Styles, "quit", "Quit", "ctrl+c", tea.QuitMsg{}).WithAliases("exit"),
+		NewCommandItem(c.com.Styles, "quit", "Quit", "ctrl+c", tea.QuitMsg{}).WithAliases("exit").InGroup(CommandGroupApp),
 	)
 
 	return commands

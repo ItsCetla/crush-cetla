@@ -1,0 +1,39 @@
+
+
+
+
+
+
+
+
+
+               ╭────────────────────────────────────────────────────────────────────╮
+               │ Commands ························································· │
+               │                                                                    │
+               │ > Type to filter                                                   │
+               │                                                                    │
+               │ Recent ─────────────────────────────────────────────────────────── │
+               │ Switch Model                                               ctrl+l  │
+               │ Quit                                                       ctrl+c  │
+               │ Toggle Auto Mode                                           ctrl+y  │
+               │ Session ────────────────────────────────────────────────────────── │
+               │ New Session                                                ctrl+n  │
+               │ Sessions                                                   ctrl+s  │
+               │ Resume Conversation                                                │
+               │ Review changes…                                             alt+v  │
+               │ Summarize Session                                                  │
+               │ Export Session                                                     │
+               │ Initialize Project                                                 │
+               │ Context Settings                                                   │
+               │ Rewind…                                                            │
+               │                                                                    │
+               │ tab switch selection • ↑/↓ choose • enter confirm • esc cancel     │
+               ╰────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+

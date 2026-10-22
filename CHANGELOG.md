@@ -122,6 +122,12 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   in one. `/worktree rm <branch>` removes one, asking first when it has
   uncommitted changes and refusing while a tab works in it; the branch
   is always kept. Closing a tab leaves its worktree on disk and says so.
+- **Grouped command palette.** `ctrl+p` lists system commands under
+  Session, Tabs & Folders, Model, Control, Tools, View and App headers,
+  with a Recent section on top holding the last five commands you ran from
+  it. Arrow keys skip the headers, and typing still shows one flat list of
+  matches. Recent commands are saved to `recent_commands.json` in the
+  global data directory.
 
 ## [0.5.14] - 2026-10-21
 

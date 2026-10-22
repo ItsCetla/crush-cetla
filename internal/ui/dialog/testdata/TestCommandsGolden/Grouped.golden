@@ -1,0 +1,39 @@
+
+
+
+
+
+
+
+
+
+               ╭────────────────────────────────────────────────────────────────────╮
+               │ Commands ························································· │
+               │                                                                    │
+               │ > Type to filter                                                   │
+               │                                                                    │
+               │ Session ────────────────────────────────────────────────────────── │
+               │ New Session                                                ctrl+n  │
+               │ Sessions                                                   ctrl+s  │
+               │ Resume Conversation                                                │
+               │ Review changes…                                             alt+v  │
+               │ Summarize Session                                                  │
+               │ Export Session                                                     │
+               │ Initialize Project                                                 │
+               │ Context Settings                                                   │
+               │ Rewind…                                                            │
+               │ Turn the session back to any earlier turn, restoring files, chat...│
+               │ Fork Session                                                       │
+               │ Copy this session's chat and file history into a new tab to try ...│
+               │ Tabs & Folders ─────────────────────────────────────────────────── │
+               │                                                                    │
+               │ tab switch selection • ↑/↓ choose • enter confirm • esc cancel     │
+               ╰────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+

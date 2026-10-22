@@ -22,6 +22,7 @@ type CommandItem struct {
 	t           *styles.Styles
 	m           fuzzy.Match
 	cache       map[int]string
+	group       CommandGroup
 	focused     bool
 	hideInfo    bool
 }
@@ -57,6 +58,17 @@ func (c *CommandItem) WithAliases(aliases ...string) *CommandItem {
 func (c *CommandItem) WithDescription(desc string) *CommandItem {
 	c.description = desc
 	return c
+}
+
+// InGroup returns the CommandItem placed in the given palette section.
+func (c *CommandItem) InGroup(g CommandGroup) *CommandItem {
+	c.group = g
+	return c
+}
+
+// Group returns the palette section the command belongs to.
+func (c *CommandItem) Group() CommandGroup {
+	return c.group
 }
 
 // Filter implements ListItem.

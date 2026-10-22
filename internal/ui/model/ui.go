@@ -413,6 +413,11 @@ type UI struct {
 	// custom commands & mcp commands
 	customCommands []commands.CustomCommand
 	mcpPrompts     []commands.MCPPrompt
+	// recentCommands are the system command IDs last run from the
+	// palette, most recent first, saved at recentCommandsPath ("" keeps
+	// them in memory only).
+	recentCommands     []string
+	recentCommandsPath string
 
 	// forceCompactMode tracks whether compact mode is forced by user toggle
 	forceCompactMode bool
@@ -574,6 +579,7 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 		initialSessionID:    initialSessionID,
 		continueLastSession: continueLast,
 		skillStates:         skills.GetLatestStates(),
+		recentCommandsPath:  filepath.Join(config.GlobalWorkspaceDir(), recentCommandsFileName),
 	}
 
 	status := NewStatus(com, ui)
@@ -686,7 +692,8 @@ func (m *UI) Init() tea.Cmd {
 	// polling for checkouts made outside Ta-Da.
 	cmds = append(cmds, m.fetchGitBranch(), m.gitBranchTicker())
 	// Usage limits come from a local file some other tool writes (opt-in).
-	cmds = append(cmds, m.limitsPoll(0), m.claudeSessionsPoll(0), m.restoreTabs())
+	cmds = append(cmds, m.limitsPoll(0), m.claudeSessionsPoll(0), m.restoreTabs(),
+		loadRecentCommands(m.recentCommandsPath))
 	// Prime the memoized MCP state off-thread. There is deliberately no
 	// wait for server-side MCP initialization: the init gate is
 	// process-local and only armed where mcp.Initialize runs (the server),
@@ -1703,6 +1710,8 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.handleClaudeSessions(msg))
 	case tabsRestoredMsg:
 		m.handleTabsRestored(msg)
+	case recentCommandsLoadedMsg:
+		m.handleRecentCommandsLoaded(msg)
 	case util.InfoMsg:
 		if msg.Type == util.InfoTypeError {
 			slog.Error("Error reported", "error", msg.Msg)
@@ -2282,6 +2291,10 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 	action := m.dialog.Update(msg)
 	if action == nil {
 		return tea.Batch(cmds...)
+	}
+	// Note a command picked in the palette before the action closes it.
+	if cmd := m.recordRecentCommand(); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
 
 	isOnboarding := m.state == uiOnboarding
@@ -6173,6 +6186,7 @@ func (m *UI) openCommandsDialog() tea.Cmd {
 	if err != nil {
 		return util.ReportError(err)
 	}
+	commands.SetRecent(m.recentCommands)
 
 	m.dialog.OpenDialog(commands)
 

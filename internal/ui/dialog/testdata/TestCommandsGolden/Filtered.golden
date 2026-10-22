@@ -1,0 +1,39 @@
+
+
+
+
+
+
+
+
+
+               ╭────────────────────────────────────────────────────────────────────╮
+               │ Commands ························································· │
+               │                                                                    │
+               │ > tab                                                              │
+               │                                                                    │
+               │ Next Tab                                                ctrl+pgdn  │
+               │ Close Tab                                                   alt+w  │
+               │ Previous Tab                                            ctrl+pgup  │
+               │ Move Tab Left                                     ctrl+shift+pgup  │
+               │ Move Tab Right                                    ctrl+shift+pgdn  │
+               │ Take Back Control                                          ctrl+q  │
+               │ New Worktree Tab…                                                  │
+               │ Rename Tab                                                  alt+r  │
+               │ Group Tab                                                   alt+g  │
+               │ Set Tab Aside                                               alt+a  │
+               │ Tab Folder                                                         │
+               │ Rewind…                                                            │
+               │ Turn the session back to any earlier turn, restoring files, chat...│
+               │ Fork Session                                                       │
+               │                                                                    │
+               │ tab switch selection • ↑/↓ choose • enter confirm • esc cancel     │
+               ╰────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+

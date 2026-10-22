@@ -108,6 +108,8 @@ talks to and what it does without asking:
 - **Magic Context (opt-in).** A Go port of cortexkit/magic-context that
   compresses old turns in the background and keeps project memory across
   sessions. See [Magic Context](#magic-context).
+- **Grouped command palette.** `ctrl+p` sorts commands into sections
+  with the five you used last on top; typing searches them all at once.
 
 Every fork change is listed in the [changelog](CHANGELOG.md).
 
