@@ -107,6 +107,10 @@ type (
 	ActionSummarize         struct {
 		SessionID string
 	}
+	// ActionExportSession writes the session as a shareable HTML page.
+	ActionExportSession struct {
+		SessionID string
+	}
 	// ActionChangeDir moves the tab in view to another folder. An empty
 	// Arg shows the tab's folder; "-" goes back to the launch folder.
 	ActionChangeDir struct {

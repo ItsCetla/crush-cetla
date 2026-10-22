@@ -72,6 +72,16 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   every finding, `--json` prints JSON, and it exits with status 1 when a
   check fails.
 
+- **Export a session.** `tada session export [id]` writes a session as
+  Markdown, a self-contained HTML page or JSON (`--format md|html|json`,
+  `-o file`), with a header of models, tokens, cost and files changed,
+  then the conversation with folded reasoning, tool calls and edits as
+  diffs. The HTML page works offline, in light and dark, and on a phone.
+  API keys, tokens and secret-looking variables are replaced with
+  `[REDACTED]` and the home folder is shown as `~` unless you pass
+  `--no-redact`. **Export Session** in the command palette writes the
+  current session as HTML, including the hosts it talked to.
+
 ## [0.5.14] - 2026-10-21
 
 ### Added

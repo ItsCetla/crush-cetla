@@ -480,6 +480,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 			NewCommandItem(c.com.Styles, "move_tab_right", "Move Tab Right", "ctrl+shift+pgdn", ActionMoveTab{Delta: 1}),
 		)
 		commands = append(commands, NewCommandItem(c.com.Styles, "summarize", "Summarize Session", "", ActionSummarize{SessionID: c.sessionID}).WithAliases("compact", "summarize"))
+		commands = append(commands, NewCommandItem(c.com.Styles, "export_session", "Export Session", "", ActionExportSession{SessionID: c.sessionID}).WithAliases("export", "share", "html"))
 		if opts := c.com.Config().Options; opts != nil && opts.MagicContextEnabled() {
 			for _, mc := range magiccontext.Commands {
 				commands = append(commands, NewCommandItem(c.com.Styles, "magic_context_"+mc.Name, "Magic Context: "+mc.Description, "",

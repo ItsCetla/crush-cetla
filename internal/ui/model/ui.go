@@ -2384,6 +2384,9 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 	case dialog.ActionMagicContext:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, m.runMagicContextCommand(msg.Name, ""))
+	case dialog.ActionExportSession:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.exportSessionCmd(msg.SessionID))
 	case dialog.ActionSummarize:
 		if m.isAgentBusy() {
 			cmds = append(cmds, util.ReportWarn("Agent is busy, please wait before summarizing session..."))

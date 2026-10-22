@@ -1208,6 +1208,43 @@ Options, all under `options.tui`:
 
 Custom themes can set the `needs` color used for the "needs you" mark.
 
+### Exporting a session
+
+`tada session export` turns a session into something you can share: a
+Markdown file, a single self-contained HTML page, or JSON.
+
+```bash
+tada session export                        # latest session, Markdown to stdout
+tada session export 3f2a9c --format html   # writes fix-the-build-3f2a9c1.html here
+tada session export --format md -o notes.md
+tada session export --format json -o -     # any format to stdout
+```
+
+The id can be a full session id or the start of its hash, as in
+`tada session list`; with no id the most recent session is used. Markdown
+and JSON go to stdout unless `-o` is given. HTML is written to the current
+folder by default and the path is printed.
+
+Each export starts with a header (title, date, models, project folder,
+tokens, cost and the files changed), then the conversation: your messages,
+the assistant's replies, reasoning folded away, and each tool call with its
+input and a trimmed result. Edits show as diffs. The HTML page needs no
+network, follows your light or dark setting, folds tool calls into
+`<details>` and reads fine on a phone.
+
+Exports are redacted by default. API keys (`sk-…`, `ghp_…`, `AKIA…` and
+similar), `Bearer` credentials, private keys and the values of variables
+named like `*KEY*`, `*TOKEN*`, `*SECRET*` or `*PASSWORD*` become
+`[REDACTED]`, and your home folder is shown as `~`. `--no-redact` turns all
+of that off, home folder included. Redaction is pattern based, so read an
+export before you post it.
+
+In the TUI, **Export Session** in the command palette (`ctrl+p`, or type
+`export`) writes the current session as HTML to the data folder's `exports`
+directory (`.tada/exports/` by default) and shows the path in a toast. Exports made from the TUI end with the
+session's network receipt, the hosts it talked to; the CLI runs in its own
+process, which has no receipt, so its exports leave that part out.
+
 ### Magic Context
 
 Magic Context is a Go port of

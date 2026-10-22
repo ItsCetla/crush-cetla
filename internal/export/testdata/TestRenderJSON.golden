@@ -1,0 +1,185 @@
+{
+  "title": "Make main.go say hello",
+  "session_id": "5d0c9b5e-1f39-4b7a-9d2e-1c1f0e6c2a10",
+  "created_at": "2026-10-15T12:00:00Z",
+  "updated_at": "2026-10-15T12:01:30Z",
+  "exported_at": "2026-10-15T13:00:00Z",
+  "project": "demo",
+  "models": [
+    "claude-sonnet-4-5",
+    "gpt-5"
+  ],
+  "prompt_tokens": 18234,
+  "completion_tokens": 1532,
+  "cost": 0.0731,
+  "files_changed": [
+    {
+      "path": "main.go",
+      "additions": 3,
+      "removals": 1,
+      "diff": "--- a/main.go\n+++ b/main.go\n@@ -1,5 +1,7 @@\n package main\n \n+import \"fmt\"\n+\n func main() {\n-\tprintln(\"hi\")\n+\tfmt.Println(\"hello\")\n }\n"
+    }
+  ],
+  "turns": [
+    {
+      "role": "user",
+      "time": "2026-10-15T12:00:00Z",
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "Make `main.go` say hello. My key is [REDACTED] if you need it."
+        },
+        {
+          "kind": "attachment",
+          "text": "screenshot.png (image/png)"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "model": "claude-sonnet-4-5",
+      "time": "2026-10-15T12:00:05Z",
+      "blocks": [
+        {
+          "kind": "reasoning",
+          "text": "The user wants `fmt.Println`. I should look at the file first."
+        },
+        {
+          "kind": "text",
+          "text": "Let me look at the file.\n\n![diagram](https://example.com/tracker.png) <script>alert(1)</script>"
+        },
+        {
+          "kind": "tool",
+          "tool": {
+            "name": "view",
+            "summary": "main.go",
+            "input": "{\n  \"file_path\": \"~/src/demo/main.go\"\n}",
+            "result": "line x\nline xx\nline xxx\nline xxxx\nline xxxxx\nline xxxxxx\nline \nline x\nline xx\nline xxx\nline xxxx\nline xxxxx\nline xxxxxx\nline \nline x\nline xx\nline xxx\nline xxxx\nline xxxxx\nline xxxxxx\nline \nline x\nline xx\nline xxx\nline xxxx\nline xxxxx\nline xxxxxx\nline \nline x\nline xx\nline xxx\nline xxxx\nline xxxxx\nline xxxxxx\nline \nline x\nline xx\nline xxx\nline xxxx\nline xxxxx\nline xxxxxx\nline \nline x\nline xx\nline xxx\nline xxxx\nline xxxxx\nline xxxxxx\nline \nline x\nline xx\nline xxx\nline xxxx\nline xxxxx\nline xxxxxx\nline \nline x\nline xx\nline xxx\nline xxxx\n"
+          }
+        },
+        {
+          "kind": "tool",
+          "tool": {
+            "name": "bash",
+            "summary": "env | grep API",
+            "input": "{\n  \"command\": \"env | grep API\",\n  \"description\": \"Check keys\"\n}",
+            "result": "OPENAI_API_KEY=[REDACTED]\nMAX_TOKENS=4096\nAuthorization: Bearer [REDACTED]"
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "model": "claude-sonnet-4-5",
+      "time": "2026-10-15T12:00:20Z",
+      "blocks": [
+        {
+          "kind": "tool",
+          "tool": {
+            "name": "edit",
+            "summary": "main.go",
+            "input": "{\n  \"file_path\": \"~/src/demo/main.go\",\n  \"new_string\": \"fmt.Println(\\\"hello\\\")\",\n  \"old_string\": \"println(\\\"hi\\\")\"\n}",
+            "result": "<result>\nContent replaced in file: ~/src/demo/main.go\n</result>",
+            "diff_path": "main.go",
+            "diff": "--- a/main.go\n+++ b/main.go\n@@ -1,5 +1,7 @@\n package main\n \n+import \"fmt\"\n+\n func main() {\n-\tprintln(\"hi\")\n+\tfmt.Println(\"hello\")\n }\n",
+            "additions": 3,
+            "removals": 1
+          }
+        },
+        {
+          "kind": "tool",
+          "tool": {
+            "name": "bash",
+            "summary": "go run .",
+            "input": "{\n  \"command\": \"go run .\"\n}",
+            "result": "exit status 2\n./main.go:3:8: \"fmt\" imported and not used",
+            "is_error": true
+          }
+        },
+        {
+          "kind": "tool",
+          "tool": {
+            "name": "grep",
+            "summary": "TODO",
+            "input": "{\n  \"pattern\": \"TODO\"\n}",
+            "no_result": true
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "model": "gpt-5",
+      "time": "2026-10-15T12:00:40Z",
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "Done. `main.go` now prints **hello**:\n\n```go\nfmt.Println(\"hello\")\n```\n\n| file | change |\n| --- | --- |\n| main.go | +3 −1 |"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "time": "2026-10-15T12:01:00Z",
+      "blocks": [
+        {
+          "kind": "shell",
+          "shell": {
+            "command": "ls ~/src/demo",
+            "output": "go.mod\nmain.go\n",
+            "exit_code": 0
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "model": "gpt-5",
+      "time": "2026-10-15T12:01:20Z",
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "Starting on the tests"
+        },
+        {
+          "kind": "notice",
+          "text": "Cancelled: Request cancelled"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "model": "gpt-5",
+      "time": "2026-10-15T12:01:30Z",
+      "summary": true,
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "We changed `main.go` to print hello with `fmt`."
+        }
+      ]
+    }
+  ],
+  "hosts": [
+    {
+      "host": "api.anthropic.com",
+      "purposes": [
+        "model"
+      ],
+      "requests": 3,
+      "bytes_out": 48213,
+      "bytes_in": 9120
+    },
+    {
+      "host": "127.0.0.1:11434",
+      "purposes": [
+        "discovery"
+      ],
+      "local": true,
+      "requests": 1,
+      "bytes_out": 120,
+      "bytes_in": 840
+    }
+  ],
+  "redacted": true
+}
