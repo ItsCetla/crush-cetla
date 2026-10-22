@@ -1,0 +1,225 @@
+name: package-managers
+# Writes the Homebrew formula, Scoop manifest and winget manifests for a
+# published release from its SHA256SUMS.txt, uploads them as run artifacts,
+# and pushes each one where its token allows:
+#
+#   HOMEBREW_TAP_TOKEN  Formula/tada.rb in ItsCetla/homebrew-tap
+#   SCOOP_BUCKET_TOKEN  bucket/tada.json in ItsCetla/scoop-bucket
+#   WINGET_TOKEN        a pull request to microsoft/winget-pkgs (via Komac)
+#
+# A missing token skips that push with a notice. Prereleases are skipped.
+# The vars HOMEBREW_TAP_REPO and SCOOP_BUCKET_REPO override the target
+# repositories. Called by release.yml after the release is published; can
+# also be run by hand for an existing release. See docs/RELEASING.md.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release tag (for example v0.1.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      stable: ${{ steps.tag.outputs.stable }}
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          case "$TAG" in v[0-9]*) ;; *) echo "::error::tag '$TAG' must look like v1.2.3"; exit 1 ;; esac
+          version=${TAG#v}
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in
+            *-*)
+              echo "::notice::$TAG is a prerelease; package managers are not updated"
+              echo "stable=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *) echo "stable=true" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  homebrew:
+    needs: meta
+    if: needs.meta.outputs.stable == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO || 'ItsCetla/homebrew-tap' }}
+      HAVE_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Write the formula
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download "$TAG" -p SHA256SUMS.txt -D "$RUNNER_TEMP" --clobber
+          mkdir -p out
+          bash scripts/render-homebrew.sh "$TAG" "$RUNNER_TEMP/SHA256SUMS.txt" "$GH_REPO" > out/tada.rb
+          ruby -c out/tada.rb
+          cat out/tada.rb
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: homebrew-formula
+          path: out/tada.rb
+          retention-days: 30
+
+      - name: Skip the tap push
+        if: env.HAVE_TOKEN != 'true'
+        run: |
+          echo "::notice::Homebrew tap not updated: HOMEBREW_TAP_TOKEN is not set"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.HAVE_TOKEN == 'true'
+        with:
+          repository: ${{ env.TAP_REPO }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Push the formula
+        if: env.HAVE_TOKEN == 'true'
+        working-directory: tap
+        run: |
+          mkdir -p Formula
+          cp ../out/tada.rb Formula/tada.rb
+          git add Formula/tada.rb
+          if git diff --cached --quiet; then
+            echo "::notice::$TAP_REPO already has tada $VERSION"; exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "tada $VERSION"
+          git push
+          echo "Updated $TAP_REPO to tada $VERSION" >> "$GITHUB_STEP_SUMMARY"
+
+  scoop:
+    needs: meta
+    if: needs.meta.outputs.stable == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      BUCKET_REPO: ${{ vars.SCOOP_BUCKET_REPO || 'ItsCetla/scoop-bucket' }}
+      HAVE_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Write the manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download "$TAG" -p SHA256SUMS.txt -D "$RUNNER_TEMP" --clobber
+          mkdir -p out
+          bash scripts/render-scoop.sh "$TAG" "$RUNNER_TEMP/SHA256SUMS.txt" "$GH_REPO" > out/tada.json
+          jq empty out/tada.json
+          cat out/tada.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scoop-manifest
+          path: out/tada.json
+          retention-days: 30
+
+      - name: Skip the bucket push
+        if: env.HAVE_TOKEN != 'true'
+        run: |
+          echo "::notice::Scoop bucket not updated: SCOOP_BUCKET_TOKEN is not set"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.HAVE_TOKEN == 'true'
+        with:
+          repository: ${{ env.BUCKET_REPO }}
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          path: bucket
+
+      - name: Push the manifest
+        if: env.HAVE_TOKEN == 'true'
+        working-directory: bucket
+        run: |
+          mkdir -p bucket
+          cp ../out/tada.json bucket/tada.json
+          git add bucket/tada.json
+          if git diff --cached --quiet; then
+            echo "::notice::$BUCKET_REPO already has tada $VERSION"; exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "tada: Update to version $VERSION"
+          git push
+          echo "Updated $BUCKET_REPO to tada $VERSION" >> "$GITHUB_STEP_SUMMARY"
+
+  winget:
+    needs: meta
+    if: needs.meta.outputs.stable == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      HAVE_TOKEN: ${{ secrets.WINGET_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Write the manifests
+        id: render
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download "$TAG" -p SHA256SUMS.txt -D "$RUNNER_TEMP" --clobber
+          dir=$(bash scripts/render-winget.sh "$TAG" "$RUNNER_TEMP/SHA256SUMS.txt" out "$GH_REPO")
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          for f in "$dir"/*.yaml; do echo "--- $f"; cat "$f"; done
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: winget-manifests
+          path: out/
+          retention-days: 30
+
+      - name: Skip the winget submission
+        if: env.HAVE_TOKEN != 'true'
+        run: |
+          echo "::notice::winget not updated: WINGET_TOKEN is not set (the manifests are in the winget-manifests artifact)"
+
+      - name: Submit to winget-pkgs
+        if: env.HAVE_TOKEN == 'true'
+        env:
+          # Komac reads the token from GITHUB_TOKEN. It needs a classic PAT
+          # with public_repo: it forks microsoft/winget-pkgs and opens a PR.
+          GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          MANIFEST_DIR: ${{ steps.render.outputs.dir }}
+          KOMAC_VERSION: "2.16.0"
+          KOMAC_SHA256: 7d2707fa6210f2789a3702de49fbd150b736dbf426ee0b9bc8e098736f9fd82d
+        run: |
+          # Komac (russellbanks/Komac), pinned release checked against its
+          # SHA-256.
+          name="komac-${KOMAC_VERSION}-x86_64-unknown-linux-gnu"
+          tools="$RUNNER_TEMP/komac"
+          mkdir -p "$tools"
+          curl -fsSL --retry 3 -o "$tools/$name.tar.gz" \
+            "https://github.com/russellbanks/Komac/releases/download/v${KOMAC_VERSION}/$name.tar.gz"
+          echo "$KOMAC_SHA256  $tools/$name.tar.gz" | sha256sum -c -
+          tar -xzf "$tools/$name.tar.gz" -C "$tools"
+          "$tools/komac" submit --yes "$MANIFEST_DIR"
+          echo "Submitted ItsCetla.TaDa $VERSION to microsoft/winget-pkgs" >> "$GITHUB_STEP_SUMMARY"
