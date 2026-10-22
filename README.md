@@ -1068,8 +1068,13 @@ the tail of the output. Open checks also rerun in the background after each
 turn in the TUI, and `v` on a mission's page runs them all. Checks run one
 at a time with a 5 minute timeout each. When the agent sets a check, Ta-Da
 asks permission the way it does for a shell command, because the check
-runs later without asking again. Commands the bash tool bans are refused,
-and a check can set its own `timeout_seconds`.
+runs later without asking again. A check runs unattended only once you have
+approved it in that project, by allowing the agent to set it, typing it
+yourself, or running it from the cockpit. Approvals are kept in Ta-Da's
+global data folder, so a mission file that came with a repository can't
+approve its own commands. Commands the bash tool bans are refused, both
+when the check is set and when it runs, and a check can set its own
+`timeout_seconds`.
 
 **`tada status`.** Prints one frame of the cockpit and exits, without
 starting a session, so it works in scripts, status bars and terminals with

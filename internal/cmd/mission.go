@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 
+	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/control"
 	"github.com/spf13/cobra"
 )
@@ -33,6 +34,10 @@ var missionMCPCmd = &cobra.Command{
 		if cwd, _ := cmd.Flags().GetString("cwd"); cwd != "" {
 			ms.SetWorkDir(cwd)
 		}
+		if approvals, _ := cmd.Flags().GetString("approvals"); approvals != "" {
+			ms.SetApprovals(approvals)
+		}
+		ms.SetBlockFuncs(tools.BlockFuncs())
 		return control.RunMissionMCP(cmd.Context(), ms, session)
 	},
 }
@@ -41,6 +46,7 @@ func init() {
 	missionMCPCmd.Flags().String("dir", "", "The missions directory")
 	missionMCPCmd.Flags().String("session", "", "The Ta-Da session the tool works for")
 	missionMCPCmd.Flags().String("cwd", "", "The project directory mission checks run in")
+	missionMCPCmd.Flags().String("approvals", "", "The file of check commands the user approved")
 	missionCmd.AddCommand(missionMCPCmd)
 	rootCmd.AddCommand(missionCmd)
 }

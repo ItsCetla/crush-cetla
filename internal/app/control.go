@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/netlog"
@@ -42,12 +43,22 @@ func newControlHub(store *config.ConfigStore, perms permission.Service) *control
 		if m, err := control.NewMissions(paths.missions); err != nil {
 			slog.Warn("Missions unavailable", "error", err)
 		} else {
-			m.SetWorkDir(store.WorkingDir())
+			configureMissions(m, store.WorkingDir(), paths)
 			opts.Missions = m
 		}
 	}
 	opts.Budget = budgetFromConfig(cfg.Options.Budget)
 	return control.NewHub(opts)
+}
+
+// configureMissions points missions at the project, the global list of
+// check commands the user approved, and the bash tool's block list.
+// Approvals live outside the project so a repository can't approve its
+// own checks.
+func configureMissions(m *control.Missions, workDir string, paths controlPaths) {
+	m.SetWorkDir(workDir)
+	m.SetApprovals(filepath.Join(paths.ledger, control.ApprovalsFileName))
+	m.SetBlockFuncs(tools.BlockFuncs())
 }
 
 // controlPaths is where the control stores live.
@@ -95,7 +106,7 @@ func ReadControlHub(store *config.ConfigStore) *control.Hub {
 	}
 	if paths.missions != "" && exists(paths.missions) {
 		if m, err := control.NewMissions(paths.missions); err == nil {
-			m.SetWorkDir(store.WorkingDir())
+			configureMissions(m, store.WorkingDir(), paths)
 			opts.Missions = m
 		}
 	}

@@ -82,8 +82,9 @@ func ParseCriterion(s string) (text, check string) {
 // RunCheck runs a check command in dir and returns its outcome. A timeout
 // of zero or less means DefaultCheckTimeout. It never returns an error:
 // a command that can't start is reported as a failed run whose output
-// says why.
-func RunCheck(ctx context.Context, dir, command string, timeout time.Duration) CheckResult {
+// says why. block is the deny-list the command runs under; nil allows
+// everything.
+func RunCheck(ctx context.Context, dir, command string, timeout time.Duration, block []shell.BlockFunc) CheckResult {
 	if timeout <= 0 {
 		timeout = DefaultCheckTimeout
 	}
@@ -93,11 +94,12 @@ func RunCheck(ctx context.Context, dir, command string, timeout time.Duration) C
 	out := &tailBuffer{limit: checkOutputLimit}
 	start := time.Now()
 	err := shell.Run(runCtx, shell.RunOptions{
-		Command: command,
-		Cwd:     dir,
-		Env:     os.Environ(),
-		Stdout:  out,
-		Stderr:  out,
+		Command:    command,
+		Cwd:        dir,
+		Env:        os.Environ(),
+		Stdout:     out,
+		Stderr:     out,
+		BlockFuncs: block,
 	})
 	r := CheckResult{At: time.Now(), Duration: time.Since(start)}
 	var status interp.ExitStatus
@@ -215,6 +217,18 @@ type VerifyOptions struct {
 	// NoWait returns ErrCheckRunning instead of waiting when the
 	// mission's checks are already running.
 	NoWait bool
+	// ApprovedOnly skips checks whose commands the user hasn't approved
+	// in this project. Runs the user didn't start directly set it.
+	ApprovedOnly bool
+}
+
+// wants reports whether a run with these options includes c, ignoring
+// approval.
+func (o VerifyOptions) wants(c Criterion) bool {
+	if !c.SelfChecking() || (o.Criterion != 0 && c.ID != o.Criterion) {
+		return false
+	}
+	return !o.OpenOnly || !c.Done
 }
 
 // SetWorkDir sets the directory checks run in, normally the project's
@@ -288,7 +302,7 @@ func (s *Missions) Verify(ctx context.Context, id string, o VerifyOptions) (Miss
 	}
 	var jobs []job
 	for _, c := range m.Criteria {
-		if !c.SelfChecking() || (o.Criterion != 0 && c.ID != o.Criterion) || (o.OpenOnly && c.Done) {
+		if !o.wants(c) || (o.ApprovedOnly && !s.CheckApproved(c.Check)) {
 			continue
 		}
 		jobs = append(jobs, job{id: c.ID, check: c.Check, timeout: c.CheckTimeout()})
@@ -300,7 +314,7 @@ func (s *Missions) Verify(ctx context.Context, id string, o VerifyOptions) (Miss
 		if ctx.Err() != nil {
 			break
 		}
-		r := RunCheck(ctx, dir, j.check, j.timeout)
+		r := RunCheck(ctx, dir, j.check, j.timeout, s.blockFuncs)
 		if r.Canceled {
 			break
 		}

@@ -43,20 +43,20 @@ func TestRunCheck(t *testing.T) {
 	ctx := t.Context()
 	dir := t.TempDir()
 
-	r := RunCheck(ctx, dir, "echo ok", time.Minute)
+	r := RunCheck(ctx, dir, "echo ok", time.Minute, nil)
 	require.True(t, r.Passed())
 	require.Equal(t, 0, r.Exit)
 	require.Equal(t, "ok", r.Output)
 	require.False(t, r.At.IsZero())
 
-	r = RunCheck(ctx, dir, "echo boom >&2; exit 3", time.Minute)
+	r = RunCheck(ctx, dir, "echo boom >&2; exit 3", time.Minute, nil)
 	require.False(t, r.Passed())
 	require.Equal(t, 3, r.Exit)
 	require.Equal(t, "boom", r.Output)
 
 	// Checks run in the directory they're given.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "marker"), []byte("x"), 0o644))
-	require.True(t, RunCheck(ctx, dir, "test -f marker", time.Minute).Passed())
+	require.True(t, RunCheck(ctx, dir, "test -f marker", time.Minute, nil).Passed())
 }
 
 func TestRunCheckTimeout(t *testing.T) {
@@ -65,7 +65,7 @@ func TestRunCheckTimeout(t *testing.T) {
 		t.Skip("sleep isn't available everywhere on Windows")
 	}
 	start := time.Now()
-	r := RunCheck(t.Context(), t.TempDir(), "sleep 5", 200*time.Millisecond)
+	r := RunCheck(t.Context(), t.TempDir(), "sleep 5", 200*time.Millisecond, nil)
 	require.Less(t, time.Since(start), 5*time.Second)
 	require.True(t, r.TimedOut)
 	require.Equal(t, CheckTimedOut, r.Exit)
@@ -77,7 +77,7 @@ func TestRunCheckCanceled(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	r := RunCheck(ctx, t.TempDir(), "echo never", time.Minute)
+	r := RunCheck(ctx, t.TempDir(), "echo never", time.Minute, nil)
 	require.True(t, r.Canceled)
 	require.False(t, r.Passed())
 }

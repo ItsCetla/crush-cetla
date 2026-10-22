@@ -12,9 +12,11 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/crush/internal/lock"
+	"github.com/charmbracelet/crush/internal/shell"
 )
 
 // MissionStatus is where a mission stands.
@@ -154,6 +156,14 @@ type Missions struct {
 	dir string
 	// workDir is where checks run; see SetWorkDir.
 	workDir string
+	// approvalsPath records approved check commands; see SetApprovals.
+	approvalsPath string
+	// blockFuncs is the deny-list checks run under; see SetBlockFuncs.
+	blockFuncs []shell.BlockFunc
+
+	approvedMu sync.Mutex
+	// approved holds approvals when there's no approvals file.
+	approved map[string]bool
 }
 
 // NewMissions opens (and creates) a mission store in dir.

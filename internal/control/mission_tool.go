@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -71,7 +72,21 @@ func (p MissionParams) Checks() []string {
 
 // RunMissionTool carries out a mission tool call for a session and
 // returns the text the model sees. Notes it writes are signed "claude".
+//
+// The caller must already have asked permission for p.Checks(): this
+// records those commands as approved for the project. Checks it runs
+// (verify, check) must be approved, or they're skipped.
 func RunMissionTool(ctx context.Context, ms *Missions, sessionID string, p MissionParams) (string, error) {
+	out, err := runMissionTool(ctx, ms, sessionID, p)
+	if err == nil && ms != nil {
+		if aerr := ms.ApproveChecks(ctx, p.Checks()...); aerr != nil {
+			slog.Warn("Failed to record approved mission checks", "error", aerr)
+		}
+	}
+	return out, err
+}
+
+func runMissionTool(ctx context.Context, ms *Missions, sessionID string, p MissionParams) (string, error) {
 	if ms == nil {
 		return "", errors.New("missions aren't available")
 	}
@@ -189,15 +204,23 @@ func RunMissionTool(ctx context.Context, ms *Missions, sessionID string, p Missi
 			return nil
 		})
 	case "verify":
-		m, ran, err := ms.Verify(ctx, cur.ID, VerifyOptions{Criterion: p.ID})
+		opts := VerifyOptions{Criterion: p.ID, ApprovedOnly: true}
+		skipped := ms.UnapprovedChecks(cur, opts)
+		m, ran, err := ms.Verify(ctx, cur.ID, opts)
 		if err != nil {
 			return "", err
 		}
 		if len(ran) == 0 {
+			if len(skipped) > 0 {
+				return "", errors.New(UnapprovedMessage(skipped))
+			}
 			return "", errors.New("this mission has no self-checking criteria; add one with add_criterion or set_check")
 		}
 		var b strings.Builder
 		b.WriteString(CheckSummary(m, ran))
+		if len(skipped) > 0 {
+			b.WriteString("\n\n" + UnapprovedMessage(skipped))
+		}
 		for _, id := range ran {
 			if c := m.Criterion(id); c != nil && c.LastExit != 0 {
 				b.WriteString("\n\n" + CheckFailure(*c))
@@ -251,7 +274,15 @@ func RunMissionTool(ctx context.Context, ms *Missions, sessionID string, p Missi
 // The criterion is ticked only if the command passes; a failure comes
 // back as an error carrying the output, so the agent can fix it.
 func checkByCommand(ctx context.Context, ms *Missions, missionID string, id int, note string) (string, error) {
-	m, _, err := ms.Verify(ctx, missionID, VerifyOptions{Criterion: id})
+	opts := VerifyOptions{Criterion: id, ApprovedOnly: true}
+	cur, err := ms.read(missionID)
+	if err != nil {
+		return "", err
+	}
+	if skipped := ms.UnapprovedChecks(cur, opts); len(skipped) > 0 {
+		return "", errors.New(UnapprovedMessage(skipped))
+	}
+	m, _, err := ms.Verify(ctx, missionID, opts)
 	if err != nil {
 		return "", err
 	}

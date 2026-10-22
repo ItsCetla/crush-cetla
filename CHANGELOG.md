@@ -26,7 +26,10 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   cockpit's Missions page to run them all; the agent can do the same with
   the mission tool's `verify` and `set_check` actions. Setting a check
   asks permission like a shell command, since it later runs without
-  asking. Each check has a 5 minute timeout by default.
+  asking. Only checks you approved in the project run unattended, so a
+  mission file that came with a repository can't run its own commands,
+  and checks run under the bash tool's block list. Each check has a
+  5 minute timeout by default.
 
 - **Turn receipts.** The "Worked for …" line after each turn now reads
   like a receipt: `Worked for 2m 14s · 5 files changed (+120 −34) ·

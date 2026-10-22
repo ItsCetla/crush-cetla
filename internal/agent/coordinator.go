@@ -1996,7 +1996,11 @@ func (c *coordinator) claudeCodeArgs(isSubAgent bool) func(sessionID string) []s
 			servers["tada-artifacts"] = srv
 		}
 		if ms := c.control.Missions(); ms != nil && !isSubAgent && sessionID != "" {
-			servers["tada-mission"] = stdioServer(exe, "mission", "mcp", "--dir", ms.Dir(), "--session", sessionID, "--cwd", ms.WorkDir())
+			args := []string{"mission", "mcp", "--dir", ms.Dir(), "--session", sessionID, "--cwd", ms.WorkDir()}
+			if p := ms.ApprovalsPath(); p != "" {
+				args = append(args, "--approvals", p)
+			}
+			servers["tada-mission"] = stdioServer(exe, args...)
 		}
 		// Always served to the main agent, so it can save machines the
 		// user describes even before any exist.

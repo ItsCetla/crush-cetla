@@ -401,6 +401,15 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 		all, err := ms.List()
 		return Reply{Missions: all}, err
 	case OpMissionCreate:
+		// The user typed these checks, which approves them.
+		var checks []string
+		for _, cr := range c.Criteria {
+			_, check := ParseCriterion(cr)
+			checks = append(checks, check)
+		}
+		if err := ms.ApproveChecks(ctx, checks...); err != nil {
+			return Reply{}, err
+		}
 		return one(ms.Create(ctx, c.Title, c.Goal, c.Criteria, c.SessionID))
 	case OpMissionCheck:
 		if m, err := ms.Get(c.MissionID); err == nil {
@@ -427,7 +436,12 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 			return nil
 		}))
 	case OpMissionVerify:
-		m, ran, err := ms.Verify(ctx, c.MissionID, VerifyOptions{Criterion: c.Index, NoWait: true})
+		// The user started this run, which approves its checks.
+		opts := VerifyOptions{Criterion: c.Index, NoWait: true}
+		if err := ms.approveRuns(ctx, c.MissionID, opts); err != nil {
+			return Reply{}, err
+		}
+		m, ran, err := ms.Verify(ctx, c.MissionID, opts)
 		if err != nil {
 			return Reply{}, err
 		}
@@ -446,6 +460,14 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 	case OpMissionAdd:
 		if strings.TrimSpace(c.Text) == "" {
 			return Reply{}, errors.New("a criterion needs text")
+		}
+		// The user typed the check, which approves it.
+		check := c.Check
+		if strings.TrimSpace(check) == "" {
+			_, check = ParseCriterion(c.Text)
+		}
+		if err := ms.ApproveChecks(ctx, check); err != nil {
+			return Reply{}, err
 		}
 		return one(ms.Update(ctx, c.MissionID, func(m *Mission) error {
 			if strings.TrimSpace(c.Check) != "" {
@@ -477,7 +499,11 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 // it's ticked only if the command passes, and a failure comes back as the
 // reply's message with the first line of output.
 func (h *Hub) checkCriterion(ctx context.Context, c Command) (Reply, error) {
-	m, _, err := h.missions.Verify(ctx, c.MissionID, VerifyOptions{Criterion: c.Index})
+	opts := VerifyOptions{Criterion: c.Index}
+	if err := h.missions.approveRuns(ctx, c.MissionID, opts); err != nil {
+		return Reply{}, err
+	}
+	m, _, err := h.missions.Verify(ctx, c.MissionID, opts)
 	if err != nil {
 		return Reply{}, err
 	}
@@ -507,7 +533,8 @@ func (h *Hub) checkCriterion(ctx context.Context, c Command) (Reply, error) {
 }
 
 // VerifyAfterTurn runs the open checks of the session's active mission
-// in the background, after an agent turn. It skips the run when the
+// in the background, after an agent turn. Only checks the user approved
+// in this project run. It skips the run when the
 // mission's checks are already running, and Close stops it.
 func (h *Hub) VerifyAfterTurn(sessionID string) {
 	if h == nil || h.missions == nil {
@@ -518,7 +545,7 @@ func (h *Hub) VerifyAfterTurn(sessionID string) {
 		return
 	}
 	h.bgWG.Go(func() {
-		_, ran, err := h.missions.Verify(h.bgCtx, m.ID, VerifyOptions{OpenOnly: true, NoWait: true})
+		_, ran, err := h.missions.Verify(h.bgCtx, m.ID, VerifyOptions{OpenOnly: true, NoWait: true, ApprovedOnly: true})
 		switch {
 		case errors.Is(err, ErrCheckRunning), errors.Is(err, context.Canceled):
 		case err != nil:
