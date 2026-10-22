@@ -165,6 +165,12 @@ func NewReplaceSymbolTool(
 				return fantasy.ToolResponse{}, fmt.Errorf("failed to write file: %w", err)
 			}
 
+			if files != nil && sessionID != "" {
+				if _, err := files.CreateVersion(ctx, sessionID, params.FilePath, newContent); err != nil {
+					slog.Warn("Failed to create file version after replace", "path", params.FilePath, "error", err)
+				}
+			}
+
 			if filetracker != nil && sessionID != "" {
 				filetracker.RecordRead(ctx, sessionID, params.FilePath)
 			}

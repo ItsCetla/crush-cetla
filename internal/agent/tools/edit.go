@@ -172,7 +172,7 @@ func createNewFile(edit editContext, filePath, content string, call fantasy.Tool
 	}
 
 	// File can't be in the history so we create a new file history
-	_, err = edit.files.Create(edit.ctx, sessionID, filePath, "")
+	_, err = edit.files.CreateNew(edit.ctx, sessionID, filePath)
 	if err != nil {
 		// Log error but don't fail the operation
 		return fantasy.ToolResponse{}, fmt.Errorf("error creating file history: %w", err)

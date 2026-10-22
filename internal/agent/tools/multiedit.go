@@ -225,7 +225,7 @@ func processMultiEditWithCreation(edit editContext, params MultiEditParams, call
 	}
 
 	// Update file history
-	_, err = edit.files.Create(edit.ctx, sessionID, params.FilePath, "")
+	_, err = edit.files.CreateNew(edit.ctx, sessionID, params.FilePath)
 	if err != nil {
 		return fantasy.ToolResponse{}, fmt.Errorf("error creating file history: %w", err)
 	}

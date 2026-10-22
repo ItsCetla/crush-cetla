@@ -181,11 +181,21 @@ func (m *UserMessageItem) renderAttachments(width int) string {
 
 // HandleKeyEvent implements KeyEventHandler.
 func (m *UserMessageItem) HandleKeyEvent(key tea.KeyMsg) (bool, tea.Cmd) {
-	if k := key.String(); k == "c" || k == "y" {
+	switch key.String() {
+	case "c", "y":
 		text := m.message.Content().Text
 		return true, common.CopyToClipboard(text, "Message copied to clipboard")
+	case "r":
+		id := m.message.ID
+		return true, func() tea.Msg { return OpenRewindMsg{MessageID: id} }
 	}
 	return false, nil
+}
+
+// OpenRewindMsg asks the UI to open the rewind timeline at the turn the
+// message starts.
+type OpenRewindMsg struct {
+	MessageID string
 }
 
 // Message returns the message this item draws.

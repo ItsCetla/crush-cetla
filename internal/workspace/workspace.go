@@ -23,6 +23,7 @@ import (
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/proto"
 	"github.com/charmbracelet/crush/internal/question"
+	"github.com/charmbracelet/crush/internal/rewind"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/skills"
 )
@@ -126,6 +127,11 @@ type Workspace interface {
 	// SetSessionWorkingDir sets the folder the session works in. dir is
 	// absolute; empty goes back to the launch folder.
 	SetSessionWorkingDir(ctx context.Context, sessionID, dir string) (session.Session, error)
+	// SessionTimeline lists the session's turns, oldest first.
+	SessionTimeline(ctx context.Context, sessionID string) ([]rewind.Turn, error)
+	// RewindSession turns the session back to just before a turn,
+	// restoring files, trimming the chat, or both.
+	RewindSession(ctx context.Context, sessionID string, req rewind.Request) (rewind.Result, error)
 	CreateAgentToolSessionID(messageID, toolCallID string) string
 	ParseAgentToolSessionID(sessionID string) (messageID string, toolCallID string, ok bool)
 	// SetCurrentSession reports the session this client is currently

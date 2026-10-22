@@ -28,6 +28,7 @@ import (
 	"github.com/charmbracelet/crush/internal/proto"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/question"
+	"github.com/charmbracelet/crush/internal/rewind"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/skills"
 	"github.com/charmbracelet/crush/internal/version"
@@ -176,6 +177,14 @@ func (w *ClientWorkspace) SetSessionWorkingDir(ctx context.Context, sessionID, d
 		return session.Session{}, err
 	}
 	return protoToSession(*saved), nil
+}
+
+func (w *ClientWorkspace) SessionTimeline(ctx context.Context, sessionID string) ([]rewind.Turn, error) {
+	return w.client.SessionTimeline(ctx, w.workspaceID(), sessionID)
+}
+
+func (w *ClientWorkspace) RewindSession(ctx context.Context, sessionID string, req rewind.Request) (rewind.Result, error) {
+	return w.client.RewindSession(ctx, w.workspaceID(), sessionID, req)
 }
 
 func (w *ClientWorkspace) DeleteSession(ctx context.Context, sessionID string) error {

@@ -18,3 +18,17 @@ WHERE session_id = ? AND path = ? LIMIT 1;
 SELECT * FROM read_files
 WHERE session_id = ?
 ORDER BY read_at DESC;
+
+-- name: DeleteFileRead :exec
+DELETE FROM read_files
+WHERE session_id = ? AND path = ?;
+
+-- name: InsertFileRead :exec
+INSERT INTO read_files (
+    session_id,
+    path,
+    read_at
+) VALUES (
+    ?, ?, ?
+) ON CONFLICT(path, session_id) DO UPDATE SET
+    read_at = excluded.read_at;

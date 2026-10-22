@@ -58,6 +58,10 @@ func (s *service) LastReadTime(ctx context.Context, sessionID, path string) time
 	return time.Unix(readFile.ReadAt, 0)
 }
 
+// StoredPath returns the key the tracker stores path under in read_files,
+// so other packages can clear or copy a file's read record.
+func StoredPath(path string) string { return relpath(path) }
+
 func relpath(path string) string {
 	path = filepath.Clean(path)
 	basepath, err := os.Getwd()

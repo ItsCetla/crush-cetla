@@ -7,9 +7,28 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/proto"
+	"github.com/charmbracelet/crush/internal/rewind"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/workdir"
 )
+
+// SessionTimeline lists a session's turns, oldest first.
+func (b *Backend) SessionTimeline(ctx context.Context, workspaceID, sessionID string) ([]rewind.Turn, error) {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return ws.Rewind.Timeline(ctx, sessionID)
+}
+
+// RewindSession turns a session back to just before a turn.
+func (b *Backend) RewindSession(ctx context.Context, workspaceID, sessionID string, req rewind.Request) (rewind.Result, error) {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return rewind.Result{}, err
+	}
+	return ws.Rewind.Rewind(ctx, sessionID, req)
+}
 
 // CreateSession creates a new session in the given workspace.
 func (b *Backend) CreateSession(ctx context.Context, workspaceID, title string) (session.Session, error) {

@@ -900,6 +900,50 @@ func (c *Client) SetSessionWorkingDir(ctx context.Context, id, sessionID, dir st
 	return &saved, nil
 }
 
+// SessionTimeline lists a session's turns, oldest first.
+func (c *Client) SessionTimeline(ctx context.Context, id, sessionID string) ([]proto.RewindTurn, error) {
+	rsp, err := c.get(ctx, fmt.Sprintf("/workspaces/%s/sessions/%s/timeline", id, sessionID), nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session timeline: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return nil, apiError(rsp, "failed to get session timeline")
+	}
+	var out proto.SessionTimeline
+	if err := json.NewDecoder(rsp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to decode session timeline: %w", err)
+	}
+	return out.Turns, nil
+}
+
+// RewindSession turns a session back to just before a turn.
+func (c *Client) RewindSession(ctx context.Context, id, sessionID string, req proto.RewindRequest) (proto.RewindResult, error) {
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/sessions/%s/rewind", id, sessionID), nil, jsonBody(req), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return proto.RewindResult{}, fmt.Errorf("failed to rewind session: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return proto.RewindResult{}, apiError(rsp, "failed to rewind session")
+	}
+	var out proto.RewindResult
+	if err := json.NewDecoder(rsp.Body).Decode(&out); err != nil {
+		return proto.RewindResult{}, fmt.Errorf("failed to decode rewind result: %w", err)
+	}
+	return out, nil
+}
+
+// apiError turns a non-200 response into an error, preferring the
+// server's own message.
+func apiError(rsp *http.Response, what string) error {
+	var apiErr proto.Error
+	if json.NewDecoder(rsp.Body).Decode(&apiErr) == nil && apiErr.Message != "" {
+		return errors.New(apiErr.Message)
+	}
+	return fmt.Errorf("%s: status code %d", what, rsp.StatusCode)
+}
+
 // DeleteSession deletes a session from a workspace.
 func (c *Client) DeleteSession(ctx context.Context, id string, sessionID string) error {
 	rsp, err := c.delete(ctx, fmt.Sprintf("/workspaces/%s/sessions/%s", id, sessionID), nil, nil)

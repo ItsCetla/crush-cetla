@@ -6,6 +6,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
@@ -13,6 +14,7 @@ type Querier interface {
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeleteFile(ctx context.Context, id string) error
+	DeleteFileRead(ctx context.Context, arg DeleteFileReadParams) error
 	DeleteMCPDisabledServer(ctx context.Context, name string) error
 	DeleteMCPEnabledServer(ctx context.Context, name string) error
 	DeleteMessage(ctx context.Context, id string) error
@@ -35,16 +37,28 @@ type Querier interface {
 	GetUsageByDayOfWeek(ctx context.Context) ([]GetUsageByDayOfWeekRow, error)
 	GetUsageByHour(ctx context.Context) ([]GetUsageByHourRow, error)
 	GetUsageByModel(ctx context.Context) ([]GetUsageByModelRow, error)
+	// Copies a history version into another session (fork), keeping its
+	// timestamps so it still sorts before the messages that follow it.
+	InsertFileCopy(ctx context.Context, arg InsertFileCopyParams) error
+	InsertFileRead(ctx context.Context, arg InsertFileReadParams) error
 	InsertMCPDisabledServer(ctx context.Context, name string) error
 	InsertMCPEnabledServer(ctx context.Context, name string) error
+	// Copies a message into another session (fork) with its timestamps intact.
+	InsertMessageCopy(ctx context.Context, arg InsertMessageCopyParams) error
 	// Backs prompt history when no session is open. Needs
 	// idx_messages_role_created_at to seek rather than scan the table.
 	ListAllUserMessages(ctx context.Context) ([]Message, error)
+	ListChildSessions(ctx context.Context, parentSessionID sql.NullString) ([]Session, error)
 	ListFilesByPath(ctx context.Context, path string) ([]File, error)
 	ListFilesBySession(ctx context.Context, sessionID string) ([]File, error)
+	// The newest version of each path this session touched. Versions are
+	// numbered across sessions but only ever grow, so the session's highest
+	// version is its latest.
 	ListLatestSessionFiles(ctx context.Context, sessionID string) ([]File, error)
 	ListMCPDisabledServers(ctx context.Context) ([]string, error)
 	ListMCPEnabledServers(ctx context.Context) ([]string, error)
+	// created_at has one-second resolution, so rowid breaks ties in insertion
+	// order; rewind cuts the list by position and relies on it being stable.
 	ListMessagesBySession(ctx context.Context, sessionID string) ([]Message, error)
 	// Messages from the summary onward, which is all a compacted session sends.
 	// created_at has one-second resolution, so a few messages preceding the

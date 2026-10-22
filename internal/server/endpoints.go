@@ -164,6 +164,27 @@ func (c *controllerV1) endpoints() []apigen.Endpoint {
 			Fails(400, 404, 500).
 			Handle(c.handlePutWorkspaceSessionWorkingDir),
 
+		apigen.Get("/v1/workspaces/{id}/sessions/{sid}/timeline").
+			Summary("Get session timeline").
+			Description("Lists the session's turns, oldest first, with the files each turn changed and its actions by class.").
+			Tags("sessions").
+			PathParam("id", "Workspace ID").
+			PathParam("sid", "Session ID").
+			Responds(proto.SessionTimeline{}).
+			Fails(404, 500).
+			Handle(c.handleGetWorkspaceSessionTimeline),
+
+		apigen.Post("/v1/workspaces/{id}/sessions/{sid}/rewind").
+			Summary("Rewind session").
+			Description("Turns the session back to just before a turn: restores the files the agent changed, trims the chat, or both. Set dry_run to get the plan without changing anything.").
+			Tags("sessions").
+			PathParam("id", "Workspace ID").
+			PathParam("sid", "Session ID").
+			Accepts(proto.RewindRequest{}).
+			Responds(proto.RewindResult{}).
+			Fails(400, 404, 409, 500).
+			Handle(c.handlePostWorkspaceSessionRewind),
+
 		apigen.Delete("/v1/workspaces/{id}/sessions/{sid}").
 			Summary("Delete session").
 			Tags("sessions").

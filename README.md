@@ -99,6 +99,10 @@ talks to and what it does without asking:
   checks, with requests and bytes each way. The status bar shows `↑ 2
   hosts` (or `local only`), and the cockpit's Network page lists them. The
   receipt is kept in memory only and never written to disk.
+- **Rewind.** Every prompt is a checkpoint. Press **r** on a message or
+  type `/rewind` to roll files, chat or both back to before any turn, with
+  a list of exactly what changes first. Shell-command changes can't be
+  rewound. See [Rewind](#rewind).
 - **Magic Context (opt-in).** A Go port of cortexkit/magic-context that
   compresses old turns in the background and keeps project memory across
   sessions. See [Magic Context](#magic-context).
@@ -1112,6 +1116,35 @@ tada status --network  # every host a running Ta-Da server talked to
 `--network` asks a running Ta-Da server (`TADA_CLIENT_SERVER=1`) for its
 receipt and never starts one. A Ta-Da running in-process keeps its receipt
 to itself; open its cockpit with **Ctrl+\\** and press 5.
+### Rewind
+
+Every prompt you send is a checkpoint. Press **r** on one of your messages
+in the chat, type `/rewind` (also `/undo` and `/checkpoint`), or pick
+"Rewind…" in the command palette to open the session's timeline. Each turn
+shows its prompt, when you sent it, how many files it touched, the graded
+actions it took (writes, outside the project, network, deletes) and whether
+it ran shell commands.
+
+Rewinding to a turn undoes that turn and everything after it:
+
+| Key | Action |
+| --- | --- |
+| `m` / Tab | Mode: files and chat, chat only, or files only |
+| `s` | Scope: every file, or only files outside the project |
+| `!` | Also overwrite files changed by hand since Ta-Da last wrote them |
+| Enter | Show exactly which files will be restored or deleted; press again to rewind |
+| Esc | Back out of the confirmation, then close |
+
+Files go back to how they were before the turn, and files the agent created
+are deleted. A file you edited by hand since Ta-Da last wrote it is skipped
+unless you press `!`. With chat included, the turn's messages are removed
+and its prompt goes back into the editor so you can change it and send it
+again. Rewinding waits until the agent is idle.
+
+Only edits made through Ta-Da's file tools (`edit`, `multiedit`, `write`
+and the LSP rename tools) can be rewound. Whatever a shell command changed,
+such as `rm`, a branch switch or a code generator, stays as it is; the
+timeline marks turns that ran shell commands so you know to check.
 
 ### Usage limits
 

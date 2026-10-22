@@ -35,6 +35,7 @@ import (
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/question"
+	"github.com/charmbracelet/crush/internal/rewind"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/shell"
 	"github.com/charmbracelet/crush/internal/skills"
@@ -61,6 +62,9 @@ type App struct {
 	// Control is the control hub: the action log, usage ledger, budgets
 	// and missions.
 	Control *control.Hub
+
+	// Rewind turns sessions back to earlier turns and forks them.
+	Rewind *rewind.Service
 
 	config *config.ConfigStore
 
@@ -133,6 +137,24 @@ func New(ctx context.Context, conn *sql.DB, store *config.ConfigStore, skillsMgr
 
 	app.Control = newControlHub(store, app.Permissions)
 	app.cleanupFuncs = append(app.cleanupFuncs, app.Control.Close)
+	app.Rewind = rewind.New(rewind.Options{
+		DB:          conn,
+		Messages:    messages,
+		Sessions:    sessions,
+		History:     files,
+		ProjectRoot: store.WorkingDir(),
+		// The coordinator is built later, during init, so read it lazily.
+		Busy: func(sessionID string) bool {
+			return app.AgentCoordinator != nil && app.AgentCoordinator.IsSessionBusy(sessionID)
+		},
+		Actions: func(ctx context.Context) []permission.Action {
+			reply, err := app.Control.Do(ctx, control.Command{Op: control.OpActions, Limit: 1000})
+			if err != nil {
+				return nil
+			}
+			return reply.Actions
+		},
+	})
 
 	app.setupEvents()
 

@@ -4,10 +4,12 @@ FROM messages
 WHERE id = ? LIMIT 1;
 
 -- name: ListMessagesBySession :many
+-- created_at has one-second resolution, so rowid breaks ties in insertion
+-- order; rewind cuts the list by position and relies on it being stable.
 SELECT *
 FROM messages
 WHERE session_id = ?
-ORDER BY created_at ASC;
+ORDER BY created_at ASC, rowid ASC;
 
 -- name: ListMessagesBySessionFromSummary :many
 -- Messages from the summary onward, which is all a compacted session sends.
@@ -34,6 +36,27 @@ INSERT INTO messages (
     ?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now')
 )
 RETURNING *;
+
+-- name: InsertMessageCopy :exec
+-- Copies a message into another session (fork) with its timestamps intact.
+INSERT INTO messages (
+    id,
+    session_id,
+    role,
+    parts,
+    model,
+    provider,
+    is_summary_message,
+    prism_model_id,
+    prism_model_name,
+    prism_hypercredit_savings,
+    prism_dollar_savings,
+    finished_at,
+    created_at,
+    updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+);
 
 -- name: UpdateMessage :exec
 UPDATE messages

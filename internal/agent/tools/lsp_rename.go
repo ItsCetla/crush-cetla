@@ -95,6 +95,20 @@ func NewRenameTool(
 				return fantasy.NewTextErrorResponse(fmt.Sprintf("failed to apply rename edits: %s", err)), nil
 			}
 
+			// Record the renamed content too, so history (and rewind) sees
+			// the change rather than only the state before it.
+			if files != nil && sessionID != "" {
+				for _, path := range affectedFiles {
+					content, err := os.ReadFile(path)
+					if err != nil {
+						continue
+					}
+					if _, err := files.CreateVersion(ctx, sessionID, path, string(content)); err != nil {
+						slog.Warn("Failed to create file version after rename", "path", path, "error", err)
+					}
+				}
+			}
+
 			if filetracker != nil && sessionID != "" {
 				for _, path := range affectedFiles {
 					filetracker.RecordRead(ctx, sessionID, path)

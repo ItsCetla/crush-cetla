@@ -594,6 +594,11 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		NewCommandItem(c.com.Styles, "open_machines", "Machines", "", ActionOpenMachines{}).WithAliases("machines", "machine", "fleet", "ollama", "local models"),
 		NewCommandItem(c.com.Styles, "open_context", "Context Settings", "", ActionOpenContext{}).WithAliases("context", "magic context", "magic-context", "auto-summarize"),
 	)
+	if c.hasSession {
+		commands = append(commands,
+			NewCommandItem(c.com.Styles, "open_rewind", "Rewind…", "", ActionOpenRewind{}).WithAliases("undo", "checkpoint", "restore", "revert").WithDescription("Turn the session back to any earlier turn, restoring files, chat or both."),
+		)
+	}
 
 	if cfg == nil || cfg.Options.ArtifactsEnabled() {
 		commands = append(commands, NewCommandItem(c.com.Styles, "open_artifacts", "Open Artifacts Gallery", "", ActionOpenArtifacts{}).WithAliases("artifacts"))

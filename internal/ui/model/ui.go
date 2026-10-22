@@ -931,6 +931,14 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.handleControlReply(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case rewindTimelineMsg, rewindPlanMsg, rewindDoneMsg:
+		if cmd, _ := m.handleRewindMsg(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case chat.OpenRewindMsg:
+		if cmd := m.openRewindDialog(msg.MessageID); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case machinesStatusMsg:
 		m.handleMachinesStatus(msg)
 	case machinesSuggestMsg:
@@ -2697,6 +2705,13 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, m.openContextDialog())
 	case dialog.ActionSetMagicContext:
 		cmds = append(cmds, m.setMagicContextCmd(msg.Enabled))
+	case dialog.ActionOpenRewind:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.openRewindDialog(msg.MessageID))
+	case dialog.ActionRewindPlan:
+		cmds = append(cmds, m.rewindPlanCmd(msg.SessionID, msg.Request))
+	case dialog.ActionRewind:
+		cmds = append(cmds, m.rewindCmd(msg.SessionID, msg.Request))
 	case dialog.ActionTakeBack:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, m.takeBackCmd())
@@ -3487,6 +3502,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					m.randomizePlaceholders()
 					m.historyReset()
 					return m.openContextDialog()
+				}
+
+				if dialog.RewindQuery(value) && !m.bangMode {
+					m.randomizePlaceholders()
+					m.historyReset()
+					return m.openRewindDialog("")
 				}
 
 				if arg, ok := parseCDCommand(value, m.bangMode); ok {

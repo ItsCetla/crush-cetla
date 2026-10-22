@@ -36,6 +36,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deleteFileStmt, err = db.PrepareContext(ctx, deleteFile); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteFile: %w", err)
 	}
+	if q.deleteFileReadStmt, err = db.PrepareContext(ctx, deleteFileRead); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteFileRead: %w", err)
+	}
 	if q.deleteMCPDisabledServerStmt, err = db.PrepareContext(ctx, deleteMCPDisabledServer); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteMCPDisabledServer: %w", err)
 	}
@@ -102,14 +105,26 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getUsageByModelStmt, err = db.PrepareContext(ctx, getUsageByModel); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUsageByModel: %w", err)
 	}
+	if q.insertFileCopyStmt, err = db.PrepareContext(ctx, insertFileCopy); err != nil {
+		return nil, fmt.Errorf("error preparing query InsertFileCopy: %w", err)
+	}
+	if q.insertFileReadStmt, err = db.PrepareContext(ctx, insertFileRead); err != nil {
+		return nil, fmt.Errorf("error preparing query InsertFileRead: %w", err)
+	}
 	if q.insertMCPDisabledServerStmt, err = db.PrepareContext(ctx, insertMCPDisabledServer); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertMCPDisabledServer: %w", err)
 	}
 	if q.insertMCPEnabledServerStmt, err = db.PrepareContext(ctx, insertMCPEnabledServer); err != nil {
 		return nil, fmt.Errorf("error preparing query InsertMCPEnabledServer: %w", err)
 	}
+	if q.insertMessageCopyStmt, err = db.PrepareContext(ctx, insertMessageCopy); err != nil {
+		return nil, fmt.Errorf("error preparing query InsertMessageCopy: %w", err)
+	}
 	if q.listAllUserMessagesStmt, err = db.PrepareContext(ctx, listAllUserMessages); err != nil {
 		return nil, fmt.Errorf("error preparing query ListAllUserMessages: %w", err)
+	}
+	if q.listChildSessionsStmt, err = db.PrepareContext(ctx, listChildSessions); err != nil {
+		return nil, fmt.Errorf("error preparing query ListChildSessions: %w", err)
 	}
 	if q.listFilesByPathStmt, err = db.PrepareContext(ctx, listFilesByPath); err != nil {
 		return nil, fmt.Errorf("error preparing query ListFilesByPath: %w", err)
@@ -188,6 +203,11 @@ func (q *Queries) Close() error {
 	if q.deleteFileStmt != nil {
 		if cerr := q.deleteFileStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deleteFileStmt: %w", cerr)
+		}
+	}
+	if q.deleteFileReadStmt != nil {
+		if cerr := q.deleteFileReadStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteFileReadStmt: %w", cerr)
 		}
 	}
 	if q.deleteMCPDisabledServerStmt != nil {
@@ -300,6 +320,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getUsageByModelStmt: %w", cerr)
 		}
 	}
+	if q.insertFileCopyStmt != nil {
+		if cerr := q.insertFileCopyStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing insertFileCopyStmt: %w", cerr)
+		}
+	}
+	if q.insertFileReadStmt != nil {
+		if cerr := q.insertFileReadStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing insertFileReadStmt: %w", cerr)
+		}
+	}
 	if q.insertMCPDisabledServerStmt != nil {
 		if cerr := q.insertMCPDisabledServerStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing insertMCPDisabledServerStmt: %w", cerr)
@@ -310,9 +340,19 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing insertMCPEnabledServerStmt: %w", cerr)
 		}
 	}
+	if q.insertMessageCopyStmt != nil {
+		if cerr := q.insertMessageCopyStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing insertMessageCopyStmt: %w", cerr)
+		}
+	}
 	if q.listAllUserMessagesStmt != nil {
 		if cerr := q.listAllUserMessagesStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listAllUserMessagesStmt: %w", cerr)
+		}
+	}
+	if q.listChildSessionsStmt != nil {
+		if cerr := q.listChildSessionsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listChildSessionsStmt: %w", cerr)
 		}
 	}
 	if q.listFilesByPathStmt != nil {
@@ -448,6 +488,7 @@ type Queries struct {
 	createMessageStmt                    *sql.Stmt
 	createSessionStmt                    *sql.Stmt
 	deleteFileStmt                       *sql.Stmt
+	deleteFileReadStmt                   *sql.Stmt
 	deleteMCPDisabledServerStmt          *sql.Stmt
 	deleteMCPEnabledServerStmt           *sql.Stmt
 	deleteMessageStmt                    *sql.Stmt
@@ -470,9 +511,13 @@ type Queries struct {
 	getUsageByDayOfWeekStmt              *sql.Stmt
 	getUsageByHourStmt                   *sql.Stmt
 	getUsageByModelStmt                  *sql.Stmt
+	insertFileCopyStmt                   *sql.Stmt
+	insertFileReadStmt                   *sql.Stmt
 	insertMCPDisabledServerStmt          *sql.Stmt
 	insertMCPEnabledServerStmt           *sql.Stmt
+	insertMessageCopyStmt                *sql.Stmt
 	listAllUserMessagesStmt              *sql.Stmt
+	listChildSessionsStmt                *sql.Stmt
 	listFilesByPathStmt                  *sql.Stmt
 	listFilesBySessionStmt               *sql.Stmt
 	listLatestSessionFilesStmt           *sql.Stmt
@@ -501,6 +546,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createMessageStmt:                    q.createMessageStmt,
 		createSessionStmt:                    q.createSessionStmt,
 		deleteFileStmt:                       q.deleteFileStmt,
+		deleteFileReadStmt:                   q.deleteFileReadStmt,
 		deleteMCPDisabledServerStmt:          q.deleteMCPDisabledServerStmt,
 		deleteMCPEnabledServerStmt:           q.deleteMCPEnabledServerStmt,
 		deleteMessageStmt:                    q.deleteMessageStmt,
@@ -523,9 +569,13 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getUsageByDayOfWeekStmt:              q.getUsageByDayOfWeekStmt,
 		getUsageByHourStmt:                   q.getUsageByHourStmt,
 		getUsageByModelStmt:                  q.getUsageByModelStmt,
+		insertFileCopyStmt:                   q.insertFileCopyStmt,
+		insertFileReadStmt:                   q.insertFileReadStmt,
 		insertMCPDisabledServerStmt:          q.insertMCPDisabledServerStmt,
 		insertMCPEnabledServerStmt:           q.insertMCPEnabledServerStmt,
+		insertMessageCopyStmt:                q.insertMessageCopyStmt,
 		listAllUserMessagesStmt:              q.listAllUserMessagesStmt,
+		listChildSessionsStmt:                q.listChildSessionsStmt,
 		listFilesByPathStmt:                  q.listFilesByPathStmt,
 		listFilesBySessionStmt:               q.listFilesBySessionStmt,
 		listLatestSessionFilesStmt:           q.listLatestSessionFilesStmt,

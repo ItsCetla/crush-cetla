@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createFile = `-- name: CreateFile :one
@@ -16,20 +17,22 @@ INSERT INTO files (
     path,
     content,
     version,
+    is_new,
     created_at,
     updated_at
 ) VALUES (
-    ?, ?, ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now')
+    ?, ?, ?, ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now')
 )
-RETURNING id, session_id, path, content, version, created_at, updated_at
+RETURNING id, session_id, path, content, version, created_at, updated_at, is_new
 `
 
 type CreateFileParams struct {
-	ID        string `json:"id"`
-	SessionID string `json:"session_id"`
-	Path      string `json:"path"`
-	Content   string `json:"content"`
-	Version   int64  `json:"version"`
+	ID        string        `json:"id"`
+	SessionID string        `json:"session_id"`
+	Path      string        `json:"path"`
+	Content   string        `json:"content"`
+	Version   int64         `json:"version"`
+	IsNew     sql.NullInt64 `json:"is_new"`
 }
 
 func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, error) {
@@ -39,6 +42,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		arg.Path,
 		arg.Content,
 		arg.Version,
+		arg.IsNew,
 	)
 	var i File
 	err := row.Scan(
@@ -49,6 +53,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsNew,
 	)
 	return i, err
 }
@@ -74,7 +79,7 @@ func (q *Queries) DeleteSessionFiles(ctx context.Context, sessionID string) erro
 }
 
 const getFile = `-- name: GetFile :one
-SELECT id, session_id, path, content, version, created_at, updated_at
+SELECT id, session_id, path, content, version, created_at, updated_at, is_new
 FROM files
 WHERE id = ? LIMIT 1
 `
@@ -90,12 +95,13 @@ func (q *Queries) GetFile(ctx context.Context, id string) (File, error) {
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsNew,
 	)
 	return i, err
 }
 
 const getFileByPathAndSession = `-- name: GetFileByPathAndSession :one
-SELECT id, session_id, path, content, version, created_at, updated_at
+SELECT id, session_id, path, content, version, created_at, updated_at, is_new
 FROM files
 WHERE path = ? AND session_id = ?
 ORDER BY version DESC, created_at DESC
@@ -118,12 +124,55 @@ func (q *Queries) GetFileByPathAndSession(ctx context.Context, arg GetFileByPath
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsNew,
 	)
 	return i, err
 }
 
+const insertFileCopy = `-- name: InsertFileCopy :exec
+INSERT INTO files (
+    id,
+    session_id,
+    path,
+    content,
+    version,
+    is_new,
+    created_at,
+    updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?
+)
+`
+
+type InsertFileCopyParams struct {
+	ID        string        `json:"id"`
+	SessionID string        `json:"session_id"`
+	Path      string        `json:"path"`
+	Content   string        `json:"content"`
+	Version   int64         `json:"version"`
+	IsNew     sql.NullInt64 `json:"is_new"`
+	CreatedAt int64         `json:"created_at"`
+	UpdatedAt int64         `json:"updated_at"`
+}
+
+// Copies a history version into another session (fork), keeping its
+// timestamps so it still sorts before the messages that follow it.
+func (q *Queries) InsertFileCopy(ctx context.Context, arg InsertFileCopyParams) error {
+	_, err := q.exec(ctx, q.insertFileCopyStmt, insertFileCopy,
+		arg.ID,
+		arg.SessionID,
+		arg.Path,
+		arg.Content,
+		arg.Version,
+		arg.IsNew,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const listFilesByPath = `-- name: ListFilesByPath :many
-SELECT id, session_id, path, content, version, created_at, updated_at
+SELECT id, session_id, path, content, version, created_at, updated_at, is_new
 FROM files
 WHERE path = ?
 ORDER BY version DESC, created_at DESC
@@ -146,6 +195,7 @@ func (q *Queries) ListFilesByPath(ctx context.Context, path string) ([]File, err
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsNew,
 		); err != nil {
 			return nil, err
 		}
@@ -161,7 +211,7 @@ func (q *Queries) ListFilesByPath(ctx context.Context, path string) ([]File, err
 }
 
 const listFilesBySession = `-- name: ListFilesBySession :many
-SELECT id, session_id, path, content, version, created_at, updated_at
+SELECT id, session_id, path, content, version, created_at, updated_at, is_new
 FROM files
 WHERE session_id = ?
 ORDER BY version ASC, created_at ASC
@@ -184,6 +234,7 @@ func (q *Queries) ListFilesBySession(ctx context.Context, sessionID string) ([]F
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsNew,
 		); err != nil {
 			return nil, err
 		}
@@ -199,17 +250,20 @@ func (q *Queries) ListFilesBySession(ctx context.Context, sessionID string) ([]F
 }
 
 const listLatestSessionFiles = `-- name: ListLatestSessionFiles :many
-SELECT f.id, f.session_id, f.path, f.content, f.version, f.created_at, f.updated_at
+SELECT f.id, f.session_id, f.path, f.content, f.version, f.created_at, f.updated_at, f.is_new
 FROM files f
-INNER JOIN (
-    SELECT path, MAX(version) as max_version, MAX(created_at) as max_created_at
-    FROM files
-    GROUP BY path
-) latest ON f.path = latest.path AND f.version = latest.max_version AND f.created_at = latest.max_created_at
-WHERE f.session_id = ?
+WHERE f.session_id = ?1
+  AND f.version = (
+    SELECT MAX(f2.version)
+    FROM files f2
+    WHERE f2.session_id = f.session_id AND f2.path = f.path
+  )
 ORDER BY f.path
 `
 
+// The newest version of each path this session touched. Versions are
+// numbered across sessions but only ever grow, so the session's highest
+// version is its latest.
 func (q *Queries) ListLatestSessionFiles(ctx context.Context, sessionID string) ([]File, error) {
 	rows, err := q.query(ctx, q.listLatestSessionFilesStmt, listLatestSessionFiles, sessionID)
 	if err != nil {
@@ -227,6 +281,7 @@ func (q *Queries) ListLatestSessionFiles(ctx context.Context, sessionID string) 
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsNew,
 		); err != nil {
 			return nil, err
 		}
@@ -242,7 +297,7 @@ func (q *Queries) ListLatestSessionFiles(ctx context.Context, sessionID string) 
 }
 
 const listNewFiles = `-- name: ListNewFiles :many
-SELECT id, session_id, path, content, version, created_at, updated_at
+SELECT id, session_id, path, content, version, created_at, updated_at, is_new
 FROM files
 WHERE is_new = 1
 ORDER BY version DESC, created_at DESC
@@ -265,6 +320,7 @@ func (q *Queries) ListNewFiles(ctx context.Context) ([]File, error) {
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IsNew,
 		); err != nil {
 			return nil, err
 		}

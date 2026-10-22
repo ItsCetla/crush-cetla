@@ -81,6 +81,17 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   `[REDACTED]` and the home folder is shown as `~` unless you pass
   `--no-redact`. **Export Session** in the command palette writes the
   current session as HTML, including the hosts it talked to.
+- **Rewind.** Press **r** on one of your messages, type `/rewind` (also
+  `/undo`, `/checkpoint`) or pick "Rewind…" in the palette to see the
+  session's turns with their prompt, time, files touched, graded actions
+  and shell use. Rewind restores files, chat or both to before the chosen
+  turn, optionally only for files outside the project. Enter first lists
+  the exact files to restore or delete and asks again. Files changed by
+  hand since Ta-Da wrote them are skipped unless you press `!`. Rewinding
+  the chat puts the prompt back in the editor. Changes made by shell
+  commands are not rewound. Also available to clients at
+  `GET /v1/workspaces/{id}/sessions/{sid}/timeline` and
+  `POST …/rewind`.
 
 ## [0.5.14] - 2026-10-21
 

@@ -29,12 +29,29 @@ INSERT INTO files (
     path,
     content,
     version,
+    is_new,
     created_at,
     updated_at
 ) VALUES (
-    ?, ?, ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now')
+    ?, ?, ?, ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now')
 )
 RETURNING *;
+
+-- name: InsertFileCopy :exec
+-- Copies a history version into another session (fork), keeping its
+-- timestamps so it still sorts before the messages that follow it.
+INSERT INTO files (
+    id,
+    session_id,
+    path,
+    content,
+    version,
+    is_new,
+    created_at,
+    updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?
+);
 
 -- name: DeleteFile :exec
 DELETE FROM files
@@ -45,14 +62,17 @@ DELETE FROM files
 WHERE session_id = ?;
 
 -- name: ListLatestSessionFiles :many
+-- The newest version of each path this session touched. Versions are
+-- numbered across sessions but only ever grow, so the session's highest
+-- version is its latest.
 SELECT f.*
 FROM files f
-INNER JOIN (
-    SELECT path, MAX(version) as max_version, MAX(created_at) as max_created_at
-    FROM files
-    GROUP BY path
-) latest ON f.path = latest.path AND f.version = latest.max_version AND f.created_at = latest.max_created_at
-WHERE f.session_id = ?
+WHERE f.session_id = sqlc.arg(session_id)
+  AND f.version = (
+    SELECT MAX(f2.version)
+    FROM files f2
+    WHERE f2.session_id = f.session_id AND f2.path = f.path
+  )
 ORDER BY f.path;
 
 -- name: ListNewFiles :many

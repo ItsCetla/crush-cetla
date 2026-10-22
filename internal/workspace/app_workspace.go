@@ -24,6 +24,7 @@ import (
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/proto"
 	"github.com/charmbracelet/crush/internal/question"
+	"github.com/charmbracelet/crush/internal/rewind"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/shell"
 	"github.com/charmbracelet/crush/internal/skills"
@@ -69,6 +70,14 @@ func (w *AppWorkspace) SetSessionWorkingDir(ctx context.Context, sessionID, dir 
 		return session.Session{}, err
 	}
 	return w.app.Sessions.SetWorkingDir(ctx, sessionID, dir)
+}
+
+func (w *AppWorkspace) SessionTimeline(ctx context.Context, sessionID string) ([]rewind.Turn, error) {
+	return w.app.Rewind.Timeline(ctx, sessionID)
+}
+
+func (w *AppWorkspace) RewindSession(ctx context.Context, sessionID string, req rewind.Request) (rewind.Result, error) {
+	return w.app.Rewind.Rewind(ctx, sessionID, req)
 }
 
 func (w *AppWorkspace) DeleteSession(ctx context.Context, sessionID string) error {

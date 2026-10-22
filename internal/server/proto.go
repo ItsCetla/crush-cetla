@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/crush/internal/backend"
 	"github.com/charmbracelet/crush/internal/proto"
+	"github.com/charmbracelet/crush/internal/rewind"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/google/uuid"
 )
@@ -374,6 +375,32 @@ func (c *controllerV1) handlePutWorkspaceSession(w http.ResponseWriter, r *http.
 	out.IsBusy = isSessionBusy(ws, saved.ID)
 	out.AttachedClients = attachedClients(ws, saved.ID)
 	jsonEncode(w, out)
+}
+
+// handleGetWorkspaceSessionTimeline lists a session's turns.
+func (c *controllerV1) handleGetWorkspaceSessionTimeline(w http.ResponseWriter, r *http.Request) {
+	turns, err := c.backend.SessionTimeline(r.Context(), r.PathValue("id"), r.PathValue("sid"))
+	if err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	jsonEncode(w, proto.SessionTimeline{Turns: turns})
+}
+
+// handlePostWorkspaceSessionRewind turns a session back to an earlier turn.
+func (c *controllerV1) handlePostWorkspaceSessionRewind(w http.ResponseWriter, r *http.Request) {
+	var req proto.RewindRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.server.logError(r, "Failed to decode request", "error", err)
+		jsonError(w, http.StatusBadRequest, "failed to decode request")
+		return
+	}
+	res, err := c.backend.RewindSession(r.Context(), r.PathValue("id"), r.PathValue("sid"), req)
+	if err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	jsonEncode(w, res)
 }
 
 // handlePutWorkspaceSessionWorkingDir sets the folder a session works in.
@@ -860,6 +887,10 @@ func (c *controllerV1) handleError(w http.ResponseWriter, r *http.Request, err e
 		status = http.StatusNotFound
 	case errors.Is(err, backend.ErrAgentNotInitialized):
 		status = http.StatusBadRequest
+	case errors.Is(err, rewind.ErrBusy):
+		status = http.StatusConflict
+	case errors.Is(err, rewind.ErrNotFound):
+		status = http.StatusNotFound
 	case errors.Is(err, backend.ErrAgentBusy):
 		// Switching the main agent mid-run could strand the run's
 		// queued prompts on the previous agent; mirror the TUI's

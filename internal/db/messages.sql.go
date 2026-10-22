@@ -145,6 +145,65 @@ func (q *Queries) GetMessage(ctx context.Context, id string) (Message, error) {
 	return i, err
 }
 
+const insertMessageCopy = `-- name: InsertMessageCopy :exec
+INSERT INTO messages (
+    id,
+    session_id,
+    role,
+    parts,
+    model,
+    provider,
+    is_summary_message,
+    prism_model_id,
+    prism_model_name,
+    prism_hypercredit_savings,
+    prism_dollar_savings,
+    finished_at,
+    created_at,
+    updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+)
+`
+
+type InsertMessageCopyParams struct {
+	ID                      string          `json:"id"`
+	SessionID               string          `json:"session_id"`
+	Role                    string          `json:"role"`
+	Parts                   string          `json:"parts"`
+	Model                   sql.NullString  `json:"model"`
+	Provider                sql.NullString  `json:"provider"`
+	IsSummaryMessage        int64           `json:"is_summary_message"`
+	PrismModelID            sql.NullString  `json:"prism_model_id"`
+	PrismModelName          sql.NullString  `json:"prism_model_name"`
+	PrismHypercreditSavings sql.NullFloat64 `json:"prism_hypercredit_savings"`
+	PrismDollarSavings      sql.NullFloat64 `json:"prism_dollar_savings"`
+	FinishedAt              sql.NullInt64   `json:"finished_at"`
+	CreatedAt               int64           `json:"created_at"`
+	UpdatedAt               int64           `json:"updated_at"`
+}
+
+// Copies a message into another session (fork) with its timestamps intact.
+func (q *Queries) InsertMessageCopy(ctx context.Context, arg InsertMessageCopyParams) error {
+	_, err := q.exec(ctx, q.insertMessageCopyStmt, insertMessageCopy,
+		arg.ID,
+		arg.SessionID,
+		arg.Role,
+		arg.Parts,
+		arg.Model,
+		arg.Provider,
+		arg.IsSummaryMessage,
+		arg.PrismModelID,
+		arg.PrismModelName,
+		arg.PrismHypercreditSavings,
+		arg.PrismDollarSavings,
+		arg.FinishedAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const listAllUserMessages = `-- name: ListAllUserMessages :many
 SELECT id, session_id, role, parts, model, created_at, updated_at, finished_at, provider, is_summary_message, prism_model_id, prism_model_name, prism_hypercredit_savings, prism_dollar_savings
 FROM messages
@@ -197,9 +256,11 @@ const listMessagesBySession = `-- name: ListMessagesBySession :many
 SELECT id, session_id, role, parts, model, created_at, updated_at, finished_at, provider, is_summary_message, prism_model_id, prism_model_name, prism_hypercredit_savings, prism_dollar_savings
 FROM messages
 WHERE session_id = ?
-ORDER BY created_at ASC
+ORDER BY created_at ASC, rowid ASC
 `
 
+// created_at has one-second resolution, so rowid breaks ties in insertion
+// order; rewind cuts the list by position and relies on it being stable.
 func (q *Queries) ListMessagesBySession(ctx context.Context, sessionID string) ([]Message, error) {
 	rows, err := q.query(ctx, q.listMessagesBySessionStmt, listMessagesBySession, sessionID)
 	if err != nil {

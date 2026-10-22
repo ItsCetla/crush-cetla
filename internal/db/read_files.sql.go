@@ -9,6 +9,21 @@ import (
 	"context"
 )
 
+const deleteFileRead = `-- name: DeleteFileRead :exec
+DELETE FROM read_files
+WHERE session_id = ? AND path = ?
+`
+
+type DeleteFileReadParams struct {
+	SessionID string `json:"session_id"`
+	Path      string `json:"path"`
+}
+
+func (q *Queries) DeleteFileRead(ctx context.Context, arg DeleteFileReadParams) error {
+	_, err := q.exec(ctx, q.deleteFileReadStmt, deleteFileRead, arg.SessionID, arg.Path)
+	return err
+}
+
 const getFileRead = `-- name: GetFileRead :one
 SELECT session_id, path, read_at FROM read_files
 WHERE session_id = ? AND path = ? LIMIT 1
@@ -24,6 +39,28 @@ func (q *Queries) GetFileRead(ctx context.Context, arg GetFileReadParams) (ReadF
 	var i ReadFile
 	err := row.Scan(&i.SessionID, &i.Path, &i.ReadAt)
 	return i, err
+}
+
+const insertFileRead = `-- name: InsertFileRead :exec
+INSERT INTO read_files (
+    session_id,
+    path,
+    read_at
+) VALUES (
+    ?, ?, ?
+) ON CONFLICT(path, session_id) DO UPDATE SET
+    read_at = excluded.read_at
+`
+
+type InsertFileReadParams struct {
+	SessionID string `json:"session_id"`
+	Path      string `json:"path"`
+	ReadAt    int64  `json:"read_at"`
+}
+
+func (q *Queries) InsertFileRead(ctx context.Context, arg InsertFileReadParams) error {
+	_, err := q.exec(ctx, q.insertFileReadStmt, insertFileRead, arg.SessionID, arg.Path, arg.ReadAt)
+	return err
 }
 
 const listSessionReadFiles = `-- name: ListSessionReadFiles :many

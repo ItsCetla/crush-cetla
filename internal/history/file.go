@@ -15,12 +15,28 @@ const (
 	InitialVersion = 0
 )
 
+// Origin says whether a version stands for a file that existed on disk.
+type Origin int
+
+const (
+	// OriginUnknown marks versions recorded before origins were tracked,
+	// and ordinary versions where only the content matters.
+	OriginUnknown Origin = iota
+	// OriginExisted marks a first version that captured an existing file.
+	OriginExisted
+	// OriginAbsent marks a version that stands for no file at all: the
+	// first version of a file the session created, or a file rewind
+	// deleted.
+	OriginAbsent
+)
+
 type File struct {
 	ID        string
 	SessionID string
 	Path      string
 	Content   string
 	Version   int64
+	Origin    Origin
 	CreatedAt int64
 	UpdatedAt int64
 }
@@ -29,6 +45,14 @@ type File struct {
 type Service interface {
 	pubsub.Subscriber[File]
 	Create(ctx context.Context, sessionID, path, content string) (File, error)
+
+	// CreateNew records that path did not exist before the session wrote
+	// it. It stands in for Create when a tool creates a file, so rewind can
+	// delete the file instead of leaving it empty.
+	CreateNew(ctx context.Context, sessionID, path string) (File, error)
+
+	// CreateAbsent records a new version saying path no longer exists.
+	CreateAbsent(ctx context.Context, sessionID, path string) (File, error)
 
 	// CreateVersion creates a new version of a file.
 	CreateVersion(ctx context.Context, sessionID, path, content string) (File, error)
@@ -56,7 +80,32 @@ func NewService(q *db.Queries, db *sql.DB) Service {
 }
 
 func (s *service) Create(ctx context.Context, sessionID, path, content string) (File, error) {
-	return s.createWithVersion(ctx, sessionID, path, content, InitialVersion)
+	return s.createWithVersion(ctx, sessionID, path, content, InitialVersion, OriginExisted)
+}
+
+func (s *service) CreateNew(ctx context.Context, sessionID, path string) (File, error) {
+	return s.createWithVersion(ctx, sessionID, path, "", InitialVersion, OriginAbsent)
+}
+
+func (s *service) CreateAbsent(ctx context.Context, sessionID, path string) (File, error) {
+	next, err := s.nextVersion(ctx, path)
+	if err != nil {
+		return File{}, err
+	}
+	return s.createWithVersion(ctx, sessionID, path, "", next, OriginAbsent)
+}
+
+// nextVersion returns the version after the newest one recorded for path
+// in any session.
+func (s *service) nextVersion(ctx context.Context, path string) (int64, error) {
+	files, err := s.q.ListFilesByPath(ctx, path)
+	if err != nil {
+		return 0, err
+	}
+	if len(files) == 0 {
+		return InitialVersion, nil
+	}
+	return files[0].Version + 1, nil
 }
 
 // CreateVersion creates a new version of a file with auto-incremented version
@@ -78,10 +127,10 @@ func (s *service) CreateVersion(ctx context.Context, sessionID, path, content st
 	latestFile := files[0] // Files are ordered by version DESC, created_at DESC
 	nextVersion := latestFile.Version + 1
 
-	return s.createWithVersion(ctx, sessionID, path, content, nextVersion)
+	return s.createWithVersion(ctx, sessionID, path, content, nextVersion, OriginUnknown)
 }
 
-func (s *service) createWithVersion(ctx context.Context, sessionID, path, content string, version int64) (File, error) {
+func (s *service) createWithVersion(ctx context.Context, sessionID, path, content string, version int64, origin Origin) (File, error) {
 	// Maximum number of retries for transaction conflicts
 	const maxRetries = 3
 	var file File
@@ -105,6 +154,7 @@ func (s *service) createWithVersion(ctx context.Context, sessionID, path, conten
 			Path:      path,
 			Content:   content,
 			Version:   version,
+			IsNew:     originToDB(origin),
 		})
 		if txErr != nil {
 			// Rollback the transaction
@@ -205,13 +255,44 @@ func (s *service) DeleteSessionFiles(ctx context.Context, sessionID string) erro
 }
 
 func (s *service) fromDBItem(item db.File) File {
+	return FromDB(item)
+}
+
+// FromDB converts a database row into a File.
+func FromDB(item db.File) File {
 	return File{
 		ID:        item.ID,
 		SessionID: item.SessionID,
 		Path:      item.Path,
 		Content:   item.Content,
 		Version:   item.Version,
+		Origin:    originFromDB(item.IsNew),
 		CreatedAt: item.CreatedAt,
 		UpdatedAt: item.UpdatedAt,
 	}
 }
+
+func originToDB(o Origin) sql.NullInt64 {
+	switch o {
+	case OriginExisted:
+		return sql.NullInt64{Int64: 0, Valid: true}
+	case OriginAbsent:
+		return sql.NullInt64{Int64: 1, Valid: true}
+	default:
+		return sql.NullInt64{}
+	}
+}
+
+func originFromDB(v sql.NullInt64) Origin {
+	switch {
+	case !v.Valid:
+		return OriginUnknown
+	case v.Int64 == 1:
+		return OriginAbsent
+	default:
+		return OriginExisted
+	}
+}
+
+// OriginToDB converts an Origin to its database column value.
+func OriginToDB(o Origin) sql.NullInt64 { return originToDB(o) }
