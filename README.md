@@ -22,96 +22,76 @@
 ## What's different in this fork
 
 Ta-Da started as a fork of [Charm's Crush](https://github.com/charmbracelet/crush).
-The agent, TUI, LSP and MCP support are upstream's. What changed is who it
-talks to and what it does without asking:
+The agent, TUI, LSP and MCP support are upstream's. Ta-Da adds three things
+on top: it only talks to hosts you chose, you stay in control of what the
+agent does, and it can split one job across all your machines.
 
-- **No phone-home.** Telemetry (PostHog), Charm's update check, the Catwalk and
-  Hyper catalog fetches at startup, the Hyper vendor service and the forced
-  Termux DNS resolvers are gone. The provider catalog is local; refresh it
-  only by running `tada update-providers`.
-- **One update check, and you can turn it off.** Ta-Da asks GitHub
-  (api.github.com) for its latest release at most every 6 hours and tells you
-  once per new version. It never downloads anything on its own. Turn it off
-  with `"options": { "update_check": false }`, `option update-check false` in
-  `tadarc`, or `TADA_NO_UPDATE_CHECK=1`.
-- **Web tools are off.** `fetch`, `agentic_fetch`, `download` and
-  `sourcegraph` are hidden from the agent until you turn them on with
-  `option web-tools true` (or `options.enable_web_tools`, or
-  `TADA_ENABLE_WEB_TOOLS=1`). Even then, every request asks first.
-- **Untrusted projects stay inert.** A cloned repo's `tada.json`, `tadarc`,
-  `.tada/tada.json` and OpenCode config are ignored until you run
-  `tada trust` (see [Project trust](#configuration)). `.env` files are no
-  longer auto-loaded.
-- **Stricter bash auto-approval.** Only a single, parsed, read-only command
-  runs without a prompt; wrappers like `env`/`timeout`, redirections and
-  multi-line commands always ask.
-- **OpenCode import.** MCP servers, providers, model choices, the cached
-  models.dev catalog, rules, skills, custom commands, tool toggles and
-  file-edit permissions are picked up from a local OpenCode install, read
-  from disk only. OpenCode plugins are never run. See
-  [Importing from OpenCode](#importing-from-opencode).
-- **Tables, charts and tabs.** Markdown tables in replies are drawn as
-  bordered tables, ```` ```chart ```` blocks as bar, line or sparkline charts,
-  and open sessions stay as tabs above the chat. Diffs wrap long lines. Set
-  `options.tui.rich_blocks` to `false` or `TADA_NO_RICH=1` to show the plain
-  markdown instead.
-- **Tab status.** Each tab shows whether its session is working, needs you,
-  is done (bold until you look) or failed, and how long ago that changed. A
-  session stays "working" while queued prompts run, and the "done"
-  notification waits until they finish. Click the "needs you" count or press
-  **Alt+0** to jump to the next tab waiting on you. See [Tabs](#tabs) for
-  renaming, groups, reordering and saved tabs.
-- **Ambient line.** While the agent works, a thin line above the editor
-  breathes slowly and shifts color as the agent thinks, reads, edits or runs
-  commands, with a dim label such as "editing ui.go" at its end. Nothing pops
-  up. When a turn ends the line glows once (green when done, red when it
-  failed) and fades away. Turn it off with `option ui ambient off` in
-  `tadarc`, `options.tui.ambient` set to `false`, or `TADA_NO_AMBIENT=1`.
-- **Long chats keep going.** When a conversation outgrows the model's
-  context window, Ta-Da summarizes it and sends the request again. A
-  re-run that makes progress and fills the window again is summarized
-  again, up to three times. Models without a published window, including
-  ones behind a LiteLLM proxy, learn theirs from the first overflow error.
-  To set it up front, give the model a `context_window`.
-- **Usage limits (opt-in).** Point `options.tui.limit_rings` at a local JSON
-  file with your plans' 5 hour and weekly usage, and the sidebar and
-  `tada status` show it. Some other tool writes the file; Ta-Da only reads
-  it and never fetches the numbers. See
-  [Usage limits](#usage-limits).
-- **Claude Code engine.** With the `claude` CLI installed, pick "Claude Code"
-  in the model picker and Ta-Da runs your own `claude` for each turn, with
-  its tool calls going through Ta-Da's permission prompts and questions. See
-  [Claude Code](#claude-code).
-- **Artifacts.** The agent can publish pages, Markdown documents and slide
-  decks to a local viewer with versions, comments and a per-page database.
-  Pages make no outside requests unless you allow CDNs. `tada artifacts mcp`
-  offers the same tools to Claude Desktop and other MCP clients. See
-  [Artifacts](#artifacts).
-- **Control cockpit, budgets and missions.** Every action the agent asks
-  to take is graded (read, write, outside the project, network, delete,
-  spend) and logged. **Ctrl+\\** opens a cockpit with spend, budgets, the
-  action log and missions; **Ctrl+Q** takes back control at any time.
-  Spend budgets ask before the next model call once you reach them.
-  `tada status` prints the same view in a terminal. See
+### Private by default
+
+- **No phone-home.** Telemetry, Charm's update check, the catalog fetches
+  at startup and the Hyper vendor service are gone. The provider catalog
+  is local. The only call Ta-Da makes on its own is a GitHub release check,
+  at most every 6 hours, and you can turn that off. [Every connection it can
+  make](#privacy) is listed.
+- **A live privacy receipt.** The status bar shows how many hosts this
+  session talked to (or `local only`), and the cockpit lists each one with
+  requests and bytes each way. It's kept in memory, never on disk.
+- **Your own machines.** Point Ta-Da at the Ollama, LM Studio or llama.cpp
+  boxes at home and it hands them work. See [Machines](#machines).
+- **Redacted exports.** `tada session export` writes Markdown, HTML or JSON
+  with keys and your home folder hidden. See
+  [Exporting a session](#exporting-a-session).
+
+### You stay in control
+
+- **A cockpit.** **Ctrl+\\** shows spend, budgets, a log of every action
+  graded by risk (read, write, outside, network, delete, spend) and your
+  missions. **Ctrl+Q** takes back control at any time. Budgets ask before
+  the next model call once you reach them. See
   [Control, budgets and missions](#control-budgets-and-missions).
-- **Live privacy receipt.** Ta-Da counts every host it talks to, per
-  session: model providers, MCP servers, web tools, sign-ins and update
-  checks, with requests and bytes each way. The status bar shows `↑ 2
-  hosts` (or `local only`), and the cockpit's Network page lists them. The
-  receipt is kept in memory only and never written to disk.
-- **Rewind.** Every prompt is a checkpoint. Press **r** on a message or
-  type `/rewind` to roll files, chat or both back to before any turn, with
-  a list of exactly what changes first. Shell-command changes can't be
-  rewound. See [Rewind](#rewind).
-- **Fork.** Copy a session from any message into a new tab and try another
-  direction while the original stays as it was. See [Fork](#fork).
-- **Magic Context (opt-in).** A Go port of cortexkit/magic-context that
-  compresses old turns in the background and keeps project memory across
-  sessions. See [Magic Context](#magic-context).
-- **Grouped command palette.** `ctrl+p` sorts commands into sections
-  with the five you used last on top; typing searches them all at once.
-- **Settings screen.** `/settings` shows the common options, where each
-  value comes from, and changes them without editing config files.
+- **Self-checking missions.** Write a goal as `Tests pass :: go test ./...`
+  and it ticks only when the command passes.
+- **Rewind and fork.** Every prompt is a checkpoint: roll files, chat or
+  both back to before any turn ([Rewind](#rewind)), or copy a session into
+  a new tab and try another direction ([Fork](#fork)).
+- **Review and commit.** Look over every changed file, with the AI's edits
+  marked, and commit with a generated message. Each tab can get its own
+  worktree. See [Review and commit](#review-and-commit) and
+  [Worktrees](#worktrees).
+
+### A swarm on your machines
+
+Split a mission's goals across every ready machine. Each one works in its
+own worktree and branch with its own model, every tool call still asks you,
+and the **Merge Board** shows each machine's status, checks, cost and diff
+so you merge or discard each branch. See
+[Swarm and the merge board](#swarm-and-the-merge-board).
+
+### Also new
+
+- **Untrusted projects stay inert.** A cloned repo's config is ignored
+  until you run `tada trust`, and `.env` files aren't auto-loaded.
+- **Web tools are off** until you turn them on, and each call asks first.
+- **Stricter bash auto-approval.** Only a single, parsed, read-only command
+  runs without asking.
+- **OpenCode import.** Providers, MCP servers, rules, skills and commands
+  are read from a local OpenCode install. See
+  [Importing from OpenCode](#importing-from-opencode).
+- **Tabs with status.** Each tab shows whether its session is working,
+  needs you, is done or failed. See [Tabs](#tabs).
+- **Rich replies.** Tables and ```` ```chart ```` blocks are drawn in the
+  terminal, and a thin ambient line shows what the agent is doing.
+- **Claude Code engine.** Run your own `claude` CLI through Ta-Da's
+  permission prompts. See [Claude Code](#claude-code).
+- **Artifacts.** The agent publishes pages, documents and decks to a local
+  viewer. See [Artifacts](#artifacts).
+- **Long chats keep going.** Ta-Da summarizes and retries when a
+  conversation outgrows the model's context window.
+- **Usage limits and Magic Context (opt-in).** See
+  [Usage limits](#usage-limits) and [Magic Context](#magic-context).
+- **Settings, palette and doctor.** `/settings` shows where each value
+  comes from, `ctrl+p` groups commands with your recent ones on top, and
+  `tada doctor` [checks your setup](#checking-your-setup).
 
 Every fork change is listed in the [changelog](CHANGELOG.md).
 
