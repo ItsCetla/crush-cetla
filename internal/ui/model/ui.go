@@ -939,6 +939,12 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.openRewindDialog(msg.MessageID); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case forkDoneMsg:
+		if cmd := m.handleForkDone(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case chat.OpenForkMsg:
+		cmds = append(cmds, m.forkCurrentSession(msg.MessageID))
 	case machinesStatusMsg:
 		m.handleMachinesStatus(msg)
 	case machinesSuggestMsg:
@@ -2712,6 +2718,13 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, m.rewindPlanCmd(msg.SessionID, msg.Request))
 	case dialog.ActionRewind:
 		cmds = append(cmds, m.rewindCmd(msg.SessionID, msg.Request))
+	case dialog.ActionForkSession:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		if msg.SessionID == "" {
+			cmds = append(cmds, m.forkCurrentSession(msg.AtMessageID))
+		} else {
+			cmds = append(cmds, m.forkSession(msg.SessionID, msg.AtMessageID))
+		}
 	case dialog.ActionTakeBack:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		cmds = append(cmds, m.takeBackCmd())

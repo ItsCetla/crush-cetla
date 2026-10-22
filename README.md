@@ -103,6 +103,8 @@ talks to and what it does without asking:
   type `/rewind` to roll files, chat or both back to before any turn, with
   a list of exactly what changes first. Shell-command changes can't be
   rewound. See [Rewind](#rewind).
+- **Fork.** Copy a session from any message into a new tab and try another
+  direction while the original stays as it was. See [Fork](#fork).
 - **Magic Context (opt-in).** A Go port of cortexkit/magic-context that
   compresses old turns in the background and keeps project memory across
   sessions. See [Magic Context](#magic-context).
@@ -1145,6 +1147,34 @@ Only edits made through Ta-Da's file tools (`edit`, `multiedit`, `write`
 and the LSP rename tools) can be rewound. Whatever a shell command changed,
 such as `rm`, a branch switch or a code generator, stays as it is; the
 timeline marks turns that ran shell commands so you know to check.
+
+### Fork
+
+Forking copies a session into a new one and opens it in a new tab, so you
+can try a different prompt or approach and keep the original to go back
+to.
+
+| Where | Key | Copies |
+| --- | --- | --- |
+| Rewind timeline | `f` | Everything before the selected turn |
+| Rewind timeline | `F` | Everything through the end of the selected turn |
+| Chat, on your message | **F** | Everything before that message |
+| Chat, on a reply | **F** | Everything through the end of that turn |
+| Command palette | "Fork Session" | The whole session |
+
+From the shell, `tada session fork <id>` copies a whole session and
+`--at <message-id>` (a full ID or a unique prefix) cuts it like the keys
+above; add `--json` for machine-readable output. Clients can call
+`POST /v1/workspaces/{id}/sessions/{sid}/fork` with an optional
+`{"at_message_id": "…"}`.
+
+The fork is titled "Fork of …" and keeps the working folder, the messages,
+the latest summary, and the file history and read records from before the
+cut, so it can be rewound just like the original. Files on disk are not
+copied: both sessions work on the same files, so rewinding one can undo
+edits the other relies on. Cost and token counts start from zero, and
+todos and sub-agent sessions stay with the original. While the agent is
+working you can fork only turns that have finished.
 
 ### Usage limits
 

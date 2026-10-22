@@ -92,6 +92,15 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   commands are not rewound. Also available to clients at
   `GET /v1/workspaces/{id}/sessions/{sid}/timeline` and
   `POST …/rewind`.
+- **Fork.** Copy a session into a new tab to try another direction
+  without losing the original. In the rewind timeline `f` forks just
+  before the selected turn and `F` just after it; in the chat **F** on a
+  prompt forks before it and on a reply after its turn; "Fork Session" in
+  the palette copies everything. The fork carries the chat, the summary,
+  the file history and read records up to that point, so it can be
+  rewound like the original; files on disk, cost, tokens, todos and
+  sub-agent sessions are not copied. Also `tada session fork <id> [--at
+  <message-id>] [--json]` and `POST /v1/workspaces/{id}/sessions/{sid}/fork`.
 
 ## [0.5.14] - 2026-10-21
 

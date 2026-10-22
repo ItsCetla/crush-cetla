@@ -132,6 +132,10 @@ type Workspace interface {
 	// RewindSession turns the session back to just before a turn,
 	// restoring files, trimming the chat, or both.
 	RewindSession(ctx context.Context, sessionID string, req rewind.Request) (rewind.Result, error)
+	// ForkSession copies the session into a new top-level session. An
+	// empty atMessageID copies everything; a user message cuts before
+	// it and any other message after the end of its turn.
+	ForkSession(ctx context.Context, sessionID, atMessageID string) (session.Session, error)
 	CreateAgentToolSessionID(messageID, toolCallID string) string
 	ParseAgentToolSessionID(sessionID string) (messageID string, toolCallID string, ok bool)
 	// SetCurrentSession reports the session this client is currently

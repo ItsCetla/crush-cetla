@@ -597,6 +597,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 	if c.hasSession {
 		commands = append(commands,
 			NewCommandItem(c.com.Styles, "open_rewind", "Rewind…", "", ActionOpenRewind{}).WithAliases("undo", "checkpoint", "restore", "revert").WithDescription("Turn the session back to any earlier turn, restoring files, chat or both."),
+			NewCommandItem(c.com.Styles, "fork_session", "Fork Session", "", ActionForkSession{}).WithAliases("branch", "copy", "duplicate").WithDescription("Copy this session's chat and file history into a new tab to try another direction."),
 		)
 	}
 

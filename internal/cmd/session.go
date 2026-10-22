@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -101,6 +102,10 @@ type sessionServices struct {
 	sessions session.Service
 	messages message.Service
 	cfg      *config.ConfigStore
+	// The connection and queries behind the services above, for commands
+	// that need more than they offer.
+	conn    *sql.DB
+	queries *db.Queries
 }
 
 func sessionSetup(cmd *cobra.Command) (context.Context, *sessionServices, func(), error) {
@@ -130,6 +135,8 @@ func sessionSetup(cmd *cobra.Command) (context.Context, *sessionServices, func()
 		sessions: session.NewService(queries, conn),
 		messages: message.NewService(queries),
 		cfg:      cfg,
+		conn:     conn,
+		queries:  queries,
 	}
 	return ctx, svc, func() { conn.Close() }, nil
 }

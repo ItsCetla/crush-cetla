@@ -403,6 +403,29 @@ func (c *controllerV1) handlePostWorkspaceSessionRewind(w http.ResponseWriter, r
 	jsonEncode(w, res)
 }
 
+// handlePostWorkspaceSessionFork copies a session into a new one.
+func (c *controllerV1) handlePostWorkspaceSessionFork(w http.ResponseWriter, r *http.Request) {
+	var req proto.ForkSessionRequest
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			c.server.logError(r, "Failed to decode request", "error", err)
+			jsonError(w, http.StatusBadRequest, "failed to decode request")
+			return
+		}
+	}
+	id := r.PathValue("id")
+	fork, err := c.backend.ForkSession(r.Context(), id, r.PathValue("sid"), req.AtMessageID)
+	if err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	ws, _ := c.backend.GetWorkspace(id)
+	out := sessionToProto(fork)
+	out.IsBusy = isSessionBusy(ws, fork.ID)
+	out.AttachedClients = attachedClients(ws, fork.ID)
+	jsonEncode(w, out)
+}
+
 // handlePutWorkspaceSessionWorkingDir sets the folder a session works in.
 func (c *controllerV1) handlePutWorkspaceSessionWorkingDir(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

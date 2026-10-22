@@ -188,8 +188,17 @@ func (m *UserMessageItem) HandleKeyEvent(key tea.KeyMsg) (bool, tea.Cmd) {
 	case "r":
 		id := m.message.ID
 		return true, func() tea.Msg { return OpenRewindMsg{MessageID: id} }
+	case "F":
+		id := m.message.ID
+		return true, func() tea.Msg { return OpenForkMsg{MessageID: id} }
 	}
 	return false, nil
+}
+
+// OpenForkMsg asks the UI to fork the session at a message: just before it
+// for a prompt, through the end of its turn for anything else.
+type OpenForkMsg struct {
+	MessageID string
 }
 
 // OpenRewindMsg asks the UI to open the rewind timeline at the turn the

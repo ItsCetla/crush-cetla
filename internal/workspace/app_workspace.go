@@ -80,6 +80,10 @@ func (w *AppWorkspace) RewindSession(ctx context.Context, sessionID string, req 
 	return w.app.Rewind.Rewind(ctx, sessionID, req)
 }
 
+func (w *AppWorkspace) ForkSession(ctx context.Context, sessionID, atMessageID string) (session.Session, error) {
+	return w.app.Rewind.Fork(ctx, sessionID, atMessageID)
+}
+
 func (w *AppWorkspace) DeleteSession(ctx context.Context, sessionID string) error {
 	return w.app.Sessions.Delete(ctx, sessionID)
 }

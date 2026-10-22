@@ -185,6 +185,17 @@ func (c *controllerV1) endpoints() []apigen.Endpoint {
 			Fails(400, 404, 409, 500).
 			Handle(c.handlePostWorkspaceSessionRewind),
 
+		apigen.Post("/v1/workspaces/{id}/sessions/{sid}/fork").
+			Summary("Fork session").
+			Description("Copies the session into a new top-level session: the chat up to at_message_id (a user message cuts before it, any other message after the end of its turn; empty copies everything), with its file history and file reads. Files on disk, cost, tokens, todos and sub-agent sessions are not copied.").
+			Tags("sessions").
+			PathParam("id", "Workspace ID").
+			PathParam("sid", "Session ID").
+			Accepts(proto.ForkSessionRequest{}).
+			Responds(proto.Session{}).
+			Fails(400, 404, 409, 500).
+			Handle(c.handlePostWorkspaceSessionFork),
+
 		apigen.Delete("/v1/workspaces/{id}/sessions/{sid}").
 			Summary("Delete session").
 			Tags("sessions").

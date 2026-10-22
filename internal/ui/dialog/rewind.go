@@ -41,6 +41,14 @@ type ActionRewind struct {
 	Request   rewind.Request
 }
 
+// ActionForkSession asks the UI to copy the session into a new one and
+// open it. AtMessageID is where the copy ends, as for rewind.Service.Fork;
+// empty copies everything.
+type ActionForkSession struct {
+	SessionID   string
+	AtMessageID string
+}
+
 // RewindQuery reports whether value is the rewind command typed into the
 // editor ("/rewind", "/undo" or "/checkpoint").
 func RewindQuery(value string) bool {
@@ -84,17 +92,20 @@ type Rewind struct {
 	armed   bool
 	plan    *rewind.Result
 	running bool
+	forking bool
 	err     string
 
 	help   help.Model
 	keyMap struct {
-		Up      key.Binding
-		Down    key.Binding
-		Mode    key.Binding
-		Scope   key.Binding
-		Force   key.Binding
-		Confirm key.Binding
-		Close   key.Binding
+		Up        key.Binding
+		Down      key.Binding
+		Mode      key.Binding
+		Scope     key.Binding
+		Force     key.Binding
+		Confirm   key.Binding
+		Fork      key.Binding
+		ForkAfter key.Binding
+		Close     key.Binding
 	}
 }
 
@@ -119,6 +130,8 @@ func NewRewind(com *common.Common, sessionID, workDir, messageID string) *Rewind
 	d.keyMap.Scope = key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "scope"))
 	d.keyMap.Force = key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "force"))
 	d.keyMap.Confirm = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "rewind"))
+	d.keyMap.Fork = key.NewBinding(key.WithKeys("f"), key.WithHelp("f/F", "fork"))
+	d.keyMap.ForkAfter = key.NewBinding(key.WithKeys("F"))
 	d.keyMap.Close = CloseKey
 	return d
 }
@@ -172,6 +185,36 @@ func (d *Rewind) SetResult(err error) {
 	}
 }
 
+// SetForkResult shows a failed fork. A successful one closes the dialog.
+func (d *Rewind) SetForkResult(err error) {
+	d.forking = false
+	if err != nil {
+		d.err = err.Error()
+	}
+}
+
+// fork returns the fork of the selected turn: before it, or with after
+// set, through its end.
+func (d *Rewind) fork(after bool) Action {
+	t := d.selected()
+	if t == nil {
+		return nil
+	}
+	at := t.MessageID
+	if after {
+		// The next turn's prompt is where a copy through this turn ends;
+		// the last turn copies everything.
+		at = ""
+		if d.cursor+1 < len(d.turns) {
+			at = d.turns[d.cursor+1].MessageID
+		}
+	}
+	d.err = ""
+	d.disarm()
+	d.forking = true
+	return ActionForkSession{SessionID: d.sessionID, AtMessageID: at}
+}
+
 func (d *Rewind) selected() *rewind.Turn {
 	if d.cursor < 0 || d.cursor >= len(d.turns) {
 		return nil
@@ -204,10 +247,14 @@ func (d *Rewind) HandleMsg(msg tea.Msg) Action {
 	if !ok {
 		return nil
 	}
-	if d.running {
+	if d.running || d.forking {
 		return nil
 	}
 	switch {
+	case key.Matches(k, d.keyMap.Fork):
+		return d.fork(false)
+	case key.Matches(k, d.keyMap.ForkAfter):
+		return d.fork(true)
 	case key.Matches(k, d.keyMap.Close):
 		if d.armed {
 			d.disarm()
@@ -316,6 +363,8 @@ func (d *Rewind) content(now time.Time) string {
 		foot = t.Control.Alert.Render("! " + d.err)
 	case d.running:
 		foot = t.Control.Muted.Render("Rewinding…")
+	case d.forking:
+		foot = t.Control.Muted.Render("Forking…")
 	case d.armed && d.plan == nil:
 		foot = t.Control.Muted.Render("Working out what changes…")
 	case d.armed:
@@ -418,7 +467,9 @@ func (d *Rewind) detail(t *styles.Styles, width int) []string {
 	if turn.Bash {
 		out = append(out, t.Control.Warn.Render("Ran shell commands; whatever they changed stays as it is."))
 	}
-	out = append(out, "", m.Render(fmt.Sprintf("enter to rewind to just before turn %d.", turn.Index)))
+	out = append(out, "",
+		m.Render(fmt.Sprintf("enter to rewind to just before turn %d.", turn.Index)),
+		m.Render(fmt.Sprintf("f forks into a new tab just before turn %d, F just after it.", turn.Index)))
 	return out
 }
 
@@ -530,7 +581,7 @@ func wrapLines(s string, width int) []string {
 
 // ShortHelp implements help.KeyMap.
 func (d *Rewind) ShortHelp() []key.Binding {
-	return []key.Binding{d.keyMap.Up, d.keyMap.Confirm, d.keyMap.Mode, d.keyMap.Scope, d.keyMap.Force, d.keyMap.Close}
+	return []key.Binding{d.keyMap.Up, d.keyMap.Confirm, d.keyMap.Fork, d.keyMap.Mode, d.keyMap.Scope, d.keyMap.Force, d.keyMap.Close}
 }
 
 // FullHelp implements help.KeyMap.

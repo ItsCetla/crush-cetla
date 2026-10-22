@@ -934,6 +934,25 @@ func (c *Client) RewindSession(ctx context.Context, id, sessionID string, req pr
 	return out, nil
 }
 
+// ForkSession copies a session, up to atMessageID, into a new top-level
+// session.
+func (c *Client) ForkSession(ctx context.Context, id, sessionID, atMessageID string) (*proto.Session, error) {
+	body := jsonBody(proto.ForkSessionRequest{AtMessageID: atMessageID})
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/sessions/%s/fork", id, sessionID), nil, body, http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fork session: %w", err)
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		return nil, apiError(rsp, "failed to fork session")
+	}
+	var out proto.Session
+	if err := json.NewDecoder(rsp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to decode session: %w", err)
+	}
+	return &out, nil
+}
+
 // apiError turns a non-200 response into an error, preferring the
 // server's own message.
 func apiError(rsp *http.Response, what string) error {

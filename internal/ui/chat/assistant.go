@@ -948,9 +948,13 @@ func (a *AssistantMessageItem) HandleMouseClick(btn ansi.MouseButton, x, y int) 
 
 // HandleKeyEvent implements KeyEventHandler.
 func (a *AssistantMessageItem) HandleKeyEvent(key tea.KeyMsg) (bool, tea.Cmd) {
-	if k := key.String(); k == "c" || k == "y" {
+	switch key.String() {
+	case "c", "y":
 		text := a.message.Content().Text
 		return true, common.CopyToClipboard(text, "Message copied to clipboard")
+	case "F":
+		id := a.message.ID
+		return true, func() tea.Msg { return OpenForkMsg{MessageID: id} }
 	}
 	return false, nil
 }

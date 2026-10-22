@@ -187,6 +187,14 @@ func (w *ClientWorkspace) RewindSession(ctx context.Context, sessionID string, r
 	return w.client.RewindSession(ctx, w.workspaceID(), sessionID, req)
 }
 
+func (w *ClientWorkspace) ForkSession(ctx context.Context, sessionID, atMessageID string) (session.Session, error) {
+	sess, err := w.client.ForkSession(ctx, w.workspaceID(), sessionID, atMessageID)
+	if err != nil {
+		return session.Session{}, err
+	}
+	return protoToSession(*sess), nil
+}
+
 func (w *ClientWorkspace) DeleteSession(ctx context.Context, sessionID string) error {
 	return w.client.DeleteSession(ctx, w.workspaceID(), sessionID)
 }

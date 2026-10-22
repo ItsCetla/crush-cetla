@@ -15,3 +15,11 @@ type RewindTurn = rewind.Turn
 type SessionTimeline struct {
 	Turns []RewindTurn `json:"turns"`
 }
+
+// ForkSessionRequest asks for a copy of a session.
+type ForkSessionRequest struct {
+	// AtMessageID is where the copy ends: a user message cuts just before
+	// it, any other message after the end of its turn. Empty copies the
+	// whole chat.
+	AtMessageID string `json:"at_message_id,omitempty"`
+}

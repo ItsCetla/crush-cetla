@@ -147,3 +147,32 @@ func TestRewind_EmptyTimeline(t *testing.T) {
 	require.Contains(t, ansi.Strip(d.content(time.Now())), "no turns")
 	require.Nil(t, d.HandleMsg(enter()))
 }
+
+func TestRewind_Fork(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	shiftF := tea.KeyPressMsg{Code: 'f', Mod: tea.ModShift, Text: "F"}
+
+	// f copies everything before the selected turn.
+	d := newTestRewind(t, "u2")
+	d.SetTimeline(testTurns(now), nil)
+	require.Equal(t, ActionForkSession{SessionID: "s1", AtMessageID: "u2"}, d.HandleMsg(keyMsg('f')))
+	require.Contains(t, ansi.Strip(d.content(now)), "Forking")
+
+	// Keys wait while it runs; a failure shows and frees them.
+	require.Nil(t, d.HandleMsg(keyMsg('f')))
+	d.SetForkResult(errors.New("boom"))
+	require.Contains(t, ansi.Strip(d.content(now)), "! boom")
+
+	// F copies through the selected turn: up to the next prompt.
+	require.Equal(t, ActionForkSession{SessionID: "s1", AtMessageID: "u3"}, d.HandleMsg(shiftF))
+
+	// F on the last turn copies the whole session.
+	d2 := newTestRewind(t, "")
+	d2.SetTimeline(testTurns(now), nil)
+	require.Equal(t, ActionForkSession{SessionID: "s1"}, d2.HandleMsg(shiftF))
+
+	// Nothing to fork before the timeline loads.
+	d3 := newTestRewind(t, "")
+	require.Nil(t, d3.HandleMsg(keyMsg('f')))
+}

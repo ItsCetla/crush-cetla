@@ -30,6 +30,16 @@ func (b *Backend) RewindSession(ctx context.Context, workspaceID, sessionID stri
 	return ws.Rewind.Rewind(ctx, sessionID, req)
 }
 
+// ForkSession copies a session, up to atMessageID, into a new top-level
+// session.
+func (b *Backend) ForkSession(ctx context.Context, workspaceID, sessionID, atMessageID string) (session.Session, error) {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return session.Session{}, err
+	}
+	return ws.Rewind.Fork(ctx, sessionID, atMessageID)
+}
+
 // CreateSession creates a new session in the given workspace.
 func (b *Backend) CreateSession(ctx context.Context, workspaceID, title string) (session.Session, error) {
 	ws, err := b.GetWorkspace(workspaceID)
