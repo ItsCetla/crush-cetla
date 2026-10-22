@@ -101,6 +101,14 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   rewound like the original; files on disk, cost, tokens, todos and
   sub-agent sessions are not copied. Also `tada session fork <id> [--at
   <message-id>] [--json]` and `POST /v1/workspaces/{id}/sessions/{sid}/fork`.
+- **Review and commit.** Alt+V, `/review`, `/commit` or **Review
+  changes…** in the palette opens a screen listing the tab folder's
+  staged, unstaged and untracked files with `+/-` counts and a `•` on the
+  files the AI edited this session, next to a scrollable diff (split when
+  wide, unified when narrow). Pick files with space (`a` for all), press
+  `c` to have the small model draft a semantic commit message from the
+  diff and recent history, edit it, and commit with Ctrl+S. Errors stay
+  on screen; nothing is ever pushed.
 
 ## [0.5.14] - 2026-10-21
 

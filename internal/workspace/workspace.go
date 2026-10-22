@@ -186,6 +186,11 @@ type Workspace interface {
 	// AgentPrompt sends one prompt to the main model outside any
 	// session and returns the answer.
 	AgentPrompt(ctx context.Context, system, prompt string) (string, error)
+	// GenerateCommitMessage drafts a semantic commit message for diff
+	// with the small model, falling back to the large one. log holds
+	// recent one line commits for the model to match; sessionID, when
+	// set, takes the usage.
+	GenerateCommitMessage(ctx context.Context, sessionID, diff, log string) (string, error)
 	UpdateAgentModel(ctx context.Context) error
 	InitCoderAgent(ctx context.Context) error
 	InitCoderAgentNonInteractive(ctx context.Context) error

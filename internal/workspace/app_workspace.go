@@ -273,6 +273,10 @@ func (w *AppWorkspace) AgentPrompt(ctx context.Context, system, prompt string) (
 	return w.app.AgentPrompt(ctx, system, prompt)
 }
 
+func (w *AppWorkspace) GenerateCommitMessage(ctx context.Context, sessionID, diff, log string) (string, error) {
+	return w.app.GenerateCommitMessage(ctx, sessionID, diff, log)
+}
+
 func (w *AppWorkspace) AgentMagicContextCommand(ctx context.Context, sessionID, name, args string) (string, error) {
 	if w.app.AgentCoordinator == nil {
 		return "", errors.New("agent coordinator not initialized")

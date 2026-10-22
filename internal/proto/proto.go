@@ -180,6 +180,19 @@ type AgentPromptResponse struct {
 	Text string `json:"text"`
 }
 
+// CommitMessageRequest asks the small model to draft a commit message.
+// SessionID, when set, attributes the call's usage to that session.
+type CommitMessageRequest struct {
+	SessionID string `json:"session_id,omitempty"`
+	Diff      string `json:"diff"`
+	Log       string `json:"log,omitempty"`
+}
+
+// CommitMessageResponse holds the drafted commit message.
+type CommitMessageResponse struct {
+	Message string `json:"message"`
+}
+
 // AgentSession represents a session with its busy status.
 type AgentSession struct {
 	Session

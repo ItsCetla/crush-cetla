@@ -108,6 +108,8 @@ type KeyMap struct {
 	TakeBack key.Binding
 	// Control opens the control cockpit.
 	Control key.Binding
+	// Review opens the review and commit screen.
+	Review key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -155,6 +157,10 @@ func DefaultKeyMap() KeyMap {
 		Control: key.NewBinding(
 			key.WithKeys("ctrl+\\", "alt+c"),
 			key.WithHelp("ctrl+\\", "control"),
+		),
+		Review: key.NewBinding(
+			key.WithKeys("alt+v"),
+			key.WithHelp("alt+v", "review changes"),
 		),
 	}
 

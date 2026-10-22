@@ -953,6 +953,10 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd := m.handleMachinesResult(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case reviewStatusMsg, reviewDiffMsg, reviewGeneratedMsg, reviewCommittedMsg:
+		if cmd := m.handleReviewMsg(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case contextResultMsg:
 		m.handleContextResult(msg)
 	case promptQueueMsg:
@@ -2700,6 +2704,8 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, m.openMachinesDialog())
 	case dialog.ActionCheckMachines:
 		cmds = append(cmds, m.machinesCheckCmd())
+	case dialog.ReviewAction:
+		cmds = append(cmds, m.handleReviewAction(msg))
 	case dialog.ActionSaveMachine:
 		cmds = append(cmds, m.machinesSaveCmd(msg.Params))
 	case dialog.ActionSuggestRoles:
@@ -3335,6 +3341,11 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				cmds = append(cmds, cmd)
 			}
 			return true
+		case key.Matches(msg, m.keyMap.Review):
+			if cmd := m.openReviewDialog(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return true
 		}
 		return false
 	}
@@ -3509,6 +3520,12 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 					m.randomizePlaceholders()
 					m.historyReset()
 					return m.openMachinesDialog()
+				}
+
+				if dialog.ReviewQuery(value) && !m.bangMode {
+					m.randomizePlaceholders()
+					m.historyReset()
+					return m.openReviewDialog()
 				}
 
 				if dialog.ContextQuery(value) && !m.bangMode {
@@ -6036,6 +6053,10 @@ func (m *UI) openDialog(id string) tea.Cmd {
 		}
 	case dialog.ResumeID:
 		if cmd := m.openResumeDialog(""); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case dialog.ReviewID:
+		if cmd := m.openReviewDialog(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	case dialog.ModelsID:

@@ -743,6 +743,30 @@ func (c *controllerV1) handlePostWorkspaceAgentPrompt(w http.ResponseWriter, r *
 	jsonEncode(w, proto.AgentPromptResponse{Text: text})
 }
 
+// handlePostWorkspaceAgentCommitMessage drafts a commit message for the
+// diff in the request.
+func (c *controllerV1) handlePostWorkspaceAgentCommitMessage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var req proto.CommitMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.server.logError(r, "Failed to decode request", "error", err)
+		jsonError(w, http.StatusBadRequest, "failed to decode request")
+		return
+	}
+	if strings.TrimSpace(req.Diff) == "" {
+		jsonError(w, http.StatusBadRequest, "diff is required")
+		return
+	}
+
+	msg, err := c.backend.GenerateCommitMessage(r.Context(), id, req.SessionID, req.Diff, req.Log)
+	if err != nil {
+		c.handleError(w, r, err)
+		return
+	}
+	jsonEncode(w, proto.CommitMessageResponse{Message: msg})
+}
+
 // handlePostWorkspaceControl runs a control hub command. A missing
 // workspace is an HTTP error; a command the hub refused is reported in
 // the response body.

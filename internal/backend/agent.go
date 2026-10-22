@@ -256,6 +256,19 @@ func (b *Backend) AgentPrompt(ctx context.Context, workspaceID, system, prompt s
 	return ws.AgentPrompt(ctx, system, prompt)
 }
 
+// GenerateCommitMessage drafts a commit message for diff with the
+// workspace's small model, falling back to the large one.
+func (b *Backend) GenerateCommitMessage(ctx context.Context, workspaceID, sessionID, diff, log string) (string, error) {
+	ws, err := b.GetWorkspace(workspaceID)
+	if err != nil {
+		return "", err
+	}
+	if ws.AgentCoordinator == nil {
+		return "", ErrAgentNotInitialized
+	}
+	return ws.GenerateCommitMessage(ctx, sessionID, diff, log)
+}
+
 // Control runs a control hub command for the workspace.
 func (b *Backend) Control(ctx context.Context, workspaceID string, c control.Command) (control.Reply, error) {
 	ws, err := b.GetWorkspace(workspaceID)

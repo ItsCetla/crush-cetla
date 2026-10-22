@@ -455,6 +455,16 @@ func (c *controllerV1) endpoints() []apigen.Endpoint {
 			Fails(400, 404, 500).
 			Handle(c.handlePostWorkspaceAgentPrompt),
 
+		apigen.Post("/v1/workspaces/{id}/agent/commit-message").
+			Summary("Draft a commit message").
+			Description("Asks the workspace's small model, falling back to the large one, for a semantic commit message describing the diff. Nothing is committed.").
+			Tags("agent").
+			PathParam("id", "Workspace ID").
+			Accepts(proto.CommitMessageRequest{}).
+			Responds(proto.CommitMessageResponse{}).
+			Fails(400, 404, 500).
+			Handle(c.handlePostWorkspaceAgentCommitMessage),
+
 		apigen.Post("/v1/workspaces/{id}/control").
 			Summary("Run control command").
 			Description("Runs a control hub command: a status snapshot, take back, the Edits mode, a usage report, the action log or a mission change. A refused command returns 200 with the reason in error.").

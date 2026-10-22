@@ -464,6 +464,7 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		NewCommandItem(c.com.Styles, "switch_session", "Sessions", "ctrl+s", ActionOpenDialog{SessionsID}),
 		NewCommandItem(c.com.Styles, "resume", "Resume Conversation", "", ActionOpenResume{}).WithAliases("resume", "continue", "history"),
 		NewCommandItem(c.com.Styles, "tab_folder", "Tab Folder", "", ActionChangeDir{}).WithAliases("cd", "directory", "dir", "folder"),
+		NewCommandItem(c.com.Styles, "review_changes", "Review changes…", "alt+v", ActionOpenDialog{ReviewID}).WithAliases("commit", "diff", "review", "git"),
 		NewCommandItem(c.com.Styles, "switch_model", "Switch Model", "ctrl+l", ActionOpenDialog{ModelsID}),
 	}
 

@@ -363,6 +363,10 @@ func (w *ClientWorkspace) AgentPrompt(ctx context.Context, system, prompt string
 	return w.client.AgentPrompt(ctx, w.workspaceID(), system, prompt)
 }
 
+func (w *ClientWorkspace) GenerateCommitMessage(ctx context.Context, sessionID, diff, log string) (string, error) {
+	return w.client.GenerateCommitMessage(ctx, w.workspaceID(), sessionID, diff, log)
+}
+
 func (w *ClientWorkspace) AgentMagicContextCommand(ctx context.Context, sessionID, name, args string) (string, error) {
 	return w.client.AgentMagicContextCommand(ctx, w.workspaceID(), sessionID, name, args)
 }

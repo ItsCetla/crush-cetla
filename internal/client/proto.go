@@ -628,6 +628,28 @@ func (c *Client) AgentPrompt(ctx context.Context, id, system, prompt string) (st
 	return resp.Text, nil
 }
 
+// GenerateCommitMessage asks the workspace's small model to draft a
+// commit message for diff.
+func (c *Client) GenerateCommitMessage(ctx context.Context, id, sessionID, diff, log string) (string, error) {
+	rsp, err := c.post(ctx, fmt.Sprintf("/workspaces/%s/agent/commit-message", id), nil, jsonBody(proto.CommitMessageRequest{
+		SessionID: sessionID,
+		Diff:      diff,
+		Log:       log,
+	}), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return "", fmt.Errorf("failed to draft a commit message: %w", err)
+	}
+	defer rsp.Body.Close()
+	if err := checkStatus(rsp); err != nil {
+		return "", fmt.Errorf("failed to draft a commit message: %w", err)
+	}
+	var resp proto.CommitMessageResponse
+	if err := json.NewDecoder(rsp.Body).Decode(&resp); err != nil {
+		return "", fmt.Errorf("failed to decode commit message response: %w", err)
+	}
+	return resp.Message, nil
+}
+
 // Control runs a control hub command. A command the hub refused returns
 // its reason as the error.
 func (c *Client) Control(ctx context.Context, id string, cmd control.Command) (control.Reply, error) {

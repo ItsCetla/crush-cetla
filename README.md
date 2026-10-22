@@ -1307,6 +1307,35 @@ In the TUI, **Export Session** in the command palette (`ctrl+p`, or type
 directory (`.tada/exports/` by default) and shows the path in a toast. Exports made from the TUI end with the
 session's network receipt, the hosts it talked to; the CLI runs in its own
 process, which has no receipt, so its exports leave that part out.
+### Review and commit
+
+Press Alt+V, type `/review` or `/commit`, or pick **Review changes…** in
+the command palette to look over what changed in the tab's folder before
+you commit it. The screen lists every staged, unstaged and untracked file
+with its git status and `+/-` line counts, and marks the files the AI
+edited in this session with `•`. The diff of the file under the cursor
+shows beside the list, split side by side when the window is wide and
+unified when it isn't.
+
+| Key | Action |
+| --- | --- |
+| ↑/↓ or k/j | Move between files (scroll the diff when it has focus) |
+| PgUp / PgDn, g / G | Page the diff, jump to its top or bottom |
+| Space / a | Pick or unpick the file, or all files (all start picked) |
+| c | Draft a commit message from the picked files' diff |
+| e or Enter | Edit the message yourself |
+| Tab / Shift+Tab | Move between the list, the diff and the message |
+| Ctrl+S | Commit the picked files |
+| r | Read the changes again |
+| Esc | Leave the message box, or close |
+
+`c` sends the small model the picked files' diff (cut to about 12 KB) and
+the last ten commits so it can match your style, and puts its semantic
+commit message in the box for you to edit. Without a model you can still
+type a message. Ctrl+S stages and commits only the picked files and shows
+the new commit's short hash; if git refuses (a hook fails, say) the error
+stays on screen and nothing is lost. Ta-Da never pushes and adds no
+`Co-Authored-By` lines to these commits.
 
 ### Magic Context
 

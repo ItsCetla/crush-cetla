@@ -643,6 +643,20 @@ func (app *App) AgentPrompt(ctx context.Context, system, prompt string) (string,
 	return agent.Complete(ctx, app.AgentCoordinator.Model(), system, prompt, 0)
 }
 
+// GenerateCommitMessage drafts a commit message for diff with the small
+// model, falling back to the large one. log holds recent one line commits
+// for the model to match.
+func (app *App) GenerateCommitMessage(ctx context.Context, sessionID, diff, log string) (string, error) {
+	if app.AgentCoordinator == nil {
+		return "", errors.New("agent coordinator not initialized")
+	}
+	gen, ok := app.AgentCoordinator.(agent.CommitMessageGenerator)
+	if !ok {
+		return "", agent.ErrNoCommitModel
+	}
+	return gen.GenerateCommitMessage(ctx, sessionID, diff, log)
+}
+
 // GetDefaultSmallModel returns the default small model for the given
 // provider. Falls back to the large model if no default is found.
 func (app *App) GetDefaultSmallModel(providerID string) config.SelectedModel {
