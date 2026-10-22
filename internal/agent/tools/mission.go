@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"charm.land/fantasy"
@@ -23,7 +24,7 @@ func NewMissionTool(missions *control.Missions, permissions permission.Service, 
 		control.MissionToolDescription,
 		func(ctx context.Context, params control.MissionParams, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			sessionID := GetSessionFromContext(ctx)
-			if resp, ok, err := askMissionChecks(ctx, permissions, sessionID, call.ID, workingDir, params.Checks()); !ok || err != nil {
+			if resp, ok, err := askMissionChecks(ctx, missions, permissions, sessionID, call.ID, workingDir, params.Checks()); !ok || err != nil {
 				return resp, err
 			}
 			out, err := control.RunMissionTool(ctx, missions, sessionID, params)
@@ -48,9 +49,9 @@ func MissionCheckPermission(checks []string, workingDir string) (description str
 }
 
 // askMissionChecks refuses banned check commands and asks permission for
-// the rest. ok is false when the call must not go ahead; resp then says
-// why.
-func askMissionChecks(ctx context.Context, permissions permission.Service, sessionID, callID, workingDir string, checks []string) (fantasy.ToolResponse, bool, error) {
+// the rest, recording them as approved once the user grants it. ok is
+// false when the call must not go ahead; resp then says why.
+func askMissionChecks(ctx context.Context, missions *control.Missions, permissions permission.Service, sessionID, callID, workingDir string, checks []string) (fantasy.ToolResponse, bool, error) {
 	if len(checks) == 0 {
 		return fantasy.ToolResponse{}, true, nil
 	}
@@ -59,6 +60,8 @@ func askMissionChecks(ctx context.Context, permissions permission.Service, sessi
 			return fantasy.NewTextErrorResponse(fmt.Sprintf("check command is not allowed for security reasons: %q", banned)), false, nil
 		}
 	}
+	// With no one to ask, the call goes ahead but the checks stay
+	// unapproved, so they never run unattended.
 	if permissions == nil {
 		return fantasy.ToolResponse{}, true, nil
 	}
@@ -77,6 +80,11 @@ func askMissionChecks(ctx context.Context, permissions permission.Service, sessi
 	}
 	if !granted {
 		return NewPermissionDeniedResponse(), false, nil
+	}
+	if missions != nil {
+		if err := missions.ApproveChecks(ctx, checks...); err != nil {
+			slog.Warn("Failed to record approved mission checks", "error", err)
+		}
 	}
 	return fantasy.ToolResponse{}, true, nil
 }

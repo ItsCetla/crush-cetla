@@ -23,12 +23,14 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   when its command exits 0 in the project folder. Checking it runs the
   command, a failure keeps it open and shows the output, and open checks
   rerun in the background after each interactive turn. Press `v` on the
-  cockpit's Missions page to run them all; the agent can do the same with
-  the mission tool's `verify` and `set_check` actions. Setting a check
-  asks permission like a shell command, since it later runs without
-  asking. Only checks you approved in the project run unattended, so a
-  mission file that came with a repository can't run its own commands,
-  and checks run under the bash tool's block list. Each check has a
+  cockpit's Missions page to run the approved ones; the agent can do the
+  same with the mission tool's `verify` and `set_check` actions. Setting a
+  check asks permission like a shell command, since it later runs without
+  asking. A check is approved only when you grant that prompt, type it
+  yourself, or press space on it in the cockpit, which shows its full
+  command. Only approved checks run unattended, so a mission file that
+  came with a repository can't run its own commands, and checks run under
+  the bash tool's block list. Each check has a
   5 minute timeout by default.
 
 - **Turn receipts.** The "Worked for …" line after each turn now reads

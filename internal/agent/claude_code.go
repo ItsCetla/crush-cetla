@@ -846,7 +846,32 @@ func (r *ccRun) canUseTool(ctx context.Context, req claudecode.PermissionRequest
 		}
 		return claudecode.Decision{Message: "The user denied permission for this tool call.", Interrupt: true}
 	}
+	if req.ToolName == "mcp__tada-mission__"+control.MissionToolName {
+		r.approveMissionChecks(ctx, req.Input)
+	}
 	return claudecode.Decision{Allow: true}
+}
+
+// checkApprover is the part of the control hub that records check
+// commands the user allowed.
+type checkApprover interface {
+	ApproveChecks(ctx context.Context, commands ...string) error
+}
+
+// approveMissionChecks records the check commands of a mission tool call
+// the user just allowed. Only this process does it, after Ta-Da's own
+// prompt: the mission MCP server never approves, so a tool call the CLI
+// let through without asking can't approve its own checks.
+func (r *ccRun) approveMissionChecks(ctx context.Context, input json.RawMessage) {
+	ca, ok := r.a.control.(checkApprover)
+	if !ok {
+		return
+	}
+	var p control.MissionParams
+	_ = json.Unmarshal(input, &p)
+	if err := ca.ApproveChecks(ctx, p.Checks()...); err != nil {
+		slog.Warn("Failed to record approved mission checks", "error", err)
+	}
 }
 
 // ccTranscript returns the earlier Ta-Da conversation the CLI hasn't

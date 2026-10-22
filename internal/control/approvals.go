@@ -135,22 +135,6 @@ func (s *Missions) UnapprovedChecks(m Mission, o VerifyOptions) []Criterion {
 	return out
 }
 
-// approveRuns approves the commands Verify would run with o. It's for
-// runs the user starts, which are their approval.
-func (s *Missions) approveRuns(ctx context.Context, id string, o VerifyOptions) error {
-	m, err := s.read(id)
-	if err != nil {
-		return err
-	}
-	var cmds []string
-	for _, c := range m.Criteria {
-		if o.wants(c) {
-			cmds = append(cmds, c.Check)
-		}
-	}
-	return s.ApproveChecks(ctx, cmds...)
-}
-
 func (s *Missions) readApprovals() (approvalsFile, error) {
 	f := approvalsFile{Projects: map[string][]string{}}
 	data, err := os.ReadFile(s.approvalsPath)

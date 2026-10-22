@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -180,6 +181,16 @@ func (h *Hub) Missions() *Missions {
 	return h.missions
 }
 
+// ApproveChecks records check commands the user just allowed in a
+// permission prompt, so they can run unattended later. Call it only after
+// the prompt was granted.
+func (h *Hub) ApproveChecks(ctx context.Context, commands ...string) error {
+	if h == nil || h.missions == nil {
+		return nil
+	}
+	return h.missions.ApproveChecks(ctx, commands...)
+}
+
 // MissionContext returns the system-prompt block for the session's
 // mission, or "" when it has none open.
 func (h *Hub) MissionContext(sessionID string) string {
@@ -233,8 +244,27 @@ type Command struct {
 	Status    MissionStatus `json:"status,omitempty"`
 	Limit     int           `json:"limit,omitempty"`
 	// Check is the check command for mission_add. Without it, Text may
-	// carry one as "criterion :: command".
+	// carry one as "criterion :: command". For mission_check and
+	// mission_verify it's the command the user was shown, which may then
+	// run even if it isn't approved yet.
 	Check string `json:"check,omitempty"`
+}
+
+// allowed is the shown command, as VerifyOptions.Allow.
+func (c Command) allowed() []string {
+	if s := strings.TrimSpace(c.Check); s != "" {
+		return []string{s}
+	}
+	return nil
+}
+
+// unapprovedNotice tells the cockpit user which checks didn't run.
+func unapprovedNotice(cs []Criterion) string {
+	ids := make([]string, 0, len(cs))
+	for _, c := range cs {
+		ids = append(ids, strconv.Itoa(c.ID))
+	}
+	return fmt.Sprintf("Not run, because you haven't approved these checks yet: %s. Select one to see its command and press space to run it.", strings.Join(ids, ", "))
 }
 
 // Snapshot is everything the status bar and sidebar show.
@@ -436,19 +466,24 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 			return nil
 		}))
 	case OpMissionVerify:
-		// The user started this run, which approves its checks.
-		opts := VerifyOptions{Criterion: c.Index, NoWait: true}
-		if err := ms.approveRuns(ctx, c.MissionID, opts); err != nil {
-			return Reply{}, err
-		}
+		// Runs approved checks, plus any the cockpit showed the user.
+		opts := VerifyOptions{Criterion: c.Index, NoWait: true, ApprovedOnly: true, Allow: c.allowed()}
 		m, ran, err := ms.Verify(ctx, c.MissionID, opts)
 		if err != nil {
 			return Reply{}, err
 		}
+		skipped := ms.UnapprovedChecks(m, opts)
 		if len(ran) == 0 {
+			if len(skipped) > 0 {
+				return Reply{Mission: &m, Message: unapprovedNotice(skipped)}, nil
+			}
 			return Reply{Mission: &m, Message: "This mission has no self-checking criteria."}, nil
 		}
-		return Reply{Mission: &m, Message: CheckSummary(m, ran)}, nil
+		msg := CheckSummary(m, ran)
+		if len(skipped) > 0 {
+			msg += ". " + unapprovedNotice(skipped)
+		}
+		return Reply{Mission: &m, Message: msg}, nil
 	case OpMissionNote:
 		if strings.TrimSpace(c.Text) == "" {
 			return Reply{}, errors.New("a note needs text")
@@ -499,17 +534,22 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 // it's ticked only if the command passes, and a failure comes back as the
 // reply's message with the first line of output.
 func (h *Hub) checkCriterion(ctx context.Context, c Command) (Reply, error) {
-	opts := VerifyOptions{Criterion: c.Index}
-	if err := h.missions.approveRuns(ctx, c.MissionID, opts); err != nil {
-		return Reply{}, err
-	}
-	m, _, err := h.missions.Verify(ctx, c.MissionID, opts)
+	// The cockpit sends the command it showed; only that one may run
+	// without an earlier approval.
+	opts := VerifyOptions{Criterion: c.Index, ApprovedOnly: true, Allow: c.allowed()}
+	m, ran, err := h.missions.Verify(ctx, c.MissionID, opts)
 	if err != nil {
 		return Reply{}, err
 	}
 	cr := m.Criterion(c.Index)
 	if cr == nil {
 		return Reply{Mission: &m}, nil
+	}
+	if len(ran) == 0 && cr.SelfChecking() {
+		if strings.TrimSpace(c.Check) != "" {
+			return Reply{Mission: &m, Message: "The check changed since it was shown, so it didn't run. Look at it again and press space to run it."}, nil
+		}
+		return Reply{Mission: &m, Message: unapprovedNotice([]Criterion{*cr})}, nil
 	}
 	if !cr.Done {
 		msg := fmt.Sprintf("Check failed (%s), so %d stays open", ExitLabel(cr.LastExit), cr.ID)

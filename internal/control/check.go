@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -218,8 +219,18 @@ type VerifyOptions struct {
 	// mission's checks are already running.
 	NoWait bool
 	// ApprovedOnly skips checks whose commands the user hasn't approved
-	// in this project. Runs the user didn't start directly set it.
+	// in this project.
 	ApprovedOnly bool
+	// Allow lists commands the user was just shown and asked to run, as
+	// in the cockpit. They run even when not yet approved, and running
+	// them approves them. A criterion whose command changed since then
+	// doesn't match, so it's skipped.
+	Allow []string
+}
+
+// allows reports whether the user asked to run command in this run.
+func (o VerifyOptions) allows(command string) bool {
+	return slices.Contains(o.Allow, strings.TrimSpace(command))
 }
 
 // wants reports whether a run with these options includes c, ignoring
@@ -301,11 +312,22 @@ func (s *Missions) Verify(ctx context.Context, id string, o VerifyOptions) (Miss
 		timeout time.Duration
 	}
 	var jobs []job
+	var approve []string
 	for _, c := range m.Criteria {
-		if !o.wants(c) || (o.ApprovedOnly && !s.CheckApproved(c.Check)) {
+		if !o.wants(c) {
+			continue
+		}
+		if o.allows(c.Check) {
+			approve = append(approve, c.Check)
+		} else if o.ApprovedOnly && !s.CheckApproved(c.Check) {
 			continue
 		}
 		jobs = append(jobs, job{id: c.ID, check: c.Check, timeout: c.CheckTimeout()})
+	}
+	// Approve exactly the commands the user asked for, as read under the
+	// check lock, so a change made after they looked can't slip in.
+	if err := s.ApproveChecks(ctx, approve...); err != nil {
+		return m, nil, err
 	}
 
 	dir := s.WorkDir()

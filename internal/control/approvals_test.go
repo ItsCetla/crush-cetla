@@ -78,16 +78,25 @@ func TestPlantedMissionChecksDontRun(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, got.Criterion(1).Ran())
 
-	// Setting the check again, which asks the user, approves it.
-	_, err = RunMissionTool(ctx, h.missions, "s1", MissionParams{Action: "set_check", ID: 1, Check: "touch pwned"})
+	// The tool itself never approves a check, even when it sets one: a
+	// call that skipped the prompt can't approve its own command.
+	set := MissionParams{Action: "set_check", ID: 1, Check: "touch pwned"}
+	_, err = RunMissionTool(ctx, h.missions, "s1", set)
 	require.NoError(t, err)
+	_, err = RunMissionTool(ctx, h.missions, "s1", MissionParams{Action: "verify"})
+	require.ErrorContains(t, err, "hasn't approved")
+	require.NoFileExists(t, filepath.Join(work, "pwned"))
+
+	// The caller approves it once the user grants the prompt.
+	require.NoError(t, h.ApproveChecks(ctx, set.Checks()...))
 	_, err = RunMissionTool(ctx, h.missions, "s1", MissionParams{Action: "verify"})
 	require.NoError(t, err)
 	require.FileExists(t, filepath.Join(work, "pwned"))
 }
 
-// Running a check from the cockpit is the user's approval.
-func TestHubVerifyApprovesChecks(t *testing.T) {
+// Verify in the cockpit runs approved checks only. Running a check whose
+// command the cockpit showed is the user's approval of that command.
+func TestHubCockpitApprovesShownChecks(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	h, _ := newTestHub(t, Budget{})
@@ -96,9 +105,24 @@ func TestHubVerifyApprovesChecks(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, h.missions.CheckApproved("exit 0"))
 
-	_, err = h.Do(ctx, Command{Op: OpMissionVerify, MissionID: m.ID})
+	r, err := h.Do(ctx, Command{Op: OpMissionVerify, MissionID: m.ID})
+	require.NoError(t, err)
+	require.Contains(t, r.Message, "haven't approved")
+	require.False(t, h.missions.CheckApproved("exit 0"))
+
+	// A command other than the one shown doesn't run.
+	r, err = h.Do(ctx, Command{Op: OpMissionCheck, MissionID: m.ID, Index: 1, Check: "exit 1"})
+	require.NoError(t, err)
+	require.Contains(t, r.Message, "changed since it was shown")
+	require.False(t, h.missions.CheckApproved("exit 0"))
+
+	r, err = h.Do(ctx, Command{Op: OpMissionCheck, MissionID: m.ID, Index: 1, Check: "exit 0"})
 	require.NoError(t, err)
 	require.True(t, h.missions.CheckApproved("exit 0"))
+	h.bgWG.Wait()
+	got, err := h.missions.Get(m.ID)
+	require.NoError(t, err)
+	require.True(t, got.Criterion(1).Ran())
 }
 
 func TestRunCheckAppliesBlockList(t *testing.T) {

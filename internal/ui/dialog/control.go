@@ -388,13 +388,16 @@ func (c *Control) handleMissionKey(k tea.KeyPressMsg) (Action, bool) {
 			return nil, true
 		}
 		cr := m.Criteria[c.critCursor]
-		op := control.OpMissionCheck
+		cmd := control.Command{Op: control.OpMissionCheck, MissionID: m.ID, Index: cr.ID}
 		if cr.Done {
-			op = control.OpMissionUncheck
+			cmd.Op = control.OpMissionUncheck
 		} else if cr.SelfChecking() {
+			// The selected row shows its command, so running it here is
+			// the user's approval of exactly that command.
 			c.notice = "Running the check…"
+			cmd.Check = cr.Check
 		}
-		return ActionControl{Cmds: []control.Command{{Op: op, MissionID: m.ID, Index: cr.ID}}}, true
+		return ActionControl{Cmds: []control.Command{cmd}}, true
 	case key.Matches(k, km.Verify):
 		c.notice = "Running checks…"
 		return ActionControl{Cmds: []control.Command{{Op: control.OpMissionVerify, MissionID: m.ID}}}, true
@@ -867,7 +870,16 @@ func (c *Control) missionDetail(t *styles.Styles, m control.Mission, now time.Ti
 	if len(m.Notes) > 0 {
 		noteLines = 3
 	}
-	allResults := len(lines)+len(m.Criteria)+ran+noteLines <= c.height
+	// The selected check's command is shown in full, wrapped rather than
+	// cut, because pressing space runs exactly what's shown.
+	var cmdLines []string
+	if c.critCursor < len(m.Criteria) && m.Criteria[c.critCursor].SelfChecking() {
+		wrapped := ansi.Hardwrap("$ "+m.Criteria[c.critCursor].Check, max(4, width-2), true)
+		for l := range strings.SplitSeq(wrapped, "\n") {
+			cmdLines = append(cmdLines, "  "+t.Control.Muted.Render(l))
+		}
+	}
+	allResults := len(lines)+len(m.Criteria)+len(cmdLines)+ran+noteLines <= c.height
 	for i, cr := range m.Criteria {
 		box := t.Control.PipEmpty.Render("☐")
 		if cr.Done {
@@ -888,6 +900,9 @@ func (c *Control) missionDetail(t *styles.Styles, m control.Mission, now time.Ti
 			row = t.Dialog.SelectedItem.UnsetPadding().Render(plain + strings.Repeat(" ", max(0, width-lipgloss.Width(plain))))
 		}
 		lines = append(lines, row)
+		if i == c.critCursor {
+			lines = append(lines, cmdLines...)
+		}
 		if cr.Ran() && (allResults || i == c.critCursor) {
 			lines = append(lines, checkResultLine(t, cr, now, width))
 		}

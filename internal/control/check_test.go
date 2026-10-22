@@ -315,7 +315,11 @@ func TestRunMissionToolChecks(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	ms, _ := newCheckMissions(t)
-	run := func(p MissionParams) (string, error) { return RunMissionTool(ctx, ms, "s1", p) }
+	// Each call's checks are approved first, as a granted prompt does.
+	run := func(p MissionParams) (string, error) {
+		require.NoError(t, ms.ApproveChecks(ctx, p.Checks()...))
+		return RunMissionTool(ctx, ms, "s1", p)
+	}
 
 	_, err := run(MissionParams{Action: "create", Title: "Ship", Criteria: []string{"Broken :: echo FAIL: TestX; exit 1", "By hand"}})
 	require.NoError(t, err)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 )
@@ -73,17 +72,11 @@ func (p MissionParams) Checks() []string {
 // RunMissionTool carries out a mission tool call for a session and
 // returns the text the model sees. Notes it writes are signed "claude".
 //
-// The caller must already have asked permission for p.Checks(): this
-// records those commands as approved for the project. Checks it runs
-// (verify, check) must be approved, or they're skipped.
+// It never approves check commands: the caller does that, and only after
+// the user granted the permission prompt for p.Checks(). Checks it runs
+// (verify, check) must already be approved, or they're skipped.
 func RunMissionTool(ctx context.Context, ms *Missions, sessionID string, p MissionParams) (string, error) {
-	out, err := runMissionTool(ctx, ms, sessionID, p)
-	if err == nil && ms != nil {
-		if aerr := ms.ApproveChecks(ctx, p.Checks()...); aerr != nil {
-			slog.Warn("Failed to record approved mission checks", "error", aerr)
-		}
-	}
-	return out, err
+	return runMissionTool(ctx, ms, sessionID, p)
 }
 
 func runMissionTool(ctx context.Context, ms *Missions, sessionID string, p MissionParams) (string, error) {

@@ -1065,14 +1065,15 @@ A criterion can check itself. Write it as `text :: command`, for example
 0 in the project folder. Checking it runs the command; if it fails, the
 criterion stays open and the cockpit (or the agent) gets the exit code and
 the tail of the output. Open checks also rerun in the background after each
-turn in the TUI, and `v` on a mission's page runs them all. Checks run one
-at a time with a 5 minute timeout each. When the agent sets a check, Ta-Da
-asks permission the way it does for a shell command, because the check
-runs later without asking again. A check runs unattended only once you have
-approved it in that project, by allowing the agent to set it, typing it
-yourself, or running it from the cockpit. Approvals are kept in Ta-Da's
-global data folder, so a mission file that came with a repository can't
-approve its own commands. Commands the bash tool bans are refused, both
+turn in the TUI, and `v` on a mission's page runs the ones you have
+approved. Checks run one at a time with a 5 minute timeout each. When the
+agent sets a check, Ta-Da asks permission the way it does for a shell
+command, because the check runs later without asking again. A check runs
+unattended only once you have approved it in that project: by granting
+that prompt, by typing it yourself, or by selecting it in the cockpit,
+which shows its full command, and pressing space to run it. Approvals are
+kept in Ta-Da's global data folder, so a mission file that came with a
+repository can't approve its own commands. Commands the bash tool bans are refused, both
 when the check is set and when it runs, and a check can set its own
 `timeout_seconds`.
 

@@ -44,6 +44,8 @@ func TestMissionToolAsksBeforeSettingChecks(t *testing.T) {
 	require.Equal(t, "s1", req.SessionID)
 	require.Equal(t, "Set mission check: go test ./...", req.Description)
 	require.Equal(t, "go test ./...", req.Params.(BashPermissionsParams).Command)
+	// Granting the prompt approves the check to run unattended later.
+	require.True(t, ms.CheckApproved("go test ./..."))
 
 	// A denial leaves the mission as it was.
 	denied := &recordingPermissions{granted: false}
@@ -52,6 +54,7 @@ func TestMissionToolAsksBeforeSettingChecks(t *testing.T) {
 	m, ok := ms.ForSession("s1")
 	require.True(t, ok)
 	require.False(t, m.Criterion(1).SelfChecking())
+	require.False(t, ms.CheckApproved("make check"))
 
 	// Banned commands are refused without asking.
 	resp = runMissionTool(t, denied, ms, control.MissionParams{Action: "set_check", ID: 1, Check: "curl example.com"})
