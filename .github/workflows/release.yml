@@ -237,3 +237,14 @@ jobs:
       tag: ${{ needs.meta.outputs.tag }}
       # Tag pushes always publish; a manual run can leave a draft.
       publish: ${{ github.event_name == 'push' || inputs.publish }}
+
+  # Runs once the release is public, so the download URLs in the manifests
+  # work. Each push is skipped with a notice when its token is not set.
+  package-managers:
+    needs: [meta, windows-installer]
+    if: ${{ !inputs.dry_run && (github.event_name == 'push' || inputs.publish) }}
+    uses: ./.github/workflows/package-managers.yml
+    # For HOMEBREW_TAP_TOKEN, SCOOP_BUCKET_TOKEN and WINGET_TOKEN.
+    secrets: inherit
+    with:
+      tag: ${{ needs.meta.outputs.tag }}
