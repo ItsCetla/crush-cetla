@@ -335,8 +335,10 @@ func nonEmpty(ss ...string) []string {
 
 func (b *builder) toolCall(c message.ToolCall, results map[string]message.ToolResult) ToolCall {
 	tc := ToolCall{
-		Name:    c.Name,
-		Summary: b.clean(b.relText(toolSummary(c.Input))),
+		Name: c.Name,
+		// Redact the whole value before shortening it, so a secret cut
+		// in half can't slip past the patterns.
+		Summary: oneLine(b.clean(b.relText(toolSummary(c.Input))), 120),
 		Input:   b.clean(prettyJSON(c.Input)),
 	}
 	r, ok := results[c.ID]
@@ -434,6 +436,8 @@ var summaryKeys = []string{
 	"prompt", "description", "name",
 }
 
+// toolSummary returns the full value of the input field that best says
+// what a tool call did. Callers shorten it after redacting it.
 func toolSummary(input string) string {
 	var fields map[string]any
 	if json.Unmarshal([]byte(input), &fields) != nil {
@@ -441,7 +445,7 @@ func toolSummary(input string) string {
 	}
 	for _, k := range summaryKeys {
 		if v, ok := fields[k].(string); ok && strings.TrimSpace(v) != "" {
-			return oneLine(v, 120)
+			return v
 		}
 	}
 	return ""

@@ -240,6 +240,29 @@ func TestBuildPairsToolResults(t *testing.T) {
 	}
 }
 
+func TestBuildRedactsSummaryBeforeShortening(t *testing.T) {
+	t.Parallel()
+
+	// The token straddles the 120-rune summary limit, so shortening
+	// first would leave a stub too short for the patterns to catch.
+	cmd := strings.Repeat("x", 106) + " sk-abcdefghijklmnopqrstuvwx"
+	d := Data{
+		Session: session.Session{ID: "s", CreatedAt: fixtureT0},
+		Messages: []message.Message{{
+			ID: "m", Role: message.Assistant, CreatedAt: fixtureT0,
+			Parts: []message.ContentPart{
+				message.ToolCall{ID: "c", Name: "bash", Input: mustJSON(t, map[string]any{"command": cmd}), Finished: true},
+			},
+		}},
+	}
+	doc := Build(d, fixtureOptions())
+	require.Len(t, doc.Turns, 1)
+	tool := doc.Turns[0].Blocks[0].Tool
+	require.NotNil(t, tool)
+	require.NotContains(t, tool.Summary, "sk-")
+	require.Contains(t, tool.Summary, Redacted)
+}
+
 func TestBuildFilesFromToolsWithoutHistory(t *testing.T) {
 	t.Parallel()
 	d := fixture(t)

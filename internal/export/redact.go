@@ -9,8 +9,15 @@ import (
 const Redacted = "[REDACTED]"
 
 var (
-	// privateKeyRE matches a whole PEM private key block.
-	privateKeyRE = regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----`)
+	// privateKeyRE matches a PEM or PGP private key block, such as
+	// "BEGIN RSA PRIVATE KEY" or "BEGIN PGP PRIVATE KEY BLOCK". A block
+	// with no END line, such as one cut off in a tool's output, is
+	// redacted to the end of the text.
+	privateKeyRE = regexp.MustCompile(`(?s)-----BEGIN [A-Z0-9 ]*PRIVATE KEY[ A-Z]*-----.*?(?:-----END [A-Z0-9 ]*PRIVATE KEY[ A-Z]*-----|\z)`)
+
+	// puttyKeyRE matches a PuTTY .ppk key file, from its header to its
+	// MAC line, or to the end of the text when that is missing.
+	puttyKeyRE = regexp.MustCompile(`(?s)PuTTY-User-Key-File-[0-9]+:.*?(?:Private-(?:MAC|Hash):[ \t]*[0-9A-Fa-f]+|\z)`)
 
 	// tokenREs match credentials that announce themselves with a prefix.
 	tokenREs = []*regexp.Regexp{
@@ -53,6 +60,7 @@ func RedactSecrets(s string) string {
 		return s
 	}
 	s = privateKeyRE.ReplaceAllString(s, "[REDACTED PRIVATE KEY]")
+	s = puttyKeyRE.ReplaceAllString(s, "[REDACTED PRIVATE KEY]")
 	for _, re := range tokenREs {
 		s = re.ReplaceAllString(s, Redacted)
 	}
