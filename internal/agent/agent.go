@@ -226,8 +226,12 @@ type sessionAgent struct {
 	tools              *csync.Slice[fantasy.AgentTool]
 
 	isSubAgent bool
-	sessions   session.Service
-	messages   message.Service
+	// enforceBudget makes a sub-agent stop at the budget like the main
+	// agent does. Swarm agents set it; other sub-agents run under a parent
+	// whose own steps check the budget.
+	enforceBudget bool
+	sessions      session.Service
+	messages      message.Service
 	// cfg backs channel reply routing (config lookup + MCP tool
 	// invocation). Nil in tests and sub-agents that never see channel
 	// turns; sendChannelReply treats nil as "routing disabled".
@@ -308,11 +312,13 @@ type sessionAgent struct {
 }
 
 type SessionAgentOptions struct {
-	LargeModel           Model
-	SmallModel           Model
-	SystemPromptPrefix   string
-	SystemPrompt         string
-	IsSubAgent           bool
+	LargeModel         Model
+	SmallModel         Model
+	SystemPromptPrefix string
+	SystemPrompt       string
+	IsSubAgent         bool
+	// EnforceBudget makes a sub-agent check the budget before each step.
+	EnforceBudget        bool
 	DisableAutoSummarize bool
 	IsYolo               bool
 	Sessions             session.Service
@@ -346,6 +352,7 @@ func NewSessionAgent(
 		systemPromptPrefix:   csync.NewValue(opts.SystemPromptPrefix),
 		systemPrompt:         csync.NewValue(opts.SystemPrompt),
 		isSubAgent:           opts.IsSubAgent,
+		enforceBudget:        opts.EnforceBudget,
 		sessions:             opts.Sessions,
 		messages:             opts.Messages,
 		cfg:                  opts.Cfg,

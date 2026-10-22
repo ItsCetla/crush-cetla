@@ -12,16 +12,16 @@
                │                                                                    │
                │ > Type to filter                                                   │
                │                                                                    │
-               │ Set Tab Aside                                               alt+a  │
-               │ Move Tab Left                                     ctrl+shift+pgup  │
-               │ Move Tab Right                                    ctrl+shift+pgdn  │
-               │ Model ──────────────────────────────────────────────────────────── │
                │ Switch Model                                               ctrl+l  │
                │ Machines                                                           │
                │ Control ────────────────────────────────────────────────────────── │
                │ Toggle Auto Mode                                           ctrl+y  │
                │ Open Control Cockpit                                       ctrl+\  │
                │ Take Back Control                                          ctrl+q  │
+               │ Start Swarm…                                                       │
+               │ Split the attached mission's open criteria across your machines,...│
+               │ Merge Board                                                        │
+               │ Review each swarm machine's branch, then merge or discard it.      │
                │ Tools ──────────────────────────────────────────────────────────── │
                │ Open Artifacts Gallery                                             │
                │ View ───────────────────────────────────────────────────────────── │

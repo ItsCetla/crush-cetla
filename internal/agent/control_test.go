@@ -94,6 +94,23 @@ func TestControlHooksAreNilSafe(t *testing.T) {
 	a.recordUsage(pricedModel(1, 1), "s1", "turn", fantasy.Usage{InputTokens: 5}, nil, false)
 }
 
+func TestCheckBudgetSubAgents(t *testing.T) {
+	t.Parallel()
+	fc := &fakeControl{budget: control.ErrBudgetReached}
+
+	a := &sessionAgent{control: fc}
+	require.ErrorIs(t, a.checkBudget(t.Context(), "s1"), control.ErrBudgetReached)
+
+	// A sub-agent runs under a parent that checks the budget.
+	a = &sessionAgent{control: fc, isSubAgent: true}
+	require.NoError(t, a.checkBudget(t.Context(), "s1"))
+
+	// A swarm agent has no parent, so it checks the budget itself.
+	sa, ok := NewSessionAgent(SessionAgentOptions{IsSubAgent: true, EnforceBudget: true, Control: fc}).(*sessionAgent)
+	require.True(t, ok)
+	require.ErrorIs(t, sa.checkBudget(t.Context(), "s1"), control.ErrBudgetReached)
+}
+
 func TestRecordUsageSkipsClaudeCodeAndZero(t *testing.T) {
 	t.Parallel()
 	fc := &fakeControl{}

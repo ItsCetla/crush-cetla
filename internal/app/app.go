@@ -39,6 +39,7 @@ import (
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/shell"
 	"github.com/charmbracelet/crush/internal/skills"
+	"github.com/charmbracelet/crush/internal/swarm"
 	"github.com/charmbracelet/crush/internal/ui/anim"
 	"github.com/charmbracelet/crush/internal/ui/styles"
 	"github.com/charmbracelet/x/ansi"
@@ -62,6 +63,9 @@ type App struct {
 	// Control is the control hub: the action log, usage ledger, budgets
 	// and missions.
 	Control *control.Hub
+
+	// swarm runs swarms for the control hub; nil when they're unavailable.
+	swarm *swarm.Engine
 
 	// Rewind turns sessions back to earlier turns and forks them.
 	Rewind *rewind.Service
@@ -137,6 +141,7 @@ func New(ctx context.Context, conn *sql.DB, store *config.ConfigStore, skillsMgr
 
 	app.Control = newControlHub(store, app.Permissions)
 	app.cleanupFuncs = append(app.cleanupFuncs, app.Control.Close)
+	app.setupSwarm(store)
 	app.Rewind = rewind.New(rewind.Options{
 		DB:          conn,
 		Messages:    messages,
@@ -958,6 +963,14 @@ func (app *App) Shutdown() {
 	// Shared shutdown context for all timeout-bounded cleanup.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Swarm agents run outside the coordinator's sessions; stop them and
+	// let them record how far they got while the database is open.
+	if app.swarm != nil {
+		if err := app.swarm.Close(shutdownCtx); err != nil {
+			slog.Error("Failed to stop swarm agents", "error", err)
+		}
+	}
 
 	// Drain any debounced message updates before the DB-close cleanup
 	// runs in the parallel block below. message.Service buffers

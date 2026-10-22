@@ -9,6 +9,7 @@ package model
 // off-thread.
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"time"
@@ -68,6 +69,10 @@ func (m *UI) controlCmd(c control.Command) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		r, err := ws.Control(ctx, c)
+		// A failed command has no reply to say which swarm card it was
+		// about, and an older server doesn't say either.
+		r.RunID = cmp.Or(r.RunID, c.RunID)
+		r.Machine = cmp.Or(r.Machine, c.Machine)
 		return controlReplyMsg{op: c.Op, reply: r, err: err}
 	}
 }
@@ -79,6 +84,13 @@ func controlTimeout(op control.Op) time.Duration {
 	switch op {
 	case control.OpMissionCheck, control.OpMissionVerify:
 		return time.Hour
+	case control.OpSwarmStart, control.OpSwarmMerge, control.OpSwarmDiscard:
+		// Starting a swarm makes a worktree per machine; merging and
+		// discarding change branches in the user's checkout.
+		return 5 * time.Minute
+	case control.OpSwarmPlan, control.OpSwarmRuns, control.OpSwarmDiff:
+		// Planning checks every machine; the others read branches.
+		return 30 * time.Second
 	default:
 		return 10 * time.Second
 	}
@@ -148,6 +160,9 @@ func (m *UI) storeControlSnapshot(s *control.Snapshot) {
 // handleControlReply routes a control reply to the cockpit when it's
 // open, then applies it.
 func (m *UI) handleControlReply(msg controlReplyMsg) tea.Cmd {
+	if isSwarmOp(msg.op) {
+		return m.handleSwarmReply(msg)
+	}
 	cmd := m.applyControlReply(msg)
 	if d, ok := m.dialog.Dialog(dialog.ControlID).(*dialog.Control); ok {
 		d.SetReply(msg.op, msg.reply, msg.err)

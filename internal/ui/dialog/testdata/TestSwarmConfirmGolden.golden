@@ -1,0 +1,30 @@
+                                                                                          
+                                                                                          
+                                                                                          
+                                                                                          
+                                                                                          
+                                                                                          
+       ╭──────────────────────────────────────────────────────────────────────────╮       
+       │ Start Swarm? ················································ 2 machines │       
+       │ ◎ Ship the login page                                                    │       
+       │ 3 open criteria split across 2 machines:                                 │       
+       │                                                                          │       
+       │ ● alpha  qwen-coder  → swarm/ship-the-login-page/alpha                   │       
+       │   #1 The form validates email                                            │       
+       │   #2 Errors show inline                                                  │       
+       │ ● bravo  llama  → swarm/ship-the-login-page/bravo                        │       
+       │   #3 Tests pass                                                          │       
+       │                                                                          │       
+       │ Left out                                                                 │       
+       │   charlie  offline: connection refused                                   │       
+       │                                                                          │       
+       │ Each machine works in its own worktree and branch. Every tool            │       
+       │ call asks your permission, and nothing merges until you do it            │       
+       │ on the merge board.                                                      │       
+       │ y start swarm • n/esc cancel                                             │       
+       ╰──────────────────────────────────────────────────────────────────────────╯       
+                                                                                          
+                                                                                          
+                                                                                          
+                                                                                          
+                                                                                          

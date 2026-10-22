@@ -121,6 +121,7 @@ type Control struct {
 		Pause    key.Binding
 		Done     key.Binding
 		Delete   key.Binding
+		Swarm    key.Binding
 		Submit   key.Binding
 		Back     key.Binding
 		Close    key.Binding
@@ -172,6 +173,7 @@ func NewControl(com *common.Common, snap *control.Snapshot, page ControlPage) (*
 	c.keyMap.Pause = b([]string{"p"}, "p", "pause/resume")
 	c.keyMap.Done = b([]string{"d"}, "d", "done/reopen")
 	c.keyMap.Delete = b([]string{"x"}, "x", "delete")
+	c.keyMap.Swarm = b([]string{"w"}, "w", "swarm")
 	c.keyMap.Submit = b([]string{"enter"}, "enter", "save")
 	c.keyMap.Back = b([]string{"esc"}, "esc", "back")
 	c.keyMap.Close = CloseKey
@@ -355,6 +357,12 @@ func (c *Control) handleMissionKey(k tea.KeyPressMsg) (Action, bool) {
 		return ActionControl{Cmds: []control.Command{{Op: control.OpMissionDelete, MissionID: m.ID}}}, true
 	}
 	c.confirmDel = ""
+	if key.Matches(k, km.Swarm) {
+		if m == nil {
+			return nil, true
+		}
+		return ActionStartSwarm{MissionID: m.ID}, true
+	}
 	if !c.detail {
 		switch {
 		case key.Matches(k, km.Up):
@@ -1032,9 +1040,9 @@ func (c *Control) ShortHelp() []key.Binding {
 	}
 	if c.page == ControlPageMissions {
 		if c.detail {
-			return []key.Binding{km.Check, km.Verify, km.Add, km.Note, km.Pause, km.Done, km.Delete, km.Back}
+			return []key.Binding{km.Check, km.Verify, km.Swarm, km.Add, km.Note, km.Pause, km.Done, km.Delete, km.Back}
 		}
-		return []key.Binding{km.Open, km.New, km.Use, km.Delete, km.Next, km.Close}
+		return []key.Binding{km.Open, km.New, km.Use, km.Swarm, km.Delete, km.Next, km.Close}
 	}
 	if c.page == ControlPageActions || c.page == ControlPageNetwork {
 		return []key.Binding{km.Up, km.Down, km.TakeBack, km.Next, km.Close}

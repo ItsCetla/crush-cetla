@@ -210,6 +210,34 @@ func (m *BackgroundShellManager) KillAll(ctx context.Context) {
 	wg.Wait()
 }
 
+// KillMatching terminates the background shells match picks and returns
+// how many it stopped. The provided context bounds how long the function
+// waits for each shell to exit.
+func (m *BackgroundShellManager) KillMatching(ctx context.Context, match func(*BackgroundShell) bool) int {
+	var shells []*BackgroundShell
+	for shell := range m.shells.Seq() {
+		if !match(shell) {
+			continue
+		}
+		if taken, ok := m.shells.Take(shell.ID); ok {
+			shells = append(shells, taken)
+		}
+	}
+
+	var wg sync.WaitGroup
+	for _, shell := range shells {
+		wg.Go(func() {
+			shell.cancel()
+			select {
+			case <-shell.done:
+			case <-ctx.Done():
+			}
+		})
+	}
+	wg.Wait()
+	return len(shells)
+}
+
 // GetOutput returns the current output of a background shell.
 func (bs *BackgroundShell) GetOutput() (stdout string, stderr string, done bool, err error) {
 	select {

@@ -671,6 +671,13 @@ func Contains(dir, path string) bool {
 	return within(dir, path)
 }
 
+// Canonical resolves the symlinks in p where it can. When p doesn't exist
+// yet it resolves p's closest existing parent, so /tmp and /private/tmp
+// on macOS compare equal either way.
+func Canonical(p string) string {
+	return canonical(p)
+}
+
 // within reports whether path is dir or inside it.
 func within(dir, path string) bool {
 	rel, err := filepath.Rel(canonical(dir), canonical(path))

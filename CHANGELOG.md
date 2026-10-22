@@ -9,6 +9,19 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ### Added
 
+- **Swarm on your own machines, with a merge board.** A mission's open
+  criteria can be split across your ready machines, each working in its
+  own worktree and branch with its own model. Start it with `w` on the
+  cockpit's Missions page, **Start Swarm** in the command palette or
+  `tada swarm start <mission-id>`; Ta-Da shows the plan and starts only
+  when you confirm. The **Merge Board** shows each machine's card with its
+  status, checks, cost and diff, and merges (`m`) or discards (`d`) each
+  branch; merging ticks only the criteria whose approved checks passed.
+  `tada swarm status`, `merge` and `discard` do the same from the shell.
+  Every swarm tool call goes through your permission prompts, a swarm
+  refuses to start in auto mode, and its tools are confined to its
+  worktree.
+
 - **Live privacy receipt.** Ta-Da now counts every host it talks to over
   HTTP, per session: model providers, MCP servers, web tools, fleet
   machines, sign-ins, model lists and update checks, with requests and

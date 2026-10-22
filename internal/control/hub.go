@@ -33,6 +33,7 @@ type Hub struct {
 	mu     sync.Mutex
 	budget Budget
 	extra  map[string]float64
+	swarm  SwarmService
 
 	// bgCtx ends background check runs on Close; bgWG waits for them.
 	bgCtx    context.Context
@@ -227,6 +228,19 @@ const (
 	// OpMissionVerify runs a mission's check commands: every one, or
 	// just the criterion in Index.
 	OpMissionVerify Op = "mission_verify"
+
+	// OpSwarmPlan shows which machine a swarm would give which criteria.
+	OpSwarmPlan Op = "swarm_plan"
+	// OpSwarmStart starts a swarm with the plan in Assign.
+	OpSwarmStart Op = "swarm_start"
+	// OpSwarmRuns lists the swarms.
+	OpSwarmRuns Op = "swarm_runs"
+	// OpSwarmMerge merges one machine's branch of the swarm in RunID.
+	OpSwarmMerge Op = "swarm_merge"
+	// OpSwarmDiscard throws one machine's branch away.
+	OpSwarmDiscard Op = "swarm_discard"
+	// OpSwarmDiff returns the files one machine changed.
+	OpSwarmDiff Op = "swarm_diff"
 )
 
 // Command is a request to the hub. It travels over the client/server API,
@@ -248,6 +262,12 @@ type Command struct {
 	// mission_verify it's the command the user was shown, which may then
 	// run even if it isn't approved yet.
 	Check string `json:"check,omitempty"`
+	// RunID and Machine pick a swarm assignment.
+	RunID   string `json:"run_id,omitempty"`
+	Machine string `json:"machine,omitempty"`
+	// Assign is the swarm plan the user confirmed: machine name to
+	// criterion ids.
+	Assign map[string][]int `json:"assign,omitempty"`
 }
 
 // allowed is the shown command, as VerifyOptions.Allow.
@@ -305,6 +325,14 @@ type Reply struct {
 	Mission  *Mission            `json:"mission,omitempty"`
 	Network  *netlog.Report      `json:"network,omitempty"`
 	Message  string              `json:"message,omitempty"`
+	Swarm    *SwarmRun           `json:"swarm,omitempty"`
+	Swarms   []SwarmRun          `json:"swarms,omitempty"`
+	Plan     *SwarmPlan          `json:"plan,omitempty"`
+	Diff     []SwarmFileDiff     `json:"diff,omitempty"`
+	// RunID and Machine name the swarm card a reply is about, so a late
+	// reply can't land on another one.
+	RunID   string `json:"run_id,omitempty"`
+	Machine string `json:"machine,omitempty"`
 }
 
 // Do runs a command.
@@ -345,6 +373,9 @@ func (h *Hub) Do(ctx context.Context, c Command) (Reply, error) {
 	}
 	if strings.HasPrefix(string(c.Op), "mission") {
 		return h.missionOp(ctx, c)
+	}
+	if strings.HasPrefix(string(c.Op), "swarm") {
+		return h.swarmOp(ctx, c)
 	}
 	return Reply{}, fmt.Errorf("unknown control op %q", c.Op)
 }
@@ -611,6 +642,11 @@ func (h *Hub) Close(ctx context.Context) error {
 	h.bgCancel()
 	done := make(chan struct{})
 	go func() {
+		if s := h.swarmService(); s != nil {
+			if err := s.Close(ctx); err != nil {
+				slog.Warn("Failed to stop swarm agents", "error", err)
+			}
+		}
 		h.bgWG.Wait()
 		close(done)
 	}()

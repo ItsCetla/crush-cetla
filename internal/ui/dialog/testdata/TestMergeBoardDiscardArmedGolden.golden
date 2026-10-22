@@ -1,0 +1,40 @@
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+     ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮     
+     │ Merge Board ········································································· 3 branches │     
+     │ ◎ Ship the login page · run 20261022-110000-abcd · into main · $0.012                            │     
+     │ > ● alpha  ⎇ swarm/ship-the-login-page/alpha                                                     │     
+     │     ready to merge · checks pass · $0.012 · 12m00s · +42 −7 in 3 files                           │     
+     │     #1; #2                                                                                       │     
+     │     Added validation.                                                                            │     
+     │   ◐ bravo  ⎇ swarm/ship-the-login-page/bravo                                                     │     
+     │     working · checks pending · 5m00s                                                             │     
+     │     #3                                                                                           │     
+     │   ✕ charlie  ⎇ swarm/ship-the-login-page/charlie                                                 │     
+     │     failed · checks not run                                                                      │     
+     │     #4                                                                                           │     
+     │     ! model went quiet                                                                           │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │                                                                                                  │     
+     │ Discard alpha's worktree and branch for good? y discards it, any other key keeps it.             │     
+     │ y discard it • esc back                                                                          │     
+     ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯     
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              

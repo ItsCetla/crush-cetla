@@ -683,6 +683,8 @@ func (c *Commands) defaultCommands() []*CommandItem {
 		NewCommandItem(c.com.Styles, "open_control", "Open Control Cockpit", "ctrl+\\", ActionOpenControl{}).WithAliases("control", "cockpit", "cost", "missions", "actions").InGroup(CommandGroupControl),
 		NewCommandItem(c.com.Styles, "take_back", "Take Back Control", "ctrl+q", ActionTakeBack{}).WithAliases("stop", "manual").InGroup(CommandGroupControl),
 		NewCommandItem(c.com.Styles, "open_machines", "Machines", "", ActionOpenMachines{}).WithAliases("machines", "machine", "fleet", "ollama", "local models").InGroup(CommandGroupModel),
+		NewCommandItem(c.com.Styles, "start_swarm", "Start Swarm…", "", ActionStartSwarm{}).WithAliases("swarm", "fleet", "split mission").WithDescription("Split the attached mission's open criteria across your machines, each on its own branch.").InGroup(CommandGroupControl),
+		NewCommandItem(c.com.Styles, "open_merge_board", "Merge Board", "", ActionOpenMergeBoard{}).WithAliases("swarm", "merge", "branches").WithDescription("Review each swarm machine's branch, then merge or discard it.").InGroup(CommandGroupControl),
 		NewCommandItem(c.com.Styles, "open_context", "Context Settings", "", ActionOpenContext{}).WithAliases("context", "magic context", "magic-context", "auto-summarize").InGroup(CommandGroupSession),
 	)
 	if c.hasSession {

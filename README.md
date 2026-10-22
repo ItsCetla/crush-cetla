@@ -1608,6 +1608,53 @@ Slots are shared by every Ta-Da process on your computer, so two sessions
 won't overload the same machine. Code sent to a machine goes to whatever
 URL you gave it, so only add machines you trust.
 
+### Swarm and the merge board
+
+A swarm splits a [mission](#control-budgets-and-missions)'s open criteria
+across your [machines](#machines). Each ready machine gets a share of the
+criteria and its own worktree and branch (`swarm/<mission>/<machine>`),
+branched from the commit you're on, and works on it with its own model at
+the same time as the others. Nothing touches your checkout until you merge.
+
+Start one from the cockpit's **Missions** page (`w` on a mission), from
+the command palette (**Start Swarm**, for the mission attached to the
+session), or from the shell with `tada swarm start <mission-id>`. Ta-Da
+first shows the plan: which machine gets which criteria and which
+machines were left out and why. It starts only when you press `y`.
+
+The **Merge Board** (command palette, or it opens itself when a swarm
+starts) shows one card per machine: its status, whether its criteria's
+checks passed, what it cost, how long it took and how much it changed.
+`enter` shows the diff, `m` merges the branch into the branch you have
+checked out, and `d` discards the worktree and branch (after
+asking). Merging ticks only the criteria whose checks passed on that
+branch. From the shell, `tada swarm status [run] [--json]`,
+`tada swarm merge <run> <machine>` and `tada swarm discard <run> <machine>`
+do the same.
+
+Swarm agents are kept on a short leash:
+
+- **Every tool call asks you.** Swarm agents use the same permission
+  prompts and `PreToolUse` hooks as the main agent, and nothing approves
+  them for you. A swarm won't start while auto mode is on, and
+  `tada swarm` refuses `--auto`. Run from the shell, `tada swarm start`
+  asks each prompt in the terminal and shows the tool's input quoted.
+- **Only file and shell tools.** A swarm agent gets bash, edit, multiedit,
+  write, view, ls, glob, grep, todos and the job tools, and only those of
+  them the coder agent is allowed. It never gets the agent, mission,
+  machines, web or MCP tools, so it can't start more agents or swarms.
+- **Its worktree only.** Tool calls whose path or working folder leads
+  outside the assignment's worktree are refused. (The bash tool still runs
+  whatever command you approve, so read bash prompts before you grant them.)
+- **Checks you approved.** A criterion's check runs in the worktree only
+  when you approved its command, the same rule missions use.
+- **Careful merges.** Swarm commits and merges skip the repository's
+  hooks. A merge refuses a checkout with uncommitted changes, and a merge
+  that conflicts is aborted, leaving your branch as it was.
+
+Code sent to a machine goes to whatever URL you gave it, so only add
+machines you trust.
+
 ## Checking your setup
 
 If something doesn't work, run `tada doctor`. It checks your config files,

@@ -73,8 +73,9 @@ func (a *sessionAgent) recordUsage(model Model, sessionID, kind string, usage fa
 
 // checkBudget asks the person before a model call that would go past a
 // budget. It returns nil when there's no budget or they let it continue.
+// Sub-agents skip it unless they enforce the budget themselves.
 func (a *sessionAgent) checkBudget(ctx context.Context, sessionID string) error {
-	if a.control == nil || a.isSubAgent {
+	if a.control == nil || (a.isSubAgent && !a.enforceBudget) {
 		return nil
 	}
 	return a.control.CheckBudget(ctx, sessionID)

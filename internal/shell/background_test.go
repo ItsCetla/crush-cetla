@@ -328,3 +328,31 @@ func TestBackgroundShell_WaitContext_Canceled(t *testing.T) {
 
 	require.False(t, bgShell.WaitContext(ctx))
 }
+
+func TestBackgroundShellManager_KillMatching(t *testing.T) {
+	t.Parallel()
+
+	manager := newBackgroundShellManager()
+	inside, outside := t.TempDir(), t.TempDir()
+
+	keep, err := manager.Start(t.Context(), outside, nil, "sleep 10", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = manager.Kill(keep.ID) })
+	kill1, err := manager.Start(t.Context(), inside, nil, "sleep 10", "")
+	require.NoError(t, err)
+	kill2, err := manager.Start(t.Context(), inside, nil, "sleep 10", "")
+	require.NoError(t, err)
+
+	n := manager.KillMatching(t.Context(), func(bs *BackgroundShell) bool {
+		return bs.WorkingDir == inside
+	})
+	require.Equal(t, 2, n)
+	require.True(t, kill1.IsDone())
+	require.True(t, kill2.IsDone())
+	require.False(t, keep.IsDone())
+
+	_, ok := manager.Get(kill1.ID)
+	require.False(t, ok)
+	_, ok = manager.Get(keep.ID)
+	require.True(t, ok)
+}

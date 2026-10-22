@@ -472,6 +472,8 @@ type UI struct {
 	// recent actions, cost, mission). It's fetched off-thread like the
 	// busy caches (see control.go).
 	ctl controlCache
+	// swarmTicking is set while a merge board reload is scheduled.
+	swarmTicking bool
 
 	// lim is the last reading of the usage-limits file.
 	lim limitsState
@@ -938,6 +940,10 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case controlReplyMsg:
 		if cmd := m.handleControlReply(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case swarmRefreshMsg:
+		if cmd := m.refreshMergeBoard(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	case rewindTimelineMsg, rewindPlanMsg, rewindDoneMsg:
@@ -2732,6 +2738,14 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 		cmds = append(cmds, m.openControlDialog(dialog.ControlPageOverview))
 	case dialog.ActionControl:
 		cmds = append(cmds, m.runControlCmds(msg.Cmds))
+	case dialog.ActionStartSwarm:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.startSwarm(msg.MissionID))
+	case dialog.ActionSwarmLaunch:
+		cmds = append(cmds, m.launchSwarm(msg))
+	case dialog.ActionOpenMergeBoard:
+		m.dialog.CloseDialog(dialog.CommandsID)
+		cmds = append(cmds, m.openMergeBoard(""))
 	case dialog.ActionOpenMachines:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		m.dialog.CloseDialog(dialog.ModelsID)
