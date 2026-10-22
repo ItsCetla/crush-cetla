@@ -1451,6 +1451,33 @@ Slots are shared by every Ta-Da process on your computer, so two sessions
 won't overload the same machine. Code sent to a machine goes to whatever
 URL you gave it, so only add machines you trust.
 
+## Checking your setup
+
+If something doesn't work, run `tada doctor`. It checks your config files,
+provider keys, the selected models, local model servers, language servers,
+MCP servers, hooks, permissions, git, the terminal and the session
+database, and says how to fix each problem it finds:
+
+```bash
+# Check this project's setup
+tada doctor
+
+# Show every finding, not just the ones that need attention
+tada doctor -v
+
+# Also check that provider hosts answer and whether an update is out
+tada doctor --online
+
+# Machine-readable output for scripts and bug reports
+tada doctor --json
+```
+
+Doctor never prints a key, only where it comes from (`set via
+$ANTHROPIC_API_KEY`, `from config`, or missing). Without `--online` it
+contacts nothing but localhost; with it, it sends one HEAD request per
+provider and MCP host, never a chat request and never a key. It exits with
+status 1 when a check fails.
+
 ## Logging
 
 Sometimes you need to look at logs. Luckily, Ta-Da logs all sorts of

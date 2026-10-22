@@ -61,6 +61,16 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   servers you've already configured aren't shown again.
   `tada models --discover` prints what it finds and the tadarc line for
   each.
+- **`tada doctor`.** Checks your setup and says what to fix: config files
+  (syntax errors with file and line, untrusted project configs, the
+  deprecated `tada.json`), where each provider's key comes from (never the
+  key itself), whether the selected models exist, local Ollama and LM
+  Studio servers, language servers, MCP and hook commands, permissions,
+  git, the terminal, the data directory and the session database. It
+  contacts only localhost unless you pass `--online`, which sends one HEAD
+  request per provider and MCP host and looks for an update. `-v` shows
+  every finding, `--json` prints JSON, and it exits with status 1 when a
+  check fails.
 
 ## [0.5.14] - 2026-10-21
 
