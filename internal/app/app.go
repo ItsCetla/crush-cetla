@@ -132,6 +132,7 @@ func New(ctx context.Context, conn *sql.DB, store *config.ConfigStore, skillsMgr
 	}
 
 	app.Control = newControlHub(store, app.Permissions)
+	app.cleanupFuncs = append(app.cleanupFuncs, app.Control.Close)
 
 	app.setupEvents()
 

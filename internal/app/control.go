@@ -42,6 +42,7 @@ func newControlHub(store *config.ConfigStore, perms permission.Service) *control
 		if m, err := control.NewMissions(paths.missions); err != nil {
 			slog.Warn("Missions unavailable", "error", err)
 		} else {
+			m.SetWorkDir(store.WorkingDir())
 			opts.Missions = m
 		}
 	}
@@ -94,6 +95,7 @@ func ReadControlHub(store *config.ConfigStore) *control.Hub {
 	}
 	if paths.missions != "" && exists(paths.missions) {
 		if m, err := control.NewMissions(paths.missions); err == nil {
+			m.SetWorkDir(store.WorkingDir())
 			opts.Missions = m
 		}
 	}

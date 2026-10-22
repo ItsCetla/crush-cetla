@@ -114,6 +114,7 @@ type Control struct {
 		New      key.Binding
 		Use      key.Binding
 		Check    key.Binding
+		Verify   key.Binding
 		Add      key.Binding
 		Note     key.Binding
 		Pause    key.Binding
@@ -164,6 +165,7 @@ func NewControl(com *common.Common, snap *control.Snapshot, page ControlPage) (*
 	c.keyMap.New = b([]string{"n"}, "n", "new")
 	c.keyMap.Use = b([]string{"s"}, "s", "use here")
 	c.keyMap.Check = b([]string{"space", " "}, "space", "check")
+	c.keyMap.Verify = b([]string{"v"}, "v", "verify")
 	c.keyMap.Add = b([]string{"a"}, "a", "add item")
 	c.keyMap.Note = b([]string{"n"}, "n", "note")
 	c.keyMap.Pause = b([]string{"p"}, "p", "pause/resume")
@@ -389,10 +391,15 @@ func (c *Control) handleMissionKey(k tea.KeyPressMsg) (Action, bool) {
 		op := control.OpMissionCheck
 		if cr.Done {
 			op = control.OpMissionUncheck
+		} else if cr.SelfChecking() {
+			c.notice = "Running the check…"
 		}
 		return ActionControl{Cmds: []control.Command{{Op: op, MissionID: m.ID, Index: cr.ID}}}, true
+	case key.Matches(k, km.Verify):
+		c.notice = "Running checks…"
+		return ActionControl{Cmds: []control.Command{{Op: control.OpMissionVerify, MissionID: m.ID}}}, true
 	case key.Matches(k, km.Add):
-		c.startInput(controlInputCriterion, "What has to be true when it's done")
+		c.startInput(controlInputCriterion, "What has to be true when it's done (text :: command checks itself)")
 	case key.Matches(k, km.Note):
 		c.startInput(controlInputNote, "Note for the mission journal")
 	case key.Matches(k, km.Pause):
@@ -848,21 +855,42 @@ func (c *Control) missionDetail(t *styles.Styles, m control.Mission, now time.Ti
 	if total == 0 {
 		lines = append(lines, t.Control.Muted.Render("No checklist yet. Press a to add what has to be true when it's done."))
 	}
+	// Each check that has run gets a result line under its criterion. When
+	// they wouldn't all fit the page, only the selected one keeps it.
+	ran := 0
+	for _, cr := range m.Criteria {
+		if cr.Ran() {
+			ran++
+		}
+	}
+	noteLines := 0
+	if len(m.Notes) > 0 {
+		noteLines = 3
+	}
+	allResults := len(lines)+len(m.Criteria)+ran+noteLines <= c.height
 	for i, cr := range m.Criteria {
 		box := t.Control.PipEmpty.Render("☐")
 		if cr.Done {
 			box = t.Control.Allowed.Render("☑")
 		}
+		prefix, textWidth := box+" ", width-2
+		if cr.SelfChecking() {
+			prefix += t.Control.Muted.Render("⟳") + " "
+			textWidth -= 2
+		}
 		text := cr.Text
 		if cr.Done && cr.Note != "" {
 			text += " — " + cr.Note
 		}
-		row := box + " " + ansi.Truncate(text, max(4, width-2), "…")
+		row := prefix + ansi.Truncate(text, max(4, textWidth), "…")
 		if i == c.critCursor {
 			plain := ansi.Strip(row)
 			row = t.Dialog.SelectedItem.UnsetPadding().Render(plain + strings.Repeat(" ", max(0, width-lipgloss.Width(plain))))
 		}
 		lines = append(lines, row)
+		if cr.Ran() && (allResults || i == c.critCursor) {
+			lines = append(lines, checkResultLine(t, cr, now, width))
+		}
 	}
 	if n := len(m.Notes); n > 0 {
 		last := m.Notes[n-1]
@@ -958,6 +986,25 @@ func networkLine(t *styles.Styles, h netlog.Host, now time.Time, hostW int) stri
 		t.Control.Muted.Render(control.Ago(h.LastSeen, now))
 }
 
+// checkResultLine says how a criterion's last check went: when it passed,
+// or its exit code and the first line of its output.
+func checkResultLine(t *styles.Styles, cr control.Criterion, now time.Time, width int) string {
+	ago := control.Ago(cr.LastRunAt, now)
+	if cr.LastExit == 0 {
+		return "  " + t.Control.Allowed.Render("✓ passed") + t.Control.Muted.Render(" "+ago)
+	}
+	head := "  " + t.Control.Denied.Render("✗ "+control.ExitLabel(cr.LastExit)) + t.Control.Muted.Render(" · "+ago)
+	out := cr.FirstOutputLine()
+	if out == "" {
+		return head
+	}
+	rest := width - lipgloss.Width(head) - 3
+	if rest < 4 {
+		return head
+	}
+	return head + t.Control.Muted.Render(" · "+ansi.Truncate(out, rest, "…"))
+}
+
 // ShortHelp implements help.KeyMap.
 func (c *Control) ShortHelp() []key.Binding {
 	km := &c.keyMap
@@ -966,7 +1013,7 @@ func (c *Control) ShortHelp() []key.Binding {
 	}
 	if c.page == ControlPageMissions {
 		if c.detail {
-			return []key.Binding{km.Check, km.Add, km.Note, km.Pause, km.Done, km.Delete, km.Back}
+			return []key.Binding{km.Check, km.Verify, km.Add, km.Note, km.Pause, km.Done, km.Delete, km.Back}
 		}
 		return []key.Binding{km.Open, km.New, km.Use, km.Delete, km.Next, km.Close}
 	}

@@ -63,11 +63,24 @@ func (m *UI) controlCmd(c control.Command) tea.Cmd {
 	if c.SessionID == "" {
 		c.SessionID = m.currentSessionID()
 	}
+	timeout := controlTimeout(c.Op)
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		r, err := ws.Control(ctx, c)
 		return controlReplyMsg{op: c.Op, reply: r, err: err}
+	}
+}
+
+// controlTimeout bounds a control command. Ticking a self-checking
+// criterion and verifying a mission run check commands, which may take
+// minutes each.
+func controlTimeout(op control.Op) time.Duration {
+	switch op {
+	case control.OpMissionCheck, control.OpMissionVerify:
+		return time.Hour
+	default:
+		return 10 * time.Second
 	}
 }
 

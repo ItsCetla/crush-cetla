@@ -1060,6 +1060,17 @@ cockpit's Missions page (`n` new, `a` add a criterion, space to check one,
 `p` pause, `d` done, `x` twice to delete). The active mission shows in the
 sidebar and is added to the agent's context each turn.
 
+A criterion can check itself. Write it as `text :: command`, for example
+`Tests pass :: go test ./...`, and it is ticked only when the command exits
+0 in the project folder. Checking it runs the command; if it fails, the
+criterion stays open and the cockpit (or the agent) gets the exit code and
+the tail of the output. Open checks also rerun in the background after each
+turn in the TUI, and `v` on a mission's page runs them all. Checks run one
+at a time with a 5 minute timeout each. When the agent sets a check, Ta-Da
+asks permission the way it does for a shell command, because the check
+runs later without asking again. Commands the bash tool bans are refused,
+and a check can set its own `timeout_seconds`.
+
 **`tada status`.** Prints one frame of the cockpit and exits, without
 starting a session, so it works in scripts, status bars and terminals with
 no TTY:

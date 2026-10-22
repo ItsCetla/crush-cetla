@@ -790,8 +790,20 @@ func (r *ccRun) canUseTool(ctx context.Context, req claudecode.PermissionRequest
 	case "AskUserQuestion":
 		return r.ccAskUser(ctx, req)
 	case "mcp__tada-mission__" + control.MissionToolName:
-		// The mission tool only writes the session's mission file.
-		return claudecode.Decision{Allow: true}
+		// The mission tool only writes the session's mission file, unless
+		// it sets a check command, which later runs unattended: that asks
+		// like a bash command.
+		var p control.MissionParams
+		_ = json.Unmarshal(req.Input, &p)
+		checks := p.Checks()
+		if len(checks) == 0 {
+			return claudecode.Decision{Allow: true}
+		}
+		for _, c := range checks {
+			if name := tools.BannedCommandIn(c); name != "" {
+				return claudecode.Decision{Message: fmt.Sprintf("check command is not allowed for security reasons: %q", name)}
+			}
+		}
 	case "mcp__" + fleet.MCPServerName + "__" + fleet.AskToolName:
 		// Machines are ones the user set up to take this work, like the
 		// agent tool's machine runs, which don't ask either.

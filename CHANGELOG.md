@@ -18,6 +18,16 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   `tada status --network` prints the receipt of a running Ta-Da server.
   The receipt is kept in memory only and never written to disk.
 
+- **Self-checking missions.** A mission criterion written as
+  `text :: command` (for example `Tests pass :: go test ./...`) ticks only
+  when its command exits 0 in the project folder. Checking it runs the
+  command, a failure keeps it open and shows the output, and open checks
+  rerun in the background after each interactive turn. Press `v` on the
+  cockpit's Missions page to run them all; the agent can do the same with
+  the mission tool's `verify` and `set_check` actions. Setting a check
+  asks permission like a shell command, since it later runs without
+  asking. Each check has a 5 minute timeout by default.
+
 ## [0.5.14] - 2026-10-21
 
 ### Added

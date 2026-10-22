@@ -46,6 +46,20 @@ type Criterion struct {
 	Done   bool      `json:"done"`
 	DoneAt time.Time `json:"done_at,omitzero"`
 	Note   string    `json:"note,omitempty"`
+
+	// Check is a shell command that proves the criterion: it's ticked
+	// only when the command exits 0. Empty means it's checked by hand.
+	Check string `json:"check,omitempty"`
+	// TimeoutSeconds bounds a check run; zero means DefaultCheckTimeout.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+	// LastRunAt, LastExit and LastOutput record the latest check run.
+	// LastOutput is the tail of its combined output.
+	LastRunAt  time.Time `json:"last_run_at,omitzero"`
+	LastExit   int       `json:"last_exit,omitempty"`
+	LastOutput string    `json:"last_output,omitempty"`
+	// CheckedBy says who ticked it: CheckedByCheck, CheckedByAgent or
+	// CheckedByUser.
+	CheckedBy string `json:"checked_by,omitempty"`
 }
 
 // Note is a timestamped entry in a mission's journal.
@@ -91,15 +105,27 @@ func (m *Mission) Criterion(id int) *Criterion {
 	return nil
 }
 
-// AddCriterion appends a checklist item and returns its id.
+// AddCriterion appends a checklist item and returns its id. Text written
+// as "criterion :: command" gets that command as its check (see
+// ParseCriterion).
 func (m *Mission) AddCriterion(text string) int {
+	return m.AddCriterionCheck(ParseCriterion(text))
+}
+
+// AddCriterionCheck appends a checklist item with a check command (empty
+// for one checked by hand) and returns its id.
+func (m *Mission) AddCriterionCheck(text, check string) int {
 	id := 1
 	for _, c := range m.Criteria {
 		if c.ID >= id {
 			id = c.ID + 1
 		}
 	}
-	m.Criteria = append(m.Criteria, Criterion{ID: id, Text: strings.TrimSpace(text)})
+	m.Criteria = append(m.Criteria, Criterion{
+		ID:    id,
+		Text:  strings.TrimSpace(text),
+		Check: strings.TrimSpace(check),
+	})
 	return id
 }
 
@@ -126,6 +152,8 @@ var ErrMissionNotFound = errors.New("mission not found")
 // locked.
 type Missions struct {
 	dir string
+	// workDir is where checks run; see SetWorkDir.
+	workDir string
 }
 
 // NewMissions opens (and creates) a mission store in dir.
@@ -365,7 +393,13 @@ func (s *Missions) Delete(ctx context.Context, id string) error {
 		if _, err := s.read(id); err != nil {
 			return err
 		}
-		return os.Remove(s.path(id))
+		if err := os.Remove(s.path(id)); err != nil {
+			return err
+		}
+		// The check lock may be held by a run still going; removing it
+		// only stops it piling up.
+		_ = os.Remove(s.checkLockPath(id))
+		return nil
 	})
 }
 
@@ -388,7 +422,14 @@ func PromptContext(m Mission) string {
 			if c.Done {
 				mark = "x"
 			}
-			fmt.Fprintf(&b, "- [%s] %d. %s\n", mark, c.ID, c.Text)
+			fmt.Fprintf(&b, "- [%s] %d. %s", mark, c.ID, c.Text)
+			if c.SelfChecking() {
+				fmt.Fprintf(&b, " (self-checking: `%s`)", c.Check)
+			}
+			b.WriteString("\n")
+		}
+		if hasChecks(m) {
+			b.WriteString("Self-checking criteria are ticked only when their command exits 0: checking one runs it, and verify runs them all.\n")
 		}
 	} else {
 		b.WriteString("It has no done criteria yet. Propose a few and add them with the mission tool.\n")
@@ -402,4 +443,13 @@ func PromptContext(m Mission) string {
 	}
 	b.WriteString("</mission>")
 	return b.String()
+}
+
+func hasChecks(m Mission) bool {
+	for _, c := range m.Criteria {
+		if c.SelfChecking() {
+			return true
+		}
+	}
+	return false
 }

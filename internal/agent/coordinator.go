@@ -434,6 +434,11 @@ func (c *coordinator) run(ctx context.Context, accept *AcceptedRun, sessionID st
 	beforeLoaded := c.skillTracker.LoadedNames()
 	result, originalErr := run()
 	logTurnSkillUsage(sessionID, prompt, c.activeSkills, c.skillTracker, beforeLoaded)
+	if originalErr == nil && c.interactive {
+		// Re-run the mission's open checks so the cockpit shows what this
+		// turn fixed without the agent having to ask.
+		c.control.VerifyAfterTurn(sessionID)
+	}
 
 	if hasLatest && c.runComplete != nil {
 		c.runComplete.PublishMustDeliver(ctx, pubsub.UpdatedEvent, latest)
@@ -976,7 +981,7 @@ func (c *coordinator) buildTools(ctx context.Context, agent config.Agent, isSubA
 	}
 
 	if ms := c.control.Missions(); ms != nil && !isSubAgent {
-		allTools = append(allTools, tools.NewMissionTool(ms))
+		allTools = append(allTools, tools.NewMissionTool(ms, c.permissions, c.cfg.WorkingDir()))
 	}
 
 	if !isSubAgent {
@@ -1991,7 +1996,7 @@ func (c *coordinator) claudeCodeArgs(isSubAgent bool) func(sessionID string) []s
 			servers["tada-artifacts"] = srv
 		}
 		if ms := c.control.Missions(); ms != nil && !isSubAgent && sessionID != "" {
-			servers["tada-mission"] = stdioServer(exe, "mission", "mcp", "--dir", ms.Dir(), "--session", sessionID)
+			servers["tada-mission"] = stdioServer(exe, "mission", "mcp", "--dir", ms.Dir(), "--session", sessionID, "--cwd", ms.WorkDir())
 		}
 		// Always served to the main agent, so it can save machines the
 		// user describes even before any exist.

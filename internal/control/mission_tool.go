@@ -15,24 +15,58 @@ const MissionToolName = "mission"
 const MissionToolDescription = `Track this session's mission: a goal with a checklist of done criteria that outlives the session. Actions:
 - get (default): show the session's mission.
 - list: list missions in this project.
-- create: start a mission with a title, a goal and criteria; the session is attached to it.
+- create: start a mission with a title, a goal and criteria; the session is attached to it. A criterion written as "text :: command" is self-checking, for example "Tests pass :: go test ./...".
 - attach: attach this session to an existing mission by mission_id.
-- add_criterion: add a done criterion (text).
-- check: mark a criterion done by its id, with a note saying how you verified it (text). Only check what you have verified.
+- add_criterion: add a done criterion (text), optionally with a check command (check).
+- set_check: give criterion id a check command (check), or clear it with an empty check.
+- check: mark a criterion done by its id, with a note saying how you verified it (text). Only check what you have verified. A self-checking criterion runs its command instead and is ticked only if the command exits 0; if it fails you get the output.
+- verify: run the check commands (all of them, or only criterion id) and record the results.
 - uncheck: mark a criterion not done by its id.
 - note: record a decision, finding or blocker in the mission journal (text).
 - complete: finish the mission with a short summary (text). Every criterion must be done first.
+Checks run in the project directory, one at a time, each limited to timeout_seconds (5 minutes by default). Give a criterion a check whenever a command can verify it: a test, build or lint run, or a grep. Setting a check asks the user's permission the way running a command does. Open checks also rerun after each of your turns.
 Don't create a mission for a small one-off task; use one when the user asks for it or the work spans several sessions.`
 
 // MissionParams are the mission tool's arguments.
 type MissionParams struct {
-	Action    string   `json:"action,omitempty" description:"get (default), list, create, attach, add_criterion, check, uncheck, note or complete" jsonschema:"get (default), list, create, attach, add_criterion, check, uncheck, note or complete"`
-	MissionID string   `json:"mission_id,omitempty" description:"The mission to attach to (attach only)" jsonschema:"The mission to attach to (attach only)"`
-	Title     string   `json:"title,omitempty" description:"The mission title (create only)" jsonschema:"The mission title (create only)"`
-	Goal      string   `json:"goal,omitempty" description:"What success looks like (create only)" jsonschema:"What success looks like (create only)"`
-	Criteria  []string `json:"criteria,omitempty" description:"Done criteria (create only)" jsonschema:"Done criteria (create only)"`
-	ID        int      `json:"id,omitempty" description:"The criterion id (check and uncheck)" jsonschema:"The criterion id (check and uncheck)"`
-	Text      string   `json:"text,omitempty" description:"The criterion, note, verification or summary text" jsonschema:"The criterion, note, verification or summary text"`
+	Action         string   `json:"action,omitempty" description:"get (default), list, create, attach, add_criterion, set_check, check, verify, uncheck, note or complete" jsonschema:"get (default), list, create, attach, add_criterion, set_check, check, verify, uncheck, note or complete"`
+	MissionID      string   `json:"mission_id,omitempty" description:"The mission to attach to (attach only)" jsonschema:"The mission to attach to (attach only)"`
+	Title          string   `json:"title,omitempty" description:"The mission title (create only)" jsonschema:"The mission title (create only)"`
+	Goal           string   `json:"goal,omitempty" description:"What success looks like (create only)" jsonschema:"What success looks like (create only)"`
+	Criteria       []string `json:"criteria,omitempty" description:"Done criteria (create only); text :: command makes one self-checking" jsonschema:"Done criteria (create only); text :: command makes one self-checking"`
+	ID             int      `json:"id,omitempty" description:"The criterion id (set_check, check, verify and uncheck)" jsonschema:"The criterion id (set_check, check, verify and uncheck)"`
+	Text           string   `json:"text,omitempty" description:"The criterion, note, verification or summary text" jsonschema:"The criterion, note, verification or summary text"`
+	Check          string   `json:"check,omitempty" description:"A shell command that exits 0 when the criterion is met (add_criterion and set_check)" jsonschema:"A shell command that exits 0 when the criterion is met (add_criterion and set_check)"`
+	TimeoutSeconds int      `json:"timeout_seconds,omitempty" description:"How long the check may run in seconds (add_criterion and set_check; default 300)" jsonschema:"How long the check may run in seconds (add_criterion and set_check; default 300)"`
+}
+
+// Checks lists the check commands the call would set, so the caller can
+// ask permission for them before the tool runs: once set, a check runs
+// without asking again.
+func (p MissionParams) Checks() []string {
+	var out []string
+	add := func(c string) {
+		if c = strings.TrimSpace(c); c != "" {
+			out = append(out, c)
+		}
+	}
+	switch strings.ToLower(strings.TrimSpace(p.Action)) {
+	case "create":
+		for _, c := range p.Criteria {
+			_, check := ParseCriterion(c)
+			add(check)
+		}
+	case "add_criterion":
+		if strings.TrimSpace(p.Check) != "" {
+			add(p.Check)
+		} else {
+			_, check := ParseCriterion(p.Text)
+			add(check)
+		}
+	case "set_check":
+		add(p.Check)
+	}
+	return out
 }
 
 // RunMissionTool carries out a mission tool call for a session and
@@ -43,6 +77,7 @@ func RunMissionTool(ctx context.Context, ms *Missions, sessionID string, p Missi
 	}
 	action := strings.ToLower(strings.TrimSpace(p.Action))
 	text := strings.TrimSpace(p.Text)
+	timeout := max(p.TimeoutSeconds, 0)
 
 	switch action {
 	case "list":
@@ -110,10 +145,38 @@ func RunMissionTool(ctx context.Context, ms *Missions, sessionID string, p Missi
 			return "", errors.New("add_criterion needs text")
 		}
 		return update(func(m *Mission) error {
-			m.AddCriterion(text)
+			var id int
+			if strings.TrimSpace(p.Check) != "" {
+				id = m.AddCriterionCheck(text, p.Check)
+			} else {
+				id = m.AddCriterion(text)
+			}
+			if c := m.Criterion(id); c != nil && c.SelfChecking() {
+				c.TimeoutSeconds = timeout
+			}
+			return nil
+		})
+	case "set_check":
+		return update(func(m *Mission) error {
+			c, err := criterion(m)
+			if err != nil {
+				return err
+			}
+			c.Check = strings.TrimSpace(p.Check)
+			c.TimeoutSeconds = 0
+			if c.Check != "" {
+				c.TimeoutSeconds = timeout
+			}
+			c.LastRunAt, c.LastExit, c.LastOutput = time.Time{}, 0, ""
+			if c.CheckedBy == CheckedByCheck {
+				c.Done, c.DoneAt, c.CheckedBy = false, time.Time{}, ""
+			}
 			return nil
 		})
 	case "check":
+		if c := cur.Criterion(p.ID); c != nil && c.SelfChecking() {
+			return checkByCommand(ctx, ms, cur.ID, p.ID, text)
+		}
 		if text == "" {
 			return "", errors.New("check needs text saying how you verified the criterion")
 		}
@@ -122,16 +185,33 @@ func RunMissionTool(ctx context.Context, ms *Missions, sessionID string, p Missi
 			if err != nil {
 				return err
 			}
-			c.Done, c.DoneAt, c.Note = true, time.Now(), text
+			c.Done, c.DoneAt, c.Note, c.CheckedBy = true, time.Now(), text, CheckedByAgent
 			return nil
 		})
+	case "verify":
+		m, ran, err := ms.Verify(ctx, cur.ID, VerifyOptions{Criterion: p.ID})
+		if err != nil {
+			return "", err
+		}
+		if len(ran) == 0 {
+			return "", errors.New("this mission has no self-checking criteria; add one with add_criterion or set_check")
+		}
+		var b strings.Builder
+		b.WriteString(CheckSummary(m, ran))
+		for _, id := range ran {
+			if c := m.Criterion(id); c != nil && c.LastExit != 0 {
+				b.WriteString("\n\n" + CheckFailure(*c))
+			}
+		}
+		b.WriteString("\n\n" + PromptContext(m))
+		return b.String(), nil
 	case "uncheck":
 		return update(func(m *Mission) error {
 			c, err := criterion(m)
 			if err != nil {
 				return err
 			}
-			c.Done, c.DoneAt, c.Note = false, time.Time{}, ""
+			c.Done, c.DoneAt, c.Note, c.CheckedBy = false, time.Time{}, "", ""
 			if text != "" {
 				m.AddNote(fmt.Sprintf("Reopened %d: %s", c.ID, text), "claude")
 			}
@@ -165,4 +245,33 @@ func RunMissionTool(ctx context.Context, ms *Missions, sessionID string, p Missi
 		})
 	}
 	return "", fmt.Errorf("unknown mission action %q", p.Action)
+}
+
+// checkByCommand runs a self-checking criterion's command for the agent.
+// The criterion is ticked only if the command passes; a failure comes
+// back as an error carrying the output, so the agent can fix it.
+func checkByCommand(ctx context.Context, ms *Missions, missionID string, id int, note string) (string, error) {
+	m, _, err := ms.Verify(ctx, missionID, VerifyOptions{Criterion: id})
+	if err != nil {
+		return "", err
+	}
+	c := m.Criterion(id)
+	if c == nil {
+		return "", fmt.Errorf("mission %s has no criterion %d", missionID, id)
+	}
+	if !c.Done {
+		return "", errors.New(CheckFailure(*c))
+	}
+	if note != "" {
+		m, err = ms.Update(ctx, missionID, func(m *Mission) error {
+			if c := m.Criterion(id); c != nil {
+				c.Note = note
+			}
+			return nil
+		})
+		if err != nil {
+			return "", err
+		}
+	}
+	return fmt.Sprintf("The check passed, so criterion %d is ticked.\n", id) + PromptContext(m), nil
 }

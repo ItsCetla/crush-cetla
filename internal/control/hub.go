@@ -32,6 +32,11 @@ type Hub struct {
 	mu     sync.Mutex
 	budget Budget
 	extra  map[string]float64
+
+	// bgCtx ends background check runs on Close; bgWG waits for them.
+	bgCtx    context.Context
+	bgCancel context.CancelFunc
+	bgWG     sync.WaitGroup
 }
 
 // HubOptions configures a Hub. Every store is optional; the hub reports
@@ -65,6 +70,7 @@ func NewHub(o HubOptions) *Hub {
 		budget:   o.Budget,
 		extra:    make(map[string]float64),
 	}
+	h.bgCtx, h.bgCancel = context.WithCancel(context.Background())
 	if c, ok := o.Permissions.(permission.Controller); ok {
 		h.ctrl = c
 		if o.Actions != nil {
@@ -207,6 +213,9 @@ const (
 	OpMissionAttach  Op = "mission_attach"
 	OpMissionDetach  Op = "mission_detach"
 	OpMissionDelete  Op = "mission_delete"
+	// OpMissionVerify runs a mission's check commands: every one, or
+	// just the criterion in Index.
+	OpMissionVerify Op = "mission_verify"
 )
 
 // Command is a request to the hub. It travels over the client/server API,
@@ -223,6 +232,9 @@ type Command struct {
 	Index     int           `json:"index,omitempty"`
 	Status    MissionStatus `json:"status,omitempty"`
 	Limit     int           `json:"limit,omitempty"`
+	// Check is the check command for mission_add. Without it, Text may
+	// carry one as "criterion :: command".
+	Check string `json:"check,omitempty"`
 }
 
 // Snapshot is everything the status bar and sidebar show.
@@ -390,22 +402,39 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 		return Reply{Missions: all}, err
 	case OpMissionCreate:
 		return one(ms.Create(ctx, c.Title, c.Goal, c.Criteria, c.SessionID))
-	case OpMissionCheck, OpMissionUncheck:
-		done := c.Op == OpMissionCheck
+	case OpMissionCheck:
+		if m, err := ms.Get(c.MissionID); err == nil {
+			if cr := m.Criterion(c.Index); cr != nil && cr.SelfChecking() {
+				return h.checkCriterion(ctx, c)
+			}
+		}
 		return one(ms.Update(ctx, c.MissionID, func(m *Mission) error {
 			cr := m.Criterion(c.Index)
 			if cr == nil {
 				return fmt.Errorf("mission %s has no criterion %d", m.ID, c.Index)
 			}
-			cr.Done = done
-			cr.DoneAt = time.Time{}
-			cr.Note = ""
-			if done {
-				cr.DoneAt = time.Now()
-				cr.Note = strings.TrimSpace(c.Text)
-			}
+			cr.Done, cr.DoneAt = true, time.Now()
+			cr.Note, cr.CheckedBy = strings.TrimSpace(c.Text), CheckedByUser
 			return nil
 		}))
+	case OpMissionUncheck:
+		return one(ms.Update(ctx, c.MissionID, func(m *Mission) error {
+			cr := m.Criterion(c.Index)
+			if cr == nil {
+				return fmt.Errorf("mission %s has no criterion %d", m.ID, c.Index)
+			}
+			cr.Done, cr.DoneAt, cr.Note, cr.CheckedBy = false, time.Time{}, "", ""
+			return nil
+		}))
+	case OpMissionVerify:
+		m, ran, err := ms.Verify(ctx, c.MissionID, VerifyOptions{Criterion: c.Index, NoWait: true})
+		if err != nil {
+			return Reply{}, err
+		}
+		if len(ran) == 0 {
+			return Reply{Mission: &m, Message: "This mission has no self-checking criteria."}, nil
+		}
+		return Reply{Mission: &m, Message: CheckSummary(m, ran)}, nil
 	case OpMissionNote:
 		if strings.TrimSpace(c.Text) == "" {
 			return Reply{}, errors.New("a note needs text")
@@ -419,7 +448,11 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 			return Reply{}, errors.New("a criterion needs text")
 		}
 		return one(ms.Update(ctx, c.MissionID, func(m *Mission) error {
-			m.AddCriterion(c.Text)
+			if strings.TrimSpace(c.Check) != "" {
+				m.AddCriterionCheck(c.Text, c.Check)
+			} else {
+				m.AddCriterion(c.Text)
+			}
 			return nil
 		}))
 	case OpMissionStatus:
@@ -438,4 +471,80 @@ func (h *Hub) missionOp(ctx context.Context, c Command) (Reply, error) {
 		return Reply{}, ms.Delete(ctx, c.MissionID)
 	}
 	return Reply{}, fmt.Errorf("unknown control op %q", c.Op)
+}
+
+// checkCriterion ticks a self-checking criterion by running its check:
+// it's ticked only if the command passes, and a failure comes back as the
+// reply's message with the first line of output.
+func (h *Hub) checkCriterion(ctx context.Context, c Command) (Reply, error) {
+	m, _, err := h.missions.Verify(ctx, c.MissionID, VerifyOptions{Criterion: c.Index})
+	if err != nil {
+		return Reply{}, err
+	}
+	cr := m.Criterion(c.Index)
+	if cr == nil {
+		return Reply{Mission: &m}, nil
+	}
+	if !cr.Done {
+		msg := fmt.Sprintf("Check failed (%s), so %d stays open", ExitLabel(cr.LastExit), cr.ID)
+		if line := cr.FirstOutputLine(); line != "" {
+			msg += ": " + line
+		}
+		return Reply{Mission: &m, Message: msg}, nil
+	}
+	if note := strings.TrimSpace(c.Text); note != "" {
+		m, err = h.missions.Update(ctx, c.MissionID, func(m *Mission) error {
+			if cr := m.Criterion(c.Index); cr != nil {
+				cr.Note = note
+			}
+			return nil
+		})
+		if err != nil {
+			return Reply{}, err
+		}
+	}
+	return Reply{Mission: &m, Message: "Check passed."}, nil
+}
+
+// VerifyAfterTurn runs the open checks of the session's active mission
+// in the background, after an agent turn. It skips the run when the
+// mission's checks are already running, and Close stops it.
+func (h *Hub) VerifyAfterTurn(sessionID string) {
+	if h == nil || h.missions == nil {
+		return
+	}
+	m, ok := h.missions.ForSession(sessionID)
+	if !ok || m.Status != MissionActive || !m.HasOpenChecks() {
+		return
+	}
+	h.bgWG.Go(func() {
+		_, ran, err := h.missions.Verify(h.bgCtx, m.ID, VerifyOptions{OpenOnly: true, NoWait: true})
+		switch {
+		case errors.Is(err, ErrCheckRunning), errors.Is(err, context.Canceled):
+		case err != nil:
+			slog.Warn("Failed to run mission checks", "mission", m.ID, "error", err)
+		default:
+			slog.Debug("Ran mission checks after turn", "mission", m.ID, "ran", len(ran))
+		}
+	})
+}
+
+// Close stops background check runs and waits for them to end, or for
+// ctx to.
+func (h *Hub) Close(ctx context.Context) error {
+	if h == nil {
+		return nil
+	}
+	h.bgCancel()
+	done := make(chan struct{})
+	go func() {
+		h.bgWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

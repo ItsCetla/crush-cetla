@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/claudecode"
+	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/diff"
 	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/fsext"
@@ -323,6 +324,11 @@ func ccPermission(req claudecode.PermissionRequest, workDir string) (name, actio
 	case "WebFetch":
 		u := str("url")
 		return name, "fetch", "Fetch content from URL: " + u, workDir, tools.FetchPermissionsParams{URL: u, Format: "markdown"}
+	case "mcp__tada-mission__" + control.MissionToolName:
+		var p control.MissionParams
+		_ = json.Unmarshal(req.Input, &p)
+		description, params := tools.MissionCheckPermission(p.Checks(), workDir)
+		return tools.BashToolName, "execute", description, workDir, params
 	case "mcp__" + fleet.MCPServerName + "__" + fleet.ToolName:
 		var p fleet.Params
 		_ = json.Unmarshal(req.Input, &p)

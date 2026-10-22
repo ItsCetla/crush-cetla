@@ -30,6 +30,9 @@ var missionMCPCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if cwd, _ := cmd.Flags().GetString("cwd"); cwd != "" {
+			ms.SetWorkDir(cwd)
+		}
 		return control.RunMissionMCP(cmd.Context(), ms, session)
 	},
 }
@@ -37,6 +40,7 @@ var missionMCPCmd = &cobra.Command{
 func init() {
 	missionMCPCmd.Flags().String("dir", "", "The missions directory")
 	missionMCPCmd.Flags().String("session", "", "The Ta-Da session the tool works for")
+	missionMCPCmd.Flags().String("cwd", "", "The project directory mission checks run in")
 	missionCmd.AddCommand(missionMCPCmd)
 	rootCmd.AddCommand(missionCmd)
 }

@@ -262,3 +262,50 @@ func splitLines(s string) []string {
 	}
 	return append(out, s[start:])
 }
+
+func TestControl_MissionChecks(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	c, _ := newTestControl(t, &control.Snapshot{At: now})
+	c.width, c.height = 70, 14
+	c.HandleMsg(keyMsg('4'))
+	c.SetReply(control.OpMissions, control.Reply{Missions: []control.Mission{{
+		ID: "m1", Title: "One", Status: control.MissionActive,
+		Criteria: []control.Criterion{
+			{ID: 1, Text: "Tests pass", Check: "go test ./...", LastRunAt: now.Add(-time.Minute), LastExit: 1, LastOutput: "…\n--- FAIL: TestX\nmore"},
+			{ID: 2, Text: "Builds", Check: "go build ./...", Done: true, CheckedBy: control.CheckedByCheck, LastRunAt: now},
+			{ID: 3, Text: "Docs read well"},
+		},
+	}}}, nil)
+	c.HandleMsg(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.True(t, c.detail)
+
+	out := ansi.Strip(c.content(now))
+	require.Contains(t, out, "☐ ⟳ Tests pass")
+	require.Contains(t, out, "✗ exit 1 · ")
+	require.Contains(t, out, "--- FAIL: TestX")
+	require.Contains(t, out, "☑ ⟳ Builds")
+	require.Contains(t, out, "✓ passed")
+	require.Contains(t, out, "☐ Docs read well")
+	for _, l := range splitLines(out) {
+		require.LessOrEqual(t, ansi.StringWidth(l), 70, "line too wide: %q", l)
+	}
+
+	// Ticking a self-checking criterion runs its check.
+	act := c.HandleMsg(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}).(ActionControl)
+	require.Equal(t, control.OpMissionCheck, act.Cmds[0].Op)
+	require.Equal(t, "Running the check…", c.notice)
+
+	// v runs every check.
+	act = c.HandleMsg(keyMsg('v')).(ActionControl)
+	require.Equal(t, []control.Command{{Op: control.OpMissionVerify, MissionID: "m1"}}, act.Cmds)
+	require.Equal(t, "Running checks…", c.notice)
+	c.SetReply(control.OpMissionVerify, control.Reply{Message: "All 2 checks passed."}, nil)
+	require.Equal(t, "All 2 checks passed.", c.notice)
+
+	// On a short page only the selected criterion keeps its result line.
+	c.height = 6
+	short := ansi.Strip(c.content(now))
+	require.Contains(t, short, "✗ exit 1")
+	require.NotContains(t, short, "✓ passed")
+}
