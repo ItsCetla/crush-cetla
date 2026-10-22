@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/discover"
 	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/util"
@@ -100,6 +101,11 @@ type Models struct {
 	list  *ModelsList
 	input textinput.Model
 	help  help.Model
+
+	// Model servers found on this computer; see models_local.go.
+	localServers []discover.LocalServer
+	localPicks   map[string]localPick
+	savingLocal  bool
 }
 
 var _ Dialog = (*Models)(nil)
@@ -180,6 +186,9 @@ func (m *Models) ID() string {
 
 // HandleMsg implements Dialog.
 func (m *Models) HandleMsg(msg tea.Msg) Action {
+	if action, ok := m.handleLocalMsg(msg); ok {
+		return action
+	}
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch {
@@ -210,6 +219,10 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 			modelItem, ok := selectedItem.(*ModelItem)
 			if !ok {
 				break
+			}
+
+			if action, ok := m.selectLocal(modelItem); ok {
+				return action
 			}
 
 			isEdit := key.Matches(msg, m.keyMap.Edit)
@@ -519,6 +532,9 @@ func (m *Models) setProviderItems() error {
 
 		groups = append(groups, group)
 	}
+
+	// Servers found on this computer go first, below recent models.
+	groups = append(m.localGroups(), groups...)
 
 	if len(recentItems) > 0 {
 		recentGroup := NewModelGroup(t, "Recently used", false)

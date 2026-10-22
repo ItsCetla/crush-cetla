@@ -22,9 +22,16 @@ var modelsCmd = &cobra.Command{
 tada models
 
 # Search models
-tada models gpt5`,
+tada models gpt5
+
+# Find Ollama, LM Studio or llama.cpp running on this computer
+tada models --discover`,
 	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if find, _ := cmd.Flags().GetBool("discover"); find {
+			return runDiscoverModels(cmd)
+		}
+
 		cwd, err := ResolveCwd(cmd)
 		if err != nil {
 			return err
@@ -167,5 +174,6 @@ tada models gpt5`,
 }
 
 func init() {
+	modelsCmd.Flags().Bool("discover", false, "Find model servers running on this computer and print the tadarc line to add each")
 	rootCmd.AddCommand(modelsCmd)
 }

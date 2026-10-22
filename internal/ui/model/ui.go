@@ -6071,7 +6071,7 @@ func (m *UI) openModelsDialog() tea.Cmd {
 
 	m.dialog.OpenDialog(modelsDialog)
 
-	return nil
+	return modelsDialog.DiscoverLocalCmd()
 }
 
 // openCommandsDialog opens the commands dialog.

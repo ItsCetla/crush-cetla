@@ -1340,6 +1340,28 @@ provider add llamacpp \
   --base-url "http://localhost:2222"
 ```
 
+#### Finding Local Servers Automatically
+
+You may not need to configure anything. When the model picker opens
+(including on first run), Ta-Da checks this computer for Ollama on
+`localhost:11434`, LM Studio on `localhost:1234` and llama.cpp or another
+OpenAI-compatible server on `localhost:8080`. Each check gives up after
+300ms and shows up in the privacy receipt as `discovery`. Models it finds are
+listed at the top of the picker under "running on this computer". Picking
+one saves the server as a provider in your global config, so it's there
+next time. Servers you've already configured aren't listed twice, and
+embedding models are left out.
+
+To see what's running from the command line, along with the tadarc line
+to add each server:
+
+```bash
+tada models --discover
+```
+
+Other computers on your network aren't scanned; add those by hand as
+shown above.
+
 #### Manual Model Configuration
 
 You can still list models explicitly. User-defined models always take

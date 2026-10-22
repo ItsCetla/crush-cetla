@@ -50,6 +50,15 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   well as the permissions dialog. The `diff_mode` option (`option ui diff`
   in `tadarc`) now takes `auto`, the default, besides `split` and
   `unified`, and the chat follows it too, not just the dialog.
+- **Local models on first run.** Ta-Da looks for Ollama (`:11434`),
+  LM Studio (`:1234`) and llama.cpp or another OpenAI-compatible server
+  (`:8080`) on this computer when the model picker opens, including during
+  onboarding. Models it finds are listed at the top under "running on this
+  computer", and picking one saves the server as a provider in your global
+  config with no API key needed. Each probe gives up after 300ms, and
+  servers you've already configured aren't shown again.
+  `tada models --discover` prints what it finds and the tadarc line for
+  each.
 
 ## [0.5.14] - 2026-10-21
 
