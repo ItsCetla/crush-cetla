@@ -1222,6 +1222,8 @@ func quickStyle(o quickStyleOpts) Styles {
 	s.Status.CostPill = lipgloss.NewStyle().Foreground(o.fgMoreSubtle).Padding(0, 1)
 	s.Status.CostPillWarn = lipgloss.NewStyle().Foreground(o.bgBase).Background(o.warning).Padding(0, 1)
 	s.Status.CostPillOver = lipgloss.NewStyle().Foreground(o.onPrimary).Background(o.destructive).Padding(0, 1)
+	s.Status.NetPill = lipgloss.NewStyle().Foreground(o.fgMoreSubtle).Padding(0, 1)
+	s.Status.NetPillExternal = lipgloss.NewStyle().Foreground(o.info).Padding(0, 1)
 
 	s.Control.Allowed = lipgloss.NewStyle().Foreground(o.success)
 	s.Control.Denied = lipgloss.NewStyle().Foreground(o.destructive)

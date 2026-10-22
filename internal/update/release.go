@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/crush/internal/netlog"
 )
 
 const (
@@ -93,7 +95,10 @@ func New(current string) *Updater {
 		APIURL:    LatestReleaseURL,
 		AllowHost: GitHubHost,
 	}
-	u.HTTP = &http.Client{CheckRedirect: u.checkRedirect}
+	u.HTTP = &http.Client{
+		CheckRedirect: u.checkRedirect,
+		Transport:     netlog.Wrap(nil, netlog.PurposeUpdate),
+	}
 	return u
 }
 

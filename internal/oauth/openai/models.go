@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"charm.land/catwalk/pkg/catwalk"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/oauth"
 )
 
@@ -58,7 +59,10 @@ func Models(ctx context.Context, token *oauth.Token) ([]catwalk.Model, error) {
 	}
 	req.Header.Set("originator", "tada")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: netlog.Wrap(nil, netlog.PurposeCatalog),
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch Codex model catalog: %w", err)

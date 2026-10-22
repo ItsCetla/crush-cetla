@@ -31,6 +31,9 @@ tada status --plain
 
 # Machine-readable
 tada status --json
+
+# Every host the running Ta-Da server has talked to
+tada status --network
   `,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
@@ -42,6 +45,9 @@ tada status --json
 		plain, _ := cmd.Flags().GetBool("plain")
 		asJSON, _ := cmd.Flags().GetBool("json")
 		limit, _ := cmd.Flags().GetInt("actions")
+		if network, _ := cmd.Flags().GetBool("network"); network {
+			return runStatusNetwork(cmd, cwd, plain, asJSON)
+		}
 
 		store, err := config.Load(cwd, dataDir, false)
 		if err != nil {
@@ -74,6 +80,7 @@ func init() {
 	statusCmd.Flags().Bool("plain", false, "Use ASCII only: no bars, glyphs or sparklines")
 	statusCmd.Flags().Bool("json", false, "Print JSON")
 	statusCmd.Flags().Int("actions", 8, "How many recent actions to list")
+	statusCmd.Flags().Bool("network", false, "Print the privacy receipt: every host the running Ta-Da server talked to")
 	rootCmd.AddCommand(statusCmd)
 }
 

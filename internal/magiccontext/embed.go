@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/crush/internal/netlog"
 )
 
 // NewHTTPEmbedder returns an Embedder that POSTs to `${endpoint}/embeddings`
@@ -29,7 +31,8 @@ func NewHTTPEmbedder(endpoint, model, apiKey string) Embedder {
 		return nil
 	}
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout:   30 * time.Second,
+		Transport: netlog.Wrap(nil, netlog.PurposeEmbed),
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return errors.New("magiccontext: embeddings endpoint redirects are refused")
 		},

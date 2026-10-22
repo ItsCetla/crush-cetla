@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/styles"
@@ -27,7 +28,7 @@ func TestControl_LoadsEveryPage(t *testing.T) {
 	for _, c := range act.Cmds {
 		ops = append(ops, c.Op)
 	}
-	require.Equal(t, []control.Op{control.OpUsage, control.OpActions, control.OpMissions}, ops)
+	require.Equal(t, []control.Op{control.OpUsage, control.OpActions, control.OpMissions, control.OpNetwork}, ops)
 }
 
 func TestControl_PageKeys(t *testing.T) {
@@ -43,9 +44,15 @@ func TestControl_PageKeys(t *testing.T) {
 	c.HandleMsg(keyMsg('4'))
 	require.Equal(t, ControlPageMissions, c.Page())
 	c.HandleMsg(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.Equal(t, ControlPageNetwork, c.Page())
+	c.HandleMsg(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.Equal(t, ControlPageOverview, c.Page(), "tab wraps around")
 	c.HandleMsg(keyMsg('h'))
-	require.Equal(t, ControlPageMissions, c.Page(), "back wraps around")
+	require.Equal(t, ControlPageNetwork, c.Page(), "back wraps around")
+	c.HandleMsg(keyMsg('4'))
+	require.Equal(t, ControlPageMissions, c.Page())
+	c.HandleMsg(keyMsg('5'))
+	require.Equal(t, ControlPageNetwork, c.Page())
 	c.HandleMsg(keyMsg('1'))
 	require.Equal(t, ControlPageOverview, c.Page())
 }
@@ -154,11 +161,12 @@ func TestControl_NarrowTabs(t *testing.T) {
 	t.Parallel()
 	c, _ := newTestControl(t, &control.Snapshot{})
 	c.HandleMsg(keyMsg('2'))
-	wide := ansi.Strip(c.tabs(c.com.Styles, 80))
+	wide := ansi.Strip(c.tabs(c.com.Styles, 90))
 	require.Contains(t, wide, "1 Overview")
 	require.Contains(t, wide, "4 Missions")
+	require.Contains(t, wide, "5 Network")
 	narrow := ansi.Strip(c.tabs(c.com.Styles, 24))
-	require.Contains(t, narrow, "2/4 Cost")
+	require.Contains(t, narrow, "2/5 Cost")
 	require.Contains(t, narrow, "‹")
 	require.Contains(t, narrow, "›")
 	require.NotContains(t, narrow, "Overview")
@@ -169,7 +177,7 @@ func TestControl_RendersEveryPage(t *testing.T) {
 	now := time.Now()
 	c, _ := newTestControl(t, &control.Snapshot{HasLedger: true, At: now})
 	c.width, c.height = 70, 14
-	for p := range 4 {
+	for p := range 5 {
 		c.HandleMsg(keyMsg(rune('1' + p)))
 		out := ansi.Strip(c.content(now))
 		require.Contains(t, out, "Control")
@@ -178,6 +186,69 @@ func TestControl_RendersEveryPage(t *testing.T) {
 			require.LessOrEqual(t, ansi.StringWidth(l), 70, "page %d line too wide: %q", p+1, l)
 		}
 	}
+}
+
+func TestControl_NetworkPage(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	c, _ := newTestControl(t, &control.Snapshot{At: now})
+	c.width, c.height = 70, 20
+	c.HandleMsg(keyMsg('5'))
+
+	out := ansi.Strip(c.content(now))
+	require.Contains(t, out, "Loading…")
+
+	c.SetReply(control.OpNetwork, control.Reply{Network: &netlog.Report{
+		SessionID: "s1",
+		Hosts: []netlog.Host{
+			{
+				Host: "api.anthropic.com", Purposes: []netlog.Purpose{netlog.PurposeProvider},
+				Requests: 3, BytesOut: 42_000, BytesIn: 9_100, LastSeen: now.Add(-time.Minute),
+			},
+			{
+				Host: "127.0.0.1", Purposes: []netlog.Purpose{netlog.PurposeMCP}, Local: true,
+				Requests: 1, BytesOut: 200, BytesIn: 300, LastSeen: now,
+			},
+		},
+		Totals: netlog.Totals{Hosts: 2, External: 1, Requests: 4, BytesOut: 42_200, BytesIn: 9_400},
+		Background: []netlog.Host{{
+			Host: "api.github.com", Purposes: []netlog.Purpose{netlog.PurposeUpdate},
+			Requests: 1, BytesOut: 120, BytesIn: 2_048, LastSeen: now,
+		}},
+	}}, nil)
+	out = ansi.Strip(c.content(now))
+	require.Contains(t, out, "This session talked to 2 hosts")
+	require.Contains(t, out, "1 off this machine")
+	require.Contains(t, out, "api.anthropic.com")
+	require.Contains(t, out, "model")
+	require.Contains(t, out, "41 KB")
+	require.Contains(t, out, "127.0.0.1")
+	require.Contains(t, out, "Ta-Da itself")
+	require.Contains(t, out, "api.github.com")
+	require.Contains(t, out, "never")
+	for _, l := range splitLines(out) {
+		require.LessOrEqual(t, ansi.StringWidth(l), 70, "line too wide: %q", l)
+	}
+
+	// Scrolling moves the host rows, not the summary.
+	c.HandleMsg(keyMsg('j'))
+	out = ansi.Strip(c.content(now))
+	require.Contains(t, out, "This session talked to 2 hosts")
+	require.NotContains(t, out, "api.anthropic.com")
+
+	c.SetReply(control.OpNetwork, control.Reply{Network: &netlog.Report{
+		Hosts:  []netlog.Host{{Host: "localhost", Local: true, Requests: 2, LastSeen: now}},
+		Totals: netlog.Totals{Hosts: 1, Requests: 2},
+	}}, nil)
+	c.HandleMsg(keyMsg('k'))
+	out = ansi.Strip(c.content(now))
+	require.Contains(t, out, "Local only.")
+	require.Contains(t, out, "Ta-Da talked to 1 host,")
+
+	c.SetReply(control.OpNetwork, control.Reply{Network: &netlog.Report{SessionID: "s1"}}, nil)
+	require.Contains(t, ansi.Strip(c.content(now)), "This session hasn't made a network request.")
+	c.SetReply(control.OpNetwork, control.Reply{Network: &netlog.Report{}}, nil)
+	require.Contains(t, ansi.Strip(c.content(now)), "Nothing has left this machine.")
 }
 
 func splitLines(s string) []string {

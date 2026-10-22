@@ -179,7 +179,7 @@ func chat(ctx context.Context, m Machine, prompt string) (string, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	setAuth(req, m)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := machineClient.Do(req)
 	if err != nil {
 		return "", err
 	}

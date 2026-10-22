@@ -2,12 +2,14 @@ package control
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/stretchr/testify/require"
 )
@@ -457,4 +459,42 @@ func TestHubReportsPolicyWithoutPermissions(t *testing.T) {
 	p := permission.DefaultPolicy()
 	s := NewHub(HubOptions{Policy: &p}).snapshot("")
 	require.Equal(t, []permission.Class{permission.ClassDelete}, s.State.Policy.AlwaysAsk)
+}
+
+func TestHubNetwork(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	_, err := NewHub(HubOptions{}).Do(ctx, Command{Op: OpNetwork})
+	require.Error(t, err, "no receipt without a ledger")
+	require.Nil(t, NewHub(HubOptions{}).snapshot("s1").Network)
+
+	l := netlog.NewLedger()
+	l.Add("s1", "api.anthropic.com", netlog.PurposeProvider, 10, 100)
+	l.Add("s1", "localhost:3000", netlog.PurposeMCP, 1, 1)
+	l.Add("s2", "duckduckgo.com", netlog.PurposeWeb, 1, 1)
+	h := NewHub(HubOptions{Network: l})
+
+	r, err := h.Do(ctx, Command{Op: OpNetwork, SessionID: "s1"})
+	require.NoError(t, err)
+	require.NotNil(t, r.Network)
+	require.Equal(t, 2, r.Network.Totals.Hosts)
+	require.Equal(t, 1, r.Network.Totals.External)
+
+	all, err := h.Do(ctx, Command{Op: OpNetwork})
+	require.NoError(t, err)
+	require.Equal(t, 3, all.Network.Totals.Hosts)
+
+	s := h.snapshot("s1")
+	require.Equal(t, &netlog.Totals{Hosts: 2, External: 1, Requests: 2, BytesOut: 11, BytesIn: 101}, s.Network)
+
+	// The reply crosses the client/server API as JSON.
+	b, err := json.Marshal(r)
+	require.NoError(t, err)
+	require.Contains(t, string(b), `"bytes_out":10`)
+	var back Reply
+	require.NoError(t, json.Unmarshal(b, &back))
+	require.Equal(t, r.Network.Totals, back.Network.Totals)
+	require.Equal(t, r.Network.Hosts[0].Host, back.Network.Hosts[0].Host)
+	require.Equal(t, r.Network.Hosts[0].Purposes, back.Network.Hosts[0].Purposes)
 }

@@ -19,6 +19,7 @@ import (
 
 	"charm.land/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/csync"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/oauth"
 	"github.com/charmbracelet/crush/internal/oauth/copilot"
 	"github.com/charmbracelet/crush/internal/update"
@@ -1409,7 +1410,7 @@ func (c *ProviderConfig) TestConnection(resolver VariableResolver) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client := &http.Client{}
+	client := &http.Client{Transport: netlog.Wrap(nil, netlog.PurposeProvider)}
 	req, err := http.NewRequestWithContext(ctx, "GET", testURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request for provider %s: %w", c.ID, err)

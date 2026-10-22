@@ -10,6 +10,7 @@ package model
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -224,6 +225,27 @@ func (m *UI) staleControlRefreshCmd() tea.Cmd {
 		return m.dispatchControlRefresh()
 	}
 	return nil
+}
+
+// networkPillText returns the status bar's network pill: how many hosts
+// off this machine the session reached, or "local only" when everything
+// stayed on it. It's empty before the session has touched the network,
+// and with no session open, where the totals would span the whole process.
+func (m *UI) networkPillText() (string, bool) {
+	if m.currentSessionID() == "" {
+		return "", false
+	}
+	s := m.controlSnapshot()
+	if s == nil || s.Network == nil || s.Network.Hosts == 0 {
+		return "", false
+	}
+	if n := s.Network.External; n > 0 {
+		if n == 1 {
+			return "↑ 1 host", true
+		}
+		return fmt.Sprintf("↑ %d hosts", n), true
+	}
+	return "local only", false
 }
 
 // costPillText returns the status bar's spend pill: today's counted

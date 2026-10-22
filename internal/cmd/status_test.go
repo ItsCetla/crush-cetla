@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/limits"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/stretchr/testify/require"
 )
@@ -113,4 +114,51 @@ func TestDecisionMark(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, "-", decisionMark(permission.DecisionCanceled, false))
 	require.Equal(t, "!", decisionMark(permission.Decision("other"), true))
+}
+
+func TestWriteNetwork(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	r := netlog.Report{
+		Hosts: []netlog.Host{
+			{
+				Host: "api.anthropic.com", Purposes: []netlog.Purpose{netlog.PurposeProvider, netlog.PurposeOAuth},
+				Requests: 3, BytesOut: 42_000, BytesIn: 9_100, LastSeen: now.Add(-2 * time.Minute),
+			},
+			{Host: "127.0.0.1", Local: true, Purposes: []netlog.Purpose{netlog.PurposeMCP}, Requests: 1, LastSeen: now},
+		},
+		Totals: netlog.Totals{Hosts: 2, External: 1, Requests: 4, BytesOut: 42_000, BytesIn: 9_100},
+	}
+
+	var b bytes.Buffer
+	writeNetwork(&b, r, now, true)
+	out := b.String()
+	require.Contains(t, out, "Ta-Da network receipt")
+	require.Contains(t, out, "2 hosts, 1 off this machine.")
+	require.Contains(t, out, "4 requests, 41 KB sent, 8.9 KB received.")
+	require.Contains(t, out, "* api.anthropic.com")
+	require.Contains(t, out, "model, sign-in")
+	require.Contains(t, out, "2m ago")
+	require.Contains(t, out, "- 127.0.0.1")
+	require.Contains(t, out, "never written to disk")
+	for _, c := range out {
+		require.Less(t, c, rune(128), "plain output is ASCII: %q", c)
+	}
+
+	b.Reset()
+	writeNetwork(&b, netlog.Report{
+		Hosts:  []netlog.Host{{Host: "localhost", Local: true, Requests: 1}},
+		Totals: netlog.Totals{Hosts: 1, Requests: 1},
+	}, now, false)
+	require.Contains(t, b.String(), "Local only: 1 host, all on this machine")
+	require.Contains(t, b.String(), "• localhost")
+
+	b.Reset()
+	writeNetwork(&b, netlog.Report{}, now, false)
+	require.Contains(t, b.String(), "Nothing has left this machine yet.")
+
+	b.Reset()
+	writeNoNetwork(&b)
+	require.Contains(t, b.String(), "never written to disk")
+	require.Contains(t, b.String(), "then 5")
 }

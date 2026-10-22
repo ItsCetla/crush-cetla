@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/permission"
 )
 
@@ -26,6 +27,7 @@ type Hub struct {
 	missions *Missions
 	project  string
 	policy   *permission.Policy
+	network  *netlog.Ledger
 
 	mu     sync.Mutex
 	budget Budget
@@ -45,6 +47,8 @@ type HubOptions struct {
 	// Policy is reported in snapshots when there is no permission
 	// service, as in "tada status".
 	Policy *permission.Policy
+	// Network is this process's network receipt.
+	Network *netlog.Ledger
 }
 
 // NewHub builds a hub and starts recording the permission service's
@@ -57,6 +61,7 @@ func NewHub(o HubOptions) *Hub {
 		missions: o.Missions,
 		project:  o.Project,
 		policy:   o.Policy,
+		network:  o.Network,
 		budget:   o.Budget,
 		extra:    make(map[string]float64),
 	}
@@ -192,6 +197,7 @@ const (
 	OpUsage          Op = "usage"
 	OpActions        Op = "actions"
 	OpMissions       Op = "missions"
+	OpNetwork        Op = "network"
 	OpMissionCreate  Op = "mission_create"
 	OpMissionCheck   Op = "mission_check"
 	OpMissionUncheck Op = "mission_uncheck"
@@ -230,7 +236,10 @@ type Snapshot struct {
 	Session        Totals                  `json:"session"`
 	Budgets        []BudgetStatus          `json:"budgets,omitempty"`
 	HasLedger      bool                    `json:"has_ledger"`
-	At             time.Time               `json:"at"`
+	// Network sums the hosts the session talked to, for the status bar.
+	// It's nil when the hub has no network receipt.
+	Network *netlog.Totals `json:"network,omitempty"`
+	At      time.Time      `json:"at"`
 }
 
 // Report is the cockpit's cost page.
@@ -249,6 +258,7 @@ type Reply struct {
 	Actions  []permission.Action `json:"actions,omitempty"`
 	Missions []Mission           `json:"missions,omitempty"`
 	Mission  *Mission            `json:"mission,omitempty"`
+	Network  *netlog.Report      `json:"network,omitempty"`
 	Message  string              `json:"message,omitempty"`
 }
 
@@ -281,6 +291,12 @@ func (h *Hub) Do(ctx context.Context, c Command) (Reply, error) {
 		return Reply{Snapshot: &s, Report: &r}, nil
 	case OpActions:
 		return Reply{Actions: h.recentActions(c.SessionID, c.Limit)}, nil
+	case OpNetwork:
+		if h.network == nil {
+			return Reply{}, errors.New("the network receipt isn't available")
+		}
+		r := h.network.Report(c.SessionID)
+		return Reply{Network: &r}, nil
 	}
 	if strings.HasPrefix(string(c.Op), "mission") {
 		return h.missionOp(ctx, c)
@@ -323,6 +339,10 @@ func (h *Hub) snapshot(sessionID string) Snapshot {
 		s.Session = Sum(rows, func(u Usage) bool { return u.SessionID == sessionID })
 	}
 	s.Budgets = h.Budgets(sessionID)
+	if h.network != nil {
+		t := h.network.Summary(sessionID)
+		s.Network = &t
+	}
 	return s
 }
 

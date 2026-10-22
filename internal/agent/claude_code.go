@@ -22,6 +22,7 @@ import (
 	"github.com/charmbracelet/crush/internal/control"
 	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/message"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/workdir"
@@ -176,6 +177,9 @@ func (a *sessionAgent) runClaudeCode(
 		opts.Prompt = ccTranscript(history, model.ModelCfg.Provider, resume) + prompt
 		return claudecode.RunTurn(genCtx, opts, handler)
 	}
+	// The CLI does its own networking, out of Ta-Da's sight; note the turn
+	// so the privacy receipt still says a model host was reached.
+	netlog.Default().Note(call.SessionID, netlog.HostClaudeCLI, netlog.PurposeProvider)
 	res, err := run(resume)
 	switch {
 	case resume && errors.Is(err, claudecode.ErrSessionNotFound):

@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/oauth"
 	"github.com/charmbracelet/crush/internal/oauth/callback"
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -191,7 +192,7 @@ func NewHandler(
 		// validation. Also rewrite internal-cluster redirects back to the
 		// external hostname so the flow works outside the cluster.
 		// Based on Bruno Krugel's fix from PR #3396.
-		Client: newOAuthMetadataClient(http.DefaultTransport, serverURL),
+		Client: newOAuthMetadataClient(netlog.Wrap(nil, netlog.PurposeOAuth), serverURL),
 		DynamicClientRegistrationConfig: &auth.DynamicClientRegistrationConfig{
 			Metadata: &oauthex.ClientRegistrationMetadata{
 				ClientName:   "Ta-Da",

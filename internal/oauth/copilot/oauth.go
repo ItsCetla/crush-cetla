@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/oauth"
 )
 
@@ -46,7 +47,10 @@ func RequestDeviceCode(ctx context.Context) (*DeviceCode, error) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", userAgent)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: netlog.Wrap(nil, netlog.PurposeOAuth),
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -116,7 +120,10 @@ func tryGetToken(ctx context.Context, deviceCode string) (*oauth.Token, error) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", userAgent)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: netlog.Wrap(nil, netlog.PurposeOAuth),
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -157,7 +164,10 @@ func getCopilotToken(ctx context.Context, githubToken string) (*oauth.Token, err
 		req.Header.Set(k, v)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: netlog.Wrap(nil, netlog.PurposeOAuth),
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

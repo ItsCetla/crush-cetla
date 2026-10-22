@@ -70,15 +70,7 @@ func NewSourcegraphTool(permissions permission.Service, workingDir string, clien
 		panic("sourcegraph tool requires a permission service")
 	}
 	if client == nil {
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.MaxIdleConns = 100
-		transport.MaxIdleConnsPerHost = 10
-		transport.IdleConnTimeout = 90 * time.Second
-
-		client = &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: transport,
-		}
+		client = NewWebClient(30 * time.Second)
 	}
 	return fantasy.NewParallelAgentTool(
 		SourcegraphToolName,

@@ -1605,6 +1605,8 @@ func (a *sessionAgent) Summarize(ctx context.Context, sessionID string, opts fan
 	if a.IsSessionBusy(sessionID) {
 		return ErrSessionBusy
 	}
+	// Attribute the summary's provider traffic to the session.
+	ctx = context.WithValue(ctx, tools.SessionIDContextKey, sessionID)
 
 	// Copy mutable fields under lock to avoid races with SetModels.
 	largeModel := a.largeModel.Get()

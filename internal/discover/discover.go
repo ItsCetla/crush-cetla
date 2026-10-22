@@ -10,12 +10,17 @@ import (
 	"time"
 
 	"charm.land/catwalk/pkg/catwalk"
+
+	"github.com/charmbracelet/crush/internal/netlog"
 )
 
 // httpClient is shared across all discovery and enrichment calls. It
 // has a reasonable timeout so individual requests cannot block forever
 // even if the caller forgets to set a context deadline.
-var httpClient = &http.Client{Timeout: 10 * time.Second}
+var httpClient = &http.Client{
+	Timeout:   10 * time.Second,
+	Transport: netlog.Wrap(nil, netlog.PurposeDiscover),
+}
 
 // stripV1Suffix removes a trailing /v1 from a base URL. Enricher
 // endpoints (e.g. Ollama's /api/show, LM Studio's /api/v1/models) are

@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/oauth"
 )
 
@@ -49,7 +50,10 @@ var (
 
 // HTTPClient allows tests to stub out the token endpoint. Production
 // leaves it as a plain client with a generous timeout.
-var HTTPClient = &http.Client{Timeout: 30 * time.Second}
+var HTTPClient = &http.Client{
+	Timeout:   30 * time.Second,
+	Transport: netlog.Wrap(nil, netlog.PurposeOAuth),
+}
 
 // PKCE holds the proof key for the code exchange.
 type PKCE struct {

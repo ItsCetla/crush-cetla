@@ -7,6 +7,17 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Added
+
+- **Live privacy receipt.** Ta-Da now counts every host it talks to over
+  HTTP, per session: model providers, MCP servers, web tools, fleet
+  machines, sign-ins, model lists and update checks, with requests and
+  estimated bytes each way. The status bar shows `↑ N hosts` when anything
+  left this machine (or `local only`), the cockpit has a fifth page,
+  Network, that lists each host with why it was contacted, and
+  `tada status --network` prints the receipt of a running Ta-Da server.
+  The receipt is kept in memory only and never written to disk.
+
 ## [0.5.14] - 2026-10-21
 
 ### Added

@@ -626,6 +626,11 @@ type Styles struct {
 		CostPillWarn lipgloss.Style
 		CostPillOver lipgloss.Style
 
+		// Network pill beside the spend pill: hosts this session reached
+		// off the machine, or "local only".
+		NetPill         lipgloss.Style
+		NetPillExternal lipgloss.Style
+
 		ErrorIndicator   lipgloss.Style
 		WarnIndicator    lipgloss.Style
 		InfoIndicator    lipgloss.Style

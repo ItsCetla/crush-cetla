@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/permission"
 	"github.com/charmbracelet/crush/internal/ui/common"
 	"github.com/charmbracelet/crush/internal/ui/styles"
@@ -48,9 +49,13 @@ const (
 	ControlPageCost
 	ControlPageActions
 	ControlPageMissions
+	ControlPageNetwork
 )
 
-var controlPageNames = []string{"Overview", "Cost", "Actions", "Missions"}
+var controlPageNames = []string{"Overview", "Cost", "Actions", "Missions", "Network"}
+
+// controlPageCount is how many pages the cockpit has.
+const controlPageCount = ControlPageNetwork + 1
 
 func (p ControlPage) String() string { return controlPageNames[p] }
 
@@ -79,12 +84,14 @@ type Control struct {
 	report   *control.Report
 	actions  []permission.Action
 	missions []control.Mission
+	network  *netlog.Report
 	loaded   map[control.Op]bool
 	updated  time.Time
 	err      error
 	notice   string
 
 	scroll     int // first visible row on the Actions page
+	netScroll  int // first visible host on the Network page
 	cursor     int // selected mission
 	detail     bool
 	critCursor int
@@ -147,7 +154,7 @@ func NewControl(com *common.Common, snap *control.Snapshot, page ControlPage) (*
 	}
 	c.keyMap.Next = b([]string{"tab", "right", "l"}, "tab", "next page")
 	c.keyMap.Prev = b([]string{"shift+tab", "left", "h"}, "shift+tab", "prev page")
-	c.keyMap.Page = b([]string{"1", "2", "3", "4"}, "1-4", "page")
+	c.keyMap.Page = b([]string{"1", "2", "3", "4", "5"}, "1-5", "page")
 	c.keyMap.Up = b([]string{"up", "k"}, "↑/k", "up")
 	c.keyMap.Down = b([]string{"down", "j"}, "↓/j", "down")
 	c.keyMap.Refresh = b([]string{"r"}, "r", "refresh")
@@ -180,6 +187,7 @@ func (c *Control) refresh() ActionControl {
 		{Op: control.OpUsage},
 		{Op: control.OpActions, Limit: controlActionsLimit},
 		{Op: control.OpMissions},
+		{Op: control.OpNetwork},
 	}}
 }
 
@@ -217,6 +225,8 @@ func (c *Control) SetReply(op control.Op, r control.Reply, err error) {
 		c.scroll = min(c.scroll, max(0, len(c.actions)-1))
 	case control.OpMissions:
 		c.missions = r.Missions
+	case control.OpNetwork:
+		c.network = r.Network
 	case control.OpMissionDelete:
 		c.missions = slices.DeleteFunc(c.missions, func(m control.Mission) bool {
 			return m.ID == c.confirmDel
@@ -288,9 +298,9 @@ func (c *Control) HandleMsg(msg tea.Msg) Action {
 	case key.Matches(k, km.TakeBack):
 		return ActionTakeBack{}
 	case key.Matches(k, km.Next):
-		c.setPage((c.page + 1) % 4)
+		c.setPage((c.page + 1) % controlPageCount)
 	case key.Matches(k, km.Prev):
-		c.setPage((c.page + 3) % 4)
+		c.setPage((c.page + controlPageCount - 1) % controlPageCount)
 	case key.Matches(k, km.Page):
 		c.setPage(ControlPage(k.String()[0] - '1'))
 	case key.Matches(k, km.Refresh):
@@ -302,12 +312,18 @@ func (c *Control) HandleMsg(msg tea.Msg) Action {
 		}
 		return ActionSetEdits{On: !c.snap.State.Edits}
 	case key.Matches(k, km.Up):
-		if c.page == ControlPageActions {
+		switch c.page {
+		case ControlPageActions:
 			c.scroll = max(0, c.scroll-1)
+		case ControlPageNetwork:
+			c.netScroll = max(0, c.netScroll-1)
 		}
 	case key.Matches(k, km.Down):
-		if c.page == ControlPageActions {
+		switch c.page {
+		case ControlPageActions:
 			c.scroll = max(0, min(c.scroll+1, len(c.actions)-1))
+		case ControlPageNetwork:
+			c.netScroll = max(0, min(c.netScroll+1, c.networkRowCount()-1))
 		}
 	}
 	return nil
@@ -477,6 +493,8 @@ func (c *Control) content(now time.Time) string {
 		body = c.actionRows(t, now, inner-2)
 	case ControlPageMissions:
 		body = c.missionRows(t, now, inner-2)
+	case ControlPageNetwork:
+		body = c.networkRows(t, now, inner-2)
 	}
 	rc.AddPart(c.frame(body, inner))
 	rc.AddPart(c.footer(t, now, inner))
@@ -531,7 +549,7 @@ func (c *Control) tabs(t *styles.Styles, inner int) string {
 	if lipgloss.Width(row)+2 > inner {
 		// Narrow: one page at a time with arrows.
 		row = t.Control.Muted.Render("‹ ") +
-			t.Control.TabOn.Render(fmt.Sprintf("%d/4 %s", c.page+1, c.page)) +
+			t.Control.TabOn.Render(fmt.Sprintf("%d/%d %s", c.page+1, controlPageCount, c.page)) +
 			t.Control.Muted.Render(" ›")
 	}
 	return lipgloss.NewStyle().Padding(0, 1).Render(row) + "\n"
@@ -854,6 +872,92 @@ func (c *Control) missionDetail(t *styles.Styles, m control.Mission, now time.Ti
 	return lines
 }
 
+// networkRowCount is how many host rows the Network page can scroll
+// through.
+func (c *Control) networkRowCount() int {
+	if c.network == nil {
+		return 0
+	}
+	return len(c.network.Hosts) + len(c.network.Background)
+}
+
+// networkRows renders the privacy receipt: every host the session (or,
+// without one, the whole process) talked to, why, and how much went each
+// way. The rows scroll; the summary line stays put.
+func (c *Control) networkRows(t *styles.Styles, now time.Time, width int) []string {
+	r := c.network
+	if r == nil {
+		if c.loaded[control.OpNetwork] {
+			return []string{t.Control.Muted.Render("The network receipt isn't available here.")}
+		}
+		return []string{t.Control.Muted.Render("Loading…")}
+	}
+	who := "This session"
+	if r.SessionID == "" {
+		who = "Ta-Da"
+	}
+	var head string
+	switch {
+	case r.Totals.Hosts == 0 && r.SessionID != "":
+		// Background rows may still list Ta-Da's own requests below.
+		head = t.Control.On.Render("Nothing yet.") +
+			t.Control.Muted.Render(" This session hasn't made a network request.")
+	case r.Totals.Hosts == 0:
+		head = t.Control.On.Render("Nothing has left this machine.") +
+			t.Control.Muted.Render(" Ta-Da hasn't made a network request yet.")
+	case r.Totals.External == 0:
+		head = t.Control.On.Render("Local only.") + " " +
+			t.Control.Value.Render(fmt.Sprintf("%s talked to %s, all on this machine or network.", who, fmt.Sprintf("%d host%s", r.Totals.Hosts, plural(r.Totals.Hosts))))
+	default:
+		head = t.Control.Value.Render(fmt.Sprintf("%s talked to %s", who, fmt.Sprintf("%d host%s", r.Totals.Hosts, plural(r.Totals.Hosts)))) +
+			t.Control.Muted.Render(" · ") +
+			t.Control.Warn.Render(fmt.Sprintf("%d off this machine", r.Totals.External))
+	}
+	lines := []string{head}
+	if r.Totals.Hosts > 0 {
+		lines = append(lines, t.Control.Muted.Render(fmt.Sprintf("%d requests · ↑ %s sent · ↓ %s received",
+			r.Totals.Requests, netlog.Bytes(r.Totals.BytesOut), netlog.Bytes(r.Totals.BytesIn))))
+	}
+
+	hostW := max(10, min(32, width-48))
+	var rows []string
+	if len(r.Hosts) > 0 || len(r.Background) > 0 {
+		rows = append(rows, "", t.Control.Label.Render(fmt.Sprintf("  %-*s %-12s %5s %8s %8s %s",
+			hostW, "Host", "For", "Reqs", "Sent", "Recv", "Last")))
+	}
+	var hostRows []string
+	for _, h := range r.Hosts {
+		hostRows = append(hostRows, networkLine(t, h, now, hostW))
+	}
+	if len(r.Background) > 0 {
+		hostRows = append(hostRows, "", t.Control.Label.Render("Ta-Da itself")+
+			t.Control.Muted.Render(" · not tied to any session"))
+		for _, h := range r.Background {
+			hostRows = append(hostRows, networkLine(t, h, now, hostW))
+		}
+	}
+	start := max(0, min(c.netScroll, len(hostRows)-1))
+	rows = append(rows, hostRows[start:]...)
+	lines = append(lines, rows...)
+	lines = append(lines, "",
+		t.Control.Muted.Render("↑ left this machine · • stayed local. Kept in memory only, never"),
+		t.Control.Muted.Render("written to disk; byte counts are estimates."),
+	)
+	return lines
+}
+
+func networkLine(t *styles.Styles, h netlog.Host, now time.Time, hostW int) string {
+	mark := t.Control.Warn.Render("↑")
+	if h.Local {
+		mark = t.Control.On.Render("•")
+	}
+	host := ansi.Truncate(h.Host, hostW, "…")
+	return mark + " " + t.Control.Value.Render(fmt.Sprintf("%-*s", hostW, host)) + " " +
+		t.Control.Muted.Render(fmt.Sprintf("%-12s", ansi.Truncate(netlog.Labels(h.Purposes), 12, "…"))) + " " +
+		t.Control.Value.Render(fmt.Sprintf("%5d %8s %8s", h.Requests, netlog.Bytes(h.BytesOut), netlog.Bytes(h.BytesIn))) + " " +
+		t.Control.Muted.Render(control.Ago(h.LastSeen, now))
+}
+
 // ShortHelp implements help.KeyMap.
 func (c *Control) ShortHelp() []key.Binding {
 	km := &c.keyMap
@@ -866,7 +970,7 @@ func (c *Control) ShortHelp() []key.Binding {
 		}
 		return []key.Binding{km.Open, km.New, km.Use, km.Delete, km.Next, km.Close}
 	}
-	if c.page == ControlPageActions {
+	if c.page == ControlPageActions || c.page == ControlPageNetwork {
 		return []key.Binding{km.Up, km.Down, km.TakeBack, km.Next, km.Close}
 	}
 	return []key.Binding{km.TakeBack, km.Edits, km.Refresh, km.Next, km.Close}

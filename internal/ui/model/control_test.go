@@ -8,7 +8,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
@@ -50,6 +52,39 @@ func TestCostPillText(t *testing.T) {
 			text, level := u.costPillText()
 			require.Equal(t, tc.text, text)
 			require.Equal(t, tc.level, level)
+		})
+	}
+}
+
+func TestNetworkPillText(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		session  bool
+		snap     *control.Snapshot
+		text     string
+		external bool
+	}{
+		{"no session", false, &control.Snapshot{Network: &netlog.Totals{Hosts: 2, External: 2}}, "", false},
+		{"no snapshot", true, nil, "", false},
+		{"no receipt", true, &control.Snapshot{}, "", false},
+		{"nothing yet", true, &control.Snapshot{Network: &netlog.Totals{}}, "", false},
+		{"local only", true, &control.Snapshot{Network: &netlog.Totals{Hosts: 2}}, "local only", false},
+		{"one host", true, &control.Snapshot{Network: &netlog.Totals{Hosts: 2, External: 1}}, "↑ 1 host", true},
+		{"hosts", true, &control.Snapshot{Network: &netlog.Totals{Hosts: 4, External: 3}}, "↑ 3 hosts", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			u := newTestUI()
+			if tc.session {
+				u.session = &session.Session{ID: "s1"}
+			}
+			u.ctl.snap = tc.snap
+			text, external := u.networkPillText()
+			require.Equal(t, tc.text, text)
+			require.Equal(t, tc.external, external)
 		})
 	}
 }

@@ -37,6 +37,11 @@ type Status struct {
 	// cost is the spend pill drawn on the right, or "" for none.
 	cost      string
 	costLevel costLevel
+
+	// net is the network pill drawn left of the cost pill, or "" for
+	// none. netExternal colors it for traffic that left the machine.
+	net         string
+	netExternal bool
 }
 
 // costLevel picks the cost pill's color.
@@ -80,6 +85,24 @@ func (s *Status) SetMode(mode uiInputMode, yolo, edits bool) {
 func (s *Status) SetCost(text string, level costLevel) {
 	s.cost = text
 	s.costLevel = level
+}
+
+// SetNetwork sets the network pill. An empty text hides it.
+func (s *Status) SetNetwork(text string, external bool) {
+	s.net = text
+	s.netExternal = external
+}
+
+// netPill renders the network pill, or "".
+func (s *Status) netPill() string {
+	if s.net == "" {
+		return ""
+	}
+	t := s.com.Styles
+	if s.netExternal {
+		return t.Status.NetPillExternal.Render(s.net)
+	}
+	return t.Status.NetPill.Render(s.net)
 }
 
 // costPill renders the spend pill, or "".
@@ -142,10 +165,11 @@ func (s *Status) Draw(scr uv.Screen, area uv.Rectangle) {
 		helpStyle := s.com.Styles.Status.Help
 		helpWidth := area.Dx() - helpStyle.GetPaddingLeft() - helpStyle.GetPaddingRight()
 		badge := s.modeBadge()
-		pill := s.costPill()
+		pill := s.netPill() + s.costPill()
 		pillWidth := lipgloss.Width(pill)
 		if pill != "" && area.Dx() < 60 {
-			// Narrow terminals keep the hints; the cockpit has the cost.
+			// Narrow terminals keep the hints; the cockpit has the cost
+			// and the network receipt.
 			pill, pillWidth = "", 0
 		}
 		if pillWidth > 0 {

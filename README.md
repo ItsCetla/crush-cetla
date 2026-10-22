@@ -94,6 +94,11 @@ talks to and what it does without asking:
   Spend budgets ask before the next model call once you reach them.
   `tada status` prints the same view in a terminal. See
   [Control, budgets and missions](#control-budgets-and-missions).
+- **Live privacy receipt.** Ta-Da counts every host it talks to, per
+  session: model providers, MCP servers, web tools, sign-ins and update
+  checks, with requests and bytes each way. The status bar shows `↑ 2
+  hosts` (or `local only`), and the cockpit's Network page lists them. The
+  receipt is kept in memory only and never written to disk.
 - **Magic Context (opt-in).** A Go port of cortexkit/magic-context that
   compresses old turns in the background and keeps project memory across
   sessions. See [Magic Context](#magic-context).
@@ -1008,7 +1013,7 @@ approve per session before asking again:
 ```
 
 **The cockpit.** Press **Ctrl+\\** (or **Alt+C**), or pick "Control" in
-the command palette. It has four pages (switch with Tab or 1 to 4):
+the command palette. It has five pages (switch with Tab or 1 to 5):
 
 - **Overview:** who's in control, which classes always ask, spend against
   your budgets and the active mission.
@@ -1017,6 +1022,15 @@ the command palette. It has four pages (switch with Tab or 1 to 4):
 - **Actions:** the action log, newest first: what was asked, its class,
   and whether you, a rule or a mode approved or denied it.
 - **Missions:** goals with a checklist (see below).
+- **Network:** the privacy receipt. Every host this session talked to,
+  why (model, MCP, web, sign-in, update), how many requests and roughly how
+  many bytes went each way, marked `↑` when it left this machine and `•`
+  when it stayed on it or the local network. Requests Ta-Da made outside
+  any session, like update checks, are listed under "Ta-Da itself". The
+  receipt lives in memory for the life of the process and is never
+  written to disk. The Claude Code engine makes its own connections, so
+  its turns show as one "claude cli (own traffic)" row without byte
+  counts.
 
 In the cockpit, `e` turns Edits mode on or off, `T` takes back control and
 `r` refreshes.
@@ -1055,7 +1069,12 @@ tada status            # spend, budgets, recent actions and missions
 tada status --plain    # ASCII only
 tada status --json     # for scripts
 tada status --actions 20
+tada status --network  # every host a running Ta-Da server talked to
 ```
+
+`--network` asks a running Ta-Da server (`TADA_CLIENT_SERVER=1`) for its
+receipt and never starts one. A Ta-Da running in-process keeps its receipt
+to itself; open its cockpit with **Ctrl+\\** and press 5.
 
 ### Usage limits
 

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"charm.land/catwalk/pkg/catwalk"
+
+	"github.com/charmbracelet/crush/internal/netlog"
 )
 
 const (
@@ -112,7 +114,7 @@ func get(ctx context.Context, m Machine, url string) ([]byte, error) {
 		return nil, err
 	}
 	setAuth(req, m)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := machineClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -188,3 +190,7 @@ func parseProps(data []byte) (slots int, contextWindow int64) {
 	}
 	return max(props.TotalSlots, 0), max(cmp.Or(props.Defaults.NCtx, props.NCtx), 0)
 }
+
+// machineClient carries requests to other Ta-Da machines and counts them
+// in the network ledger for the privacy receipt.
+var machineClient = &http.Client{Transport: netlog.Wrap(nil, netlog.PurposeMachine)}

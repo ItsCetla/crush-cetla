@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/control"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/permission"
 )
 
@@ -20,7 +21,13 @@ func newControlHub(store *config.ConfigStore, perms permission.Service) *control
 	applyControlPolicy(cfg, perms)
 
 	paths := controlPathsFor(cfg)
-	opts := control.HubOptions{Permissions: perms, Project: store.WorkingDir()}
+	opts := control.HubOptions{
+		Permissions: perms,
+		Project:     store.WorkingDir(),
+		// The network receipt is per process: it lives as long as this
+		// app and is never written to disk.
+		Network: netlog.Default(),
+	}
 	if l, err := control.NewLedger(paths.ledger); err != nil {
 		slog.Warn("Usage ledger unavailable", "error", err)
 	} else {

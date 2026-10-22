@@ -20,6 +20,7 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/home"
+	"github.com/charmbracelet/crush/internal/netlog"
 	"github.com/charmbracelet/crush/internal/oauth"
 	mcpoauth "github.com/charmbracelet/crush/internal/oauth/mcp"
 	"github.com/charmbracelet/crush/internal/permission"
@@ -1283,6 +1284,7 @@ func createTransport(ctx context.Context, cfg *config.ConfigStore, name string, 
 			return &mcp.StreamableClientTransport{
 				Endpoint:     url,
 				OAuthHandler: oauthHandler,
+				HTTPClient:   &http.Client{Transport: mcpTransport},
 			}, oauthHandler, nil
 		}
 
@@ -1373,8 +1375,12 @@ func (rt headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	for k, v := range rt.headers {
 		req.Header.Set(k, v)
 	}
-	return http.DefaultTransport.RoundTrip(req)
+	return mcpTransport.RoundTrip(req)
 }
+
+// mcpTransport carries every remote MCP request and counts it in the
+// network ledger for the privacy receipt.
+var mcpTransport = netlog.Wrap(http.DefaultTransport, netlog.PurposeMCP)
 
 // oauthRoundTripper wraps an HTTP transport with OAuth bearer token
 // injection and 401-triggered authorization. Used for SSE transports
