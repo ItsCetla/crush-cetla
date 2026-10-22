@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/ui/chat"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,6 +126,7 @@ func TestFoldCollapsesFinishedTurn(t *testing.T) {
 		Tools:    3,
 		Kinds:    []chat.ToolCount{{Name: "bash", Count: 2}, {Name: "view", Count: 1}},
 		Duration: 72 * time.Second,
+		Commands: 2,
 	}, fold.Summary())
 	require.Equal(t, []string{"u1", "u1:turn-fold", "a3", chat.AssistantInfoID("a3")}, shownIDs(m))
 
@@ -233,4 +235,103 @@ func TestFoldOptionOff(t *testing.T) {
 
 	require.Nil(t, m.chat.MessageItem(chat.TurnFoldID("u1")))
 	require.Equal(t, []string{"u1", "a1", "t1", "t2", "t3", "a3", chat.AssistantInfoID("a3")}, shownIDs(m))
+}
+
+func TestLooksLikeTestCommand(t *testing.T) {
+	t.Parallel()
+
+	for cmd, want := range map[string]bool{
+		"go test ./...":                    true,
+		"go test -race ./internal/ui/...":  true,
+		"cd web && npm test":               true,
+		"npm run test -- --watch=false":    true,
+		"yarn test:unit":                   true,
+		"pnpm --filter app test":           false,
+		"python -m pytest -q":              true,
+		"uv run pytest tests/":             true,
+		"cargo test --workspace":           true,
+		"CGO_ENABLED=0 go test ./... 2>&1": true,
+		"./node_modules/.bin/vitest run":   true,
+		"make test":                        true,
+		"bundle exec rspec":                true,
+		"go build ./...":                   false,
+		"go vet ./...":                     false,
+		"git commit -m 'add test'":         false,
+		"test -f go.mod && echo yes":       false,
+		"ls internal/ui/chat/fold_test.go": false,
+	} {
+		require.Equal(t, want, looksLikeTestCommand(cmd), cmd)
+	}
+}
+
+func receiptCall(id, name, input string) message.ToolCall {
+	return message.ToolCall{ID: id, Name: name, Input: input, Finished: true}
+}
+
+func receiptResult(callID, metadata string, isError bool) message.ToolResult {
+	return message.ToolResult{ToolCallID: callID, Content: "ok", Metadata: metadata, IsError: isError}
+}
+
+// The fold's receipt counts changed files and lines from edit, multiedit
+// and write metadata, shell commands, and how a closing test run went.
+func TestFoldReceiptFromToolMetadata(t *testing.T) {
+	m := newFoldUI(t)
+	m.setSessionMessages([]message.Message{
+		foldUser("u1", foldTurnStart),
+		foldAssistant("a1", "", message.FinishReasonToolUse, foldTurnStart+10,
+			receiptCall("e1", "edit", `{"file_path":"/w/a.go"}`),
+			receiptCall("e2", "multiedit", `{"file_path":"/w/a.go"}`),
+			receiptCall("w1", "write", `{"file_path":"/w/b.go"}`),
+			receiptCall("d1", "edit", `{"file_path":"/w/c.go"}`),
+			receiptCall("b1", "bash", `{"command":"go build ./..."}`),
+			receiptCall("b2", "bash", `{"command":"go test ./..."}`),
+		),
+		{ID: "r1", Role: message.Tool, SessionID: "s1", Parts: []message.ContentPart{
+			receiptResult("e1", `{"additions":10,"removals":2,"old_content":"x","new_content":"y"}`, false),
+			receiptResult("e2", `{"additions":5,"removals":1}`, false),
+			receiptResult("w1", `{"diff":"...","additions":20,"removals":0}`, false),
+			// Denied edits carry a diff but changed nothing.
+			receiptResult("d1", `{"additions":7,"removals":7}`, true),
+			receiptResult("b1", `{"output":"","exit_code":0}`, false),
+			receiptResult("b2", `{"output":"FAIL","exit_code":1}`, false),
+		}},
+		foldAssistant("a2", "Tests fail.", message.FinishReasonEndTurn, foldTurnStart+134),
+	})
+
+	s := foldOf(t, m, "u1").Summary()
+	require.Equal(t, 2, s.Files)
+	require.Equal(t, 35, s.Additions)
+	require.Equal(t, 3, s.Removals)
+	require.Equal(t, 2, s.Commands)
+	require.Equal(t, chat.TestsFailed, s.Tests)
+	require.Contains(t, ansi.Strip(foldOf(t, m, "u1").RawRender(200)),
+		"Worked for 2m 14s · 2 files changed (+35 −3) · 2 commands · tests failed")
+}
+
+// Without an exit status — older history, or a command still running in
+// the background — the receipt says nothing about tests.
+func TestFoldReceiptSkipsTestsWithoutExitCode(t *testing.T) {
+	m := newFoldUI(t)
+	m.setSessionMessages([]message.Message{
+		foldUser("u1", foldTurnStart),
+		foldAssistant("a1", "", message.FinishReasonToolUse, foldTurnStart+10,
+			receiptCall("b1", "bash", `{"command":"go test ./..."}`)),
+		{ID: "r1", Role: message.Tool, SessionID: "s1", Parts: []message.ContentPart{
+			receiptResult("b1", `{"output":"ok"}`, false),
+		}},
+		foldAssistant("a2", "Done.", message.FinishReasonEndTurn, foldTurnStart+20),
+	})
+	s := foldOf(t, m, "u1").Summary()
+	require.Equal(t, 1, s.Commands)
+	require.Equal(t, chat.TestsUnknown, s.Tests)
+}
+
+// A turn's cost is what the session spent after its prompt arrived.
+func TestFoldTurnCost(t *testing.T) {
+	m := newFoldUI(t)
+	m.setSessionMessages(finishedTurn())
+	m.chat.SetTurnCostBase("u1", 1.25)
+	m.chat.UpdateTurnCost(1.67)
+	require.InDelta(t, 0.42, foldOf(t, m, "u1").Cost(), 1e-9)
+	require.Contains(t, ansi.Strip(foldOf(t, m, "u1").RawRender(200)), "$0.42")
 }

@@ -67,6 +67,20 @@ func TestBashTool_DefaultAutoBackgroundThreshold(t *testing.T) {
 	require.Contains(t, meta.Output, "done")
 }
 
+func TestBashTool_MetadataCarriesExitCode(t *testing.T) {
+	workingDir := t.TempDir()
+	tool := newBashToolForTest(workingDir)
+	ctx := context.WithValue(context.Background(), SessionIDContextKey, "test-session")
+
+	for cmd, want := range map[string]int{"true": 0, "exit 3": 3} {
+		resp := runBashTool(t, tool, ctx, BashParams{Description: "exit", Command: cmd})
+		var meta BashResponseMetadata
+		require.NoError(t, json.Unmarshal([]byte(resp.Metadata), &meta))
+		require.NotNil(t, meta.ExitCode, cmd)
+		require.Equal(t, want, *meta.ExitCode, cmd)
+	}
+}
+
 func TestBashTool_CustomAutoBackgroundThreshold(t *testing.T) {
 	workingDir := t.TempDir()
 	tool := newBashToolForTest(workingDir)

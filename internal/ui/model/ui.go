@@ -1127,6 +1127,7 @@ func (m *UI) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			prevHasInProgress := hasInProgressTodo(m.session.Todos)
 			prevPillsHeight := m.pillsAreaHeight()
 			m.session = &msg.Payload
+			m.chat.UpdateTurnCost(m.session.Cost)
 			if !prevHasInProgress && hasInProgressTodo(m.session.Todos) {
 				m.todoIsSpinning = true
 				cmds = append(cmds, m.todoSpinner.Tick)
@@ -1996,6 +1997,11 @@ func (m *UI) appendSessionMessage(msg message.Message) tea.Cmd {
 		}
 		items := chat.ExtractMessageItems(m.com.Styles, &msg, nil, m.tabWorkingDir())
 		m.chat.AppendMessages(items...)
+		var spent float64
+		if m.session != nil && m.session.ID == msg.SessionID {
+			spent = m.session.Cost
+		}
+		m.chat.SetTurnCostBase(msg.ID, spent)
 		m.chat.ScrollToBottom()
 	case message.Assistant:
 		items := chat.ExtractMessageItems(m.com.Styles, &msg, nil, m.tabWorkingDir())

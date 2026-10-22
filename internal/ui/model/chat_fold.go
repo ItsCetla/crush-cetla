@@ -1,8 +1,12 @@
 package model
 
 import (
+	"encoding/json"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/agent/tools"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/ui/chat"
 	"github.com/charmbracelet/crush/internal/ui/list"
@@ -118,6 +122,7 @@ func (m *Chat) applyFold(f, end int, later bool) {
 		running bool
 		counts  = map[string]int{}
 		total   int
+		stats   turnStats
 	)
 	for i := f + 1; i < end; i++ {
 		switch item := m.list.ItemAt(i).(type) {
@@ -134,6 +139,7 @@ func (m *Chat) applyFold(f, end int, later bool) {
 				counts[item.ToolCall().Name]++
 				total++
 			}
+			stats.add(item)
 		}
 	}
 
@@ -154,7 +160,17 @@ func (m *Chat) applyFold(f, end int, later bool) {
 		kinds = append(kinds, chat.ToolCount{Name: name, Count: c})
 	}
 	chat.SortToolCounts(kinds)
-	fold.SetSummary(chat.FoldSummary{Tools: total, Kinds: kinds, Live: live, Duration: max(duration, 0)})
+	fold.SetSummary(chat.FoldSummary{
+		Tools:     total,
+		Kinds:     kinds,
+		Live:      live,
+		Duration:  max(duration, 0),
+		Files:     len(stats.files),
+		Additions: stats.additions,
+		Removals:  stats.removals,
+		Commands:  stats.commands,
+		Tests:     stats.tests(),
+	})
 	if !fold.UserSet() {
 		fold.SetExpanded(live)
 	}
@@ -191,4 +207,155 @@ func foldHides(item list.Item, final *chat.AssistantMessageItem, finalInfo strin
 		return chat.EffectiveToolStatus(item) != chat.ToolStatusAwaitingPermission
 	}
 	return false
+}
+
+// turnStats gathers a turn's receipt from its tool calls' inputs and
+// result metadata. It does no IO.
+type turnStats struct {
+	files     map[string]struct{}
+	additions int
+	removals  int
+	commands  int
+	// lastBash is the turn's most recent shell command so far.
+	lastBash chat.ToolMessageItem
+}
+
+// lineCounts is the part of the edit, multiedit and write metadata the
+// receipt reads.
+type lineCounts struct {
+	Additions int `json:"additions"`
+	Removals  int `json:"removals"`
+}
+
+// add counts one tool call.
+func (s *turnStats) add(item chat.ToolMessageItem) {
+	call := item.ToolCall()
+	switch call.Name {
+	case tools.BashToolName:
+		s.commands++
+		s.lastBash = item
+	case tools.EditToolName, tools.MultiEditToolName, tools.WriteToolName:
+		res := item.Result()
+		if res == nil || res.IsError || res.Metadata == "" {
+			return
+		}
+		var meta lineCounts
+		if err := json.Unmarshal([]byte(res.Metadata), &meta); err != nil {
+			return
+		}
+		if meta.Additions == 0 && meta.Removals == 0 {
+			return
+		}
+		var params struct {
+			FilePath string `json:"file_path"`
+		}
+		_ = json.Unmarshal([]byte(call.Input), &params)
+		if s.files == nil {
+			s.files = map[string]struct{}{}
+		}
+		s.files[filepath.Clean(params.FilePath)] = struct{}{}
+		s.additions += meta.Additions
+		s.removals += meta.Removals
+	}
+}
+
+// tests reports how the turn's last shell command went when it was a
+// test run that finished with a known exit status.
+func (s *turnStats) tests() chat.TestOutcome {
+	if s.lastBash == nil {
+		return chat.TestsUnknown
+	}
+	res := s.lastBash.Result()
+	if res == nil || res.Metadata == "" {
+		return chat.TestsUnknown
+	}
+	var params tools.BashParams
+	if err := json.Unmarshal([]byte(s.lastBash.ToolCall().Input), &params); err != nil {
+		return chat.TestsUnknown
+	}
+	if !looksLikeTestCommand(params.Command) {
+		return chat.TestsUnknown
+	}
+	var meta tools.BashResponseMetadata
+	if err := json.Unmarshal([]byte(res.Metadata), &meta); err != nil || meta.ExitCode == nil {
+		return chat.TestsUnknown
+	}
+	if *meta.ExitCode == 0 {
+		return chat.TestsPassed
+	}
+	return chat.TestsFailed
+}
+
+// testRunners are commands whose "test" subcommand runs a test suite, as
+// in "go test" or "npm run test".
+var testRunners = map[string]bool{
+	"go": true, "npm": true, "yarn": true, "pnpm": true, "bun": true,
+	"deno": true, "cargo": true, "make": true, "task": true, "just": true,
+	"mvn": true, "gradle": true, "gradlew": true, "mix": true,
+	"dotnet": true, "swift": true, "zig": true, "flutter": true,
+	"dart": true, "poetry": true, "uv": true, "hatch": true,
+}
+
+// testTools are commands that run tests on their own.
+var testTools = map[string]bool{
+	"pytest": true, "py.test": true, "jest": true, "vitest": true,
+	"mocha": true, "rspec": true, "phpunit": true, "ctest": true,
+	"tox": true, "nox": true, "gotestsum": true, "ginkgo": true,
+	"nextest": true, "playwright": true, "cypress": true,
+}
+
+// looksLikeTestCommand reports whether a shell command runs a test
+// suite: "go test ./...", "npm test", "cd web && pnpm run test",
+// "python -m pytest -q" and the like.
+func looksLikeTestCommand(command string) bool {
+	fields := strings.FieldsFunc(command, func(r rune) bool {
+		switch r {
+		case ' ', '\t', '\n', ';', '&', '|', '(', ')':
+			return true
+		}
+		return false
+	})
+	for i, f := range fields {
+		name := filepath.Base(f)
+		if testTools[name] {
+			return true
+		}
+		if !testRunners[name] {
+			continue
+		}
+		// Allow "npm run test", "yarn run test:unit", "uv run pytest".
+		for j := i + 1; j < len(fields) && j <= i+2; j++ {
+			next := fields[j]
+			if next == "run" || strings.HasPrefix(next, "-") {
+				continue
+			}
+			if next == "test" || strings.HasPrefix(next, "test:") || testTools[next] {
+				return true
+			}
+			break
+		}
+	}
+	return false
+}
+
+// SetTurnCostBase records the session's spend at the start of the turn
+// begun by the given user message, so the turn's receipt can show what it
+// cost. It's a no-op when the turn has no fold header.
+func (m *Chat) SetTurnCostBase(userMessageID string, sessionCost float64) {
+	if fold, ok := m.MessageItem(chat.TurnFoldID(userMessageID)).(*chat.TurnFoldItem); ok {
+		fold.SetCostBase(sessionCost)
+	}
+}
+
+// UpdateTurnCost charges the session's new running spend to the latest
+// turn. It's a no-op when that turn's starting spend isn't known.
+func (m *Chat) UpdateTurnCost(sessionCost float64) {
+	for i := m.list.Len() - 1; i >= 0; i-- {
+		fold, ok := m.list.ItemAt(i).(*chat.TurnFoldItem)
+		if !ok {
+			continue
+		}
+		fold.SetSessionCost(sessionCost)
+		return
+	}
 }

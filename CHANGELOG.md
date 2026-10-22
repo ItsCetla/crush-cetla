@@ -28,6 +28,12 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   asks permission like a shell command, since it later runs without
   asking. Each check has a 5 minute timeout by default.
 
+- **Turn receipts.** The "Worked for …" line after each turn now reads
+  like a receipt: `Worked for 2m 14s · 5 files changed (+120 −34) ·
+  3 commands · tests passed · $0.42`. It shows only what the turn did,
+  reports tests only when the turn's last command was a test run, and
+  drops the least important parts first on narrow windows.
+
 ## [0.5.14] - 2026-10-21
 
 ### Added

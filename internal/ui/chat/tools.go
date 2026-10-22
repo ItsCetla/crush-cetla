@@ -60,6 +60,8 @@ type ToolMessageItem interface {
 	ToolCall() message.ToolCall
 	SetToolCall(tc message.ToolCall)
 	SetResult(res *message.ToolResult)
+	// Result returns the tool's result, or nil before it arrives.
+	Result() *message.ToolResult
 	MessageID() string
 	SetMessageID(id string)
 	SetStatus(status ToolStatus)
@@ -430,6 +432,11 @@ func (t *baseToolMessageItem) SetResult(res *message.ToolResult) {
 	t.result = res
 	t.clearCache()
 	t.Bump()
+}
+
+// Result implements ToolMessageItem.
+func (t *baseToolMessageItem) Result() *message.ToolResult {
+	return t.result
 }
 
 // MessageID returns the ID of the message containing this tool call.

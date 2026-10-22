@@ -39,6 +39,33 @@ type FoldSummary struct {
 	Live bool
 	// Duration is how long the turn took; zero when unknown.
 	Duration time.Duration
+
+	// Files is how many distinct files the turn's edits and writes
+	// changed, with the lines they added and removed.
+	Files     int
+	Additions int
+	Removals  int
+	// Commands is the number of shell commands the turn ran.
+	Commands int
+	// Tests is how the turn's last command went when it was a test run.
+	Tests TestOutcome
+}
+
+// TestOutcome is the result of a turn's closing test run.
+type TestOutcome int
+
+const (
+	// TestsUnknown means the turn didn't end on a finished test run.
+	TestsUnknown TestOutcome = iota
+	TestsPassed
+	TestsFailed
+)
+
+// equal reports whether two summaries draw the same line.
+func (s FoldSummary) equal(o FoldSummary) bool {
+	return s.Tools == o.Tools && s.Live == o.Live && s.Duration == o.Duration &&
+		s.Files == o.Files && s.Additions == o.Additions && s.Removals == o.Removals &&
+		s.Commands == o.Commands && s.Tests == o.Tests && slices.Equal(s.Kinds, o.Kinds)
 }
 
 // TurnFoldItem is the one-line header ("Worked for 1m 12s · 8 tools")
@@ -59,6 +86,13 @@ type TurnFoldItem struct {
 	// userSet is true once the user toggled the fold. From then on the
 	// chat no longer opens or closes it on its own.
 	userSet bool
+
+	// costBase is the session's spend when the turn started, and cost
+	// what the session has spent since. Both are only known for turns
+	// started while the UI was watching; reloaded history has no base.
+	costBase    float64
+	hasCostBase bool
+	cost        float64
 }
 
 // NewTurnFoldItem returns a fold header for the turn started by the user
@@ -123,17 +157,47 @@ func (f *TurnFoldItem) Summary() FoldSummary { return f.summary }
 
 // SetSummary updates the header line.
 func (f *TurnFoldItem) SetSummary(s FoldSummary) {
-	if f.summary.Tools == s.Tools && f.summary.Live == s.Live &&
-		f.summary.Duration == s.Duration && slices.Equal(f.summary.Kinds, s.Kinds) {
+	if f.summary.equal(s) {
 		return
 	}
 	f.summary = s
 	f.Bump()
 }
 
+// SetCostBase records the session's spend when the turn started. Only the
+// first call counts.
+func (f *TurnFoldItem) SetCostBase(sessionCost float64) {
+	if f.hasCostBase {
+		return
+	}
+	f.costBase = sessionCost
+	f.hasCostBase = true
+}
+
+// HasCostBase reports whether the turn's starting spend is known.
+func (f *TurnFoldItem) HasCostBase() bool { return f.hasCostBase }
+
+// SetSessionCost updates the turn's spend from the session's running
+// total. It's a no-op for turns without a starting spend.
+func (f *TurnFoldItem) SetSessionCost(sessionCost float64) {
+	if !f.hasCostBase {
+		return
+	}
+	cost := max(0, sessionCost-f.costBase)
+	if cost == f.cost {
+		return
+	}
+	f.cost = cost
+	f.Bump()
+}
+
+// Cost returns what the turn has spent so far, or zero when unknown.
+func (f *TurnFoldItem) Cost() float64 { return f.cost }
+
 // RawRender implements list.RawRenderable.
 func (f *TurnFoldItem) RawRender(width int) string {
-	return ansi.Truncate(f.line(), max(0, width-MessageLeftPaddingTotal), "…")
+	avail := max(0, width-MessageLeftPaddingTotal)
+	return ansi.Truncate(f.line(avail), avail, "…")
 }
 
 // Render implements list.Item.
@@ -145,7 +209,11 @@ func (f *TurnFoldItem) Render(width int) string {
 	return prefix + f.RawRender(width)
 }
 
-func (f *TurnFoldItem) line() string {
+// foldSep separates the receipt's segments.
+const foldSep = " · "
+
+// line draws the header, keeping as many receipt segments as fit in width.
+func (f *TurnFoldItem) line(width int) string {
 	subtle := f.sty.Messages.AssistantInfoProvider
 	muted := f.sty.Messages.AssistantInfoModel
 
@@ -153,21 +221,101 @@ func (f *TurnFoldItem) line() string {
 	if f.expanded {
 		arrow = "▾"
 	}
+	segs := FitReceipt(arrow+" ", ReceiptSegments(f.summary, f.cost), width)
+	parts := make([]string, len(segs))
+	for i, seg := range segs {
+		if i == 0 {
+			parts[i] = subtle.Render(arrow) + " " + muted.Render(seg)
+			continue
+		}
+		parts[i] = subtle.Render(seg)
+	}
+	return strings.Join(parts, subtle.Render(foldSep))
+}
+
+// ReceiptSegments returns the fold line's segments, most important first:
+// the head ("Worked for 2m 14s"), then files changed, commands, the
+// closing test run, spend, tool calls and tool kinds. Segments without
+// data are left out. cost is the turn's spend, zero when unknown.
+func ReceiptSegments(s FoldSummary, cost float64) []string {
 	head := "Worked"
-	if f.summary.Live {
+	if s.Live {
 		head = "Working"
-	} else if f.summary.Duration > 0 {
-		head = "Worked for " + FormatTurnDuration(f.summary.Duration)
+	} else if s.Duration > 0 {
+		head = "Worked for " + FormatTurnDuration(s.Duration)
 	}
-	tools := fmt.Sprintf("%d tool call", f.summary.Tools)
-	if f.summary.Tools != 1 {
-		tools += "s"
+	segs := []string{head}
+	if s.Files > 0 {
+		files := plural(s.Files, "file") + " changed"
+		var lines []string
+		if s.Additions > 0 {
+			lines = append(lines, fmt.Sprintf("+%d", s.Additions))
+		}
+		if s.Removals > 0 {
+			lines = append(lines, fmt.Sprintf("−%d", s.Removals))
+		}
+		if len(lines) > 0 {
+			files += " (" + strings.Join(lines, " ") + ")"
+		}
+		segs = append(segs, files)
 	}
-	parts := []string{subtle.Render(arrow) + " " + muted.Render(head), subtle.Render(tools)}
-	if kinds := formatKinds(f.summary.Kinds); kinds != "" {
-		parts = append(parts, subtle.Render(kinds))
+	if s.Commands > 0 {
+		segs = append(segs, plural(s.Commands, "command"))
 	}
-	return strings.Join(parts, subtle.Render(" · "))
+	switch s.Tests {
+	case TestsPassed:
+		segs = append(segs, "tests passed")
+	case TestsFailed:
+		segs = append(segs, "tests failed")
+	}
+	if c := formatTurnCost(cost); c != "" {
+		segs = append(segs, c)
+	}
+	segs = append(segs, plural(s.Tools, "tool call"))
+	if kinds := formatKinds(s.Kinds); kinds != "" {
+		segs = append(segs, kinds)
+	}
+	return segs
+}
+
+// FitReceipt drops segments from the right until the line, with prefix
+// before the first segment, fits in width. The first segment is always
+// kept; the caller truncates it when even that doesn't fit.
+func FitReceipt(prefix string, segs []string, width int) []string {
+	if len(segs) == 0 {
+		return segs
+	}
+	used := ansi.StringWidth(prefix) + ansi.StringWidth(segs[0])
+	sepWidth := ansi.StringWidth(foldSep)
+	n := 1
+	for ; n < len(segs); n++ {
+		used += sepWidth + ansi.StringWidth(segs[n])
+		if used > width {
+			break
+		}
+	}
+	return segs[:n]
+}
+
+// plural renders "1 file" or "3 files".
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+// formatTurnCost renders a turn's spend as "$0.42", or "<$0.01" when it's
+// less than a cent. It's empty when nothing was spent.
+func formatTurnCost(cost float64) string {
+	switch {
+	case cost <= 0:
+		return ""
+	case cost < 0.005:
+		return "<$0.01"
+	default:
+		return fmt.Sprintf("$%.2f", cost)
+	}
 }
 
 // formatKinds renders "3 bash, 4 view, 1 edit", naming at most

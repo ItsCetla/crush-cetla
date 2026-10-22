@@ -54,6 +54,9 @@ type BashResponseMetadata struct {
 	WorkingDirectory string `json:"working_directory"`
 	Background       bool   `json:"background,omitempty"`
 	ShellID          string `json:"shell_id,omitempty"`
+	// ExitCode is the command's exit status. It's nil while the command
+	// still runs in the background and when it was interrupted.
+	ExitCode *int `json:"exit_code,omitempty"`
 }
 
 const (
@@ -290,6 +293,9 @@ func NewBashTool(permissions permission.Service, workingDir, spillDir string, at
 						Background:       params.RunInBackground,
 						WorkingDirectory: bgShell.WorkingDir,
 					}
+					if !interrupted {
+						metadata.ExitCode = &exitCode
+					}
 					if stdout == "" {
 						return fantasy.WithResponseMetadata(fantasy.NewTextResponse(BashNoOutput), metadata), nil
 					}
@@ -373,6 +379,9 @@ func NewBashTool(permissions permission.Service, workingDir, spillDir string, at
 					Description:      params.Description,
 					Background:       params.RunInBackground,
 					WorkingDirectory: bgShell.WorkingDir,
+				}
+				if !interrupted {
+					metadata.ExitCode = &exitCode
 				}
 				if stdout == "" {
 					return fantasy.WithResponseMetadata(fantasy.NewTextResponse(BashNoOutput), metadata), nil
