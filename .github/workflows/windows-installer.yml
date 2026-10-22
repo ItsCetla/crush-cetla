@@ -2,8 +2,9 @@ name: windows-installer
 # Wraps the Windows zips of a (draft) release in Inno Setup installers
 # (packaging/windows/tada.iss) and uploads them, with an updated
 # SHA256SUMS.txt, to the same release; with publish, it then makes the
-# release public. Called by release.yml; can also be run by hand for an
-# existing release.
+# release public. With WINDOWS_CERT_PFX_BASE64 set, the installers are
+# Authenticode-signed (see docs/RELEASING.md). Called by release.yml; can
+# also be run by hand for an existing release.
 on:
   workflow_call:
     inputs:
@@ -39,11 +40,45 @@ jobs:
         with:
           persist-credentials: false
 
+      # With WINDOWS_CERT_PFX_BASE64 set, imports the certificate into the
+      # runner's user store for signtool. The .pfx file is deleted at once.
+      - name: Set up code signing
+        id: sign
+        env:
+          PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:PFX_BASE64) {
+            '::notice::Installer signing skipped: WINDOWS_CERT_PFX_BASE64 is not set'
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'cert.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String(($env:PFX_BASE64 -replace '\s', '')))
+          try {
+            $pass = New-Object Security.SecureString
+            if ($env:PFX_PASSWORD) { $pass = ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force }
+            $certs = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pass
+          } finally {
+            Remove-Item -Force $pfx
+          }
+          $cert = $certs | Where-Object HasPrivateKey | Select-Object -First 1
+          if (-not $cert) { throw 'WINDOWS_CERT_PFX_BASE64 holds no certificate with a private key' }
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe not found in the Windows SDK' }
+          "Signing as $($cert.Subject) ($($cert.Thumbprint)) with $($signtool.FullName)"
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+          "signtool=$($signtool.FullName)" >> $env:GITHUB_OUTPUT
+
       - name: Build and upload installers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag }}
+          SIGN_THUMBPRINT: ${{ steps.sign.outputs.thumbprint }}
+          SIGNTOOL: ${{ steps.sign.outputs.signtool }}
+          TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL || 'http://timestamp.digicert.com' }}
         run: |
           $ErrorActionPreference = 'Stop'
           $tag = $env:TAG
@@ -59,6 +94,15 @@ jobs:
             $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           }
 
+          # Inno Setup runs the "tada" sign tool on Setup.exe and its
+          # uninstaller; it expands $f to the quoted file and $q to a quote.
+          $signArgs = @()
+          if ($env:SIGN_THUMBPRINT) {
+            $cmd = '$q' + $env:SIGNTOOL + '$q sign /fd sha256 /td sha256 /tr ' + $env:TIMESTAMP_URL +
+              ' /sha1 ' + $env:SIGN_THUMBPRINT + ' /d $qTa-Da$q /du https://tada.cetla.dev/ $f'
+            $signArgs = @('/DSign', "/Stada=$cmd")
+          }
+
           $work = Join-Path $env:RUNNER_TEMP 'installer'
           New-Item -ItemType Directory -Force $work | Out-Null
           $built = @()
@@ -67,9 +111,15 @@ jobs:
             gh release download $tag -p "$name.zip" -D $work --clobber
             if ($LASTEXITCODE -ne 0) { throw "download $name.zip failed" }
             Expand-Archive "$work\$name.zip" -DestinationPath "$work\src" -Force
-            & $iscc /Q "/DAppVersion=$version" "/DArch=$($a.arch)" "/DSourceDir=$work\src\$name" "/O$work\out" packaging\windows\tada.iss
+            & $iscc /Q @signArgs "/DAppVersion=$version" "/DArch=$($a.arch)" "/DSourceDir=$work\src\$name" "/O$work\out" packaging\windows\tada.iss
             if ($LASTEXITCODE -ne 0) { throw "iscc failed for $name" }
-            $built += "$work\out\${name}_Setup.exe"
+            $setup = "$work\out\${name}_Setup.exe"
+            if ($env:SIGN_THUMBPRINT) {
+              $sig = Get-AuthenticodeSignature $setup
+              if ($sig.Status -eq 'NotSigned') { throw "$setup is not signed" }
+              if ($sig.Status -ne 'Valid') { "::warning::$setup signature status: $($sig.Status)" }
+            }
+            $built += $setup
           }
 
           gh release download $tag -p SHA256SUMS.txt -D $work --clobber

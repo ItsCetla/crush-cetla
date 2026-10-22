@@ -53,6 +53,13 @@ SetupIconFile=tada.ico
 UninstallDisplayIcon={app}\tada.exe
 UninstallDisplayName=Ta-Da
 OutputBaseFilename=tada_{#AppVersion}_Windows_{#ArchLabel}_Setup
+#ifdef Sign
+; windows-installer.yml passes /DSign and /Stada=<signtool command> when a
+; code-signing certificate is set up. Inno Setup then signs Setup.exe and
+; the uninstaller inside it.
+SignTool=tada
+SignedUninstaller=yes
+#endif
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
