@@ -7,6 +7,13 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+### Security
+
+- **Artifact viewer sign-in links work once across all viewers.** A
+  ticket redeemed on one viewer could be reused on a second viewer for the
+  same store (another port, or a viewer restarted within two minutes).
+  Used tickets are now recorded in the store, so every viewer refuses them.
+
 ## [0.6.1] - 2026-10-23
 
 ### Security

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -60,9 +61,6 @@ type Server struct {
 	srv   *http.Server
 	url   string
 	key   string
-
-	ticketMu sync.Mutex
-	used     map[string]int64 // redeemed sign-in tickets → expiry
 }
 
 var (
@@ -258,25 +256,38 @@ func (s *Server) apiSignIn(w http.ResponseWriter, r *http.Request) {
 	writeJSONResp(w, map[string]string{"key": s.key})
 }
 
+// usedTicketsDir holds a file per redeemed sign-in ticket, so every viewer
+// on the store (any port, or one restarted within the TTL) refuses a
+// ticket another already took.
+const usedTicketsDir = ".used-tickets"
+
 func (s *Server) redeem(ticket string, now time.Time) bool {
 	exp, ok := checkTicket(s.key, ticket, now)
 	if !ok {
 		return false
 	}
-	s.ticketMu.Lock()
-	defer s.ticketMu.Unlock()
-	for t, e := range s.used {
-		if e < now.Unix() {
-			delete(s.used, t)
-		}
-	}
-	if _, seen := s.used[ticket]; seen {
+	dir := filepath.Join(s.store.root, usedTicketsDir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return false
 	}
-	if s.used == nil {
-		s.used = map[string]int64{}
+	// Forget tickets that have expired anyway; checkTicket refuses them.
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			expStr, _, _ := strings.Cut(e.Name(), "-")
+			if until, err := strconv.ParseInt(expStr, 10, 64); err != nil || until+5 < now.Unix() { // +5 s: checkTicket's clock slack
+				_ = os.Remove(filepath.Join(dir, e.Name()))
+			}
+		}
 	}
-	s.used[ticket] = exp
+	// Creating the file is the claim: O_EXCL lets only one caller, in any
+	// process, win it.
+	sum := sha256.Sum256([]byte(ticket))
+	name := strconv.FormatInt(exp, 10) + "-" + hex.EncodeToString(sum[:16])
+	f, err := os.OpenFile(filepath.Join(dir, name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return false
+	}
+	_ = f.Close()
 	return true
 }
 
