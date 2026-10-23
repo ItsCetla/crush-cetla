@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -219,7 +220,7 @@ func (d *Review) SetStatus(res gitreview.Result, touched map[string]bool, err er
 		return nil
 	case err != nil:
 		d.state = reviewFailed
-		d.loadErr = oneLine(err.Error())
+		d.loadErr = safeLine(err.Error())
 		return nil
 	}
 
@@ -260,7 +261,7 @@ func (d *Review) SetStatus(res gitreview.Result, touched map[string]bool, err er
 
 // SetDiff hands over a file's content at HEAD and on disk.
 func (d *Review) SetDiff(path, old, new string, err error) {
-	d.diffs[path] = reviewDiff{old: old, new: new, err: err}
+	d.diffs[path] = reviewDiff{old: printable(old, true), new: printable(new, true), err: err}
 	if d.render.path == path {
 		d.render = reviewRender{}
 	}
@@ -271,11 +272,11 @@ func (d *Review) SetDiff(path, old, new string, err error) {
 func (d *Review) SetGenerated(msg string, err error) Action {
 	d.generating = false
 	if err != nil {
-		d.err = oneLine(err.Error())
+		d.err = safeLine(err.Error())
 		d.notice = ""
 		return d.setFocus(reviewFocusMessage)
 	}
-	d.ta.SetValue(strings.TrimSpace(msg))
+	d.ta.SetValue(strings.TrimSpace(printable(msg, true)))
 	d.err = ""
 	d.notice = "Drafted a message. Edit it if you like, then ctrl+s commits."
 	return d.setFocus(reviewFocusMessage)
@@ -287,7 +288,7 @@ func (d *Review) SetGenerated(msg string, err error) Action {
 func (d *Review) SetCommitted(hash string, err error) Action {
 	d.committing = false
 	if err != nil {
-		d.err = "Commit failed: " + oneLine(err.Error())
+		d.err = "Commit failed: " + safeLine(err.Error())
 		d.notice = ""
 		return nil
 	}
@@ -602,7 +603,7 @@ func (d *Review) titleInfo(t *styles.Styles) string {
 	}
 	var parts []string
 	if d.repo.Branch != "" {
-		parts = append(parts, d.repo.Branch)
+		parts = append(parts, printable(d.repo.Branch, false))
 	}
 	if n := len(d.files); n > 0 {
 		parts = append(parts, fmt.Sprintf("%d file%s", n, plural(n)))
@@ -733,7 +734,7 @@ func (d *Review) fileRow(t *styles.Styles, f reviewFile, current bool, w int) st
 	}
 	text := max(0, w-st.GetHorizontalFrameSize())
 	pathW := max(1, text-ansi.StringWidth(prefix)-ansi.StringWidth(counts)-1)
-	path := f.Path
+	path := printable(f.Path, false)
 	if over := ansi.StringWidth(path) - pathW; over > 0 {
 		path = ansi.TruncateLeft(path, over+1, "…")
 	}
@@ -788,9 +789,9 @@ func (d *Review) diffPane(t *styles.Styles, w, h int) []string {
 	codeW := max(1, w-1)
 	lines, ok := d.diffLines(t, *f, codeW, split)
 
-	header := f.Path
+	header := printable(f.Path, false)
 	if f.OrigPath != "" && f.OrigPath != f.Path {
-		header = f.OrigPath + " → " + f.Path
+		header = printable(f.OrigPath, false) + " → " + header
 	}
 	visible := max(0, h-1)
 	d.diffRows = visible
@@ -838,7 +839,7 @@ func (d *Review) diffLines(t *styles.Styles, f reviewFile, w int, split bool) ([
 	case !loaded:
 		return note(t.Control.Muted.Render, "Loading diff…"), false
 	case df.err != nil:
-		return note(t.Dialog.OAuth.ErrorText.Render, oneLine(df.err.Error())), false
+		return note(t.Dialog.OAuth.ErrorText.Render, safeLine(df.err.Error())), false
 	case df.old == df.new:
 		return note(t.Control.Muted.Render, "No content changes (only the file mode changed)."), false
 	}
@@ -850,7 +851,7 @@ func (d *Review) diffLines(t *styles.Styles, f reviewFile, w int, split bool) ([
 	if f.OrigPath != "" {
 		before = f.OrigPath
 	}
-	dv := common.DiffFormatter(t).Before(before, df.old).After(f.Path, df.new).Width(w).Wrap(true)
+	dv := common.DiffFormatter(t).Before(printable(before, false), df.old).After(printable(f.Path, false), df.new).Width(w).Wrap(true)
 	if split {
 		dv = dv.Split()
 	}
@@ -929,4 +930,27 @@ func padRows(rows []string, w, h int) []string {
 		rows = append(rows, fitLine("", w))
 	}
 	return rows
+}
+
+// printable replaces control characters, escape sequences included, with
+// "?" so file names, branch names, file contents and git errors from the
+// repository can't drive the terminal. With keepLines, newlines and tabs
+// stay and carriage returns are dropped.
+func printable(s string, keepLines bool) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case keepLines && (r == '\n' || r == '\t'):
+			return r
+		case keepLines && r == '\r':
+			return -1
+		case unicode.IsControl(r):
+			return '?'
+		}
+		return r
+	}, s)
+}
+
+// safeLine is oneLine for text from git: one line, no control characters.
+func safeLine(s string) string {
+	return printable(oneLine(s), false)
 }

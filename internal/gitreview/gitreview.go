@@ -445,7 +445,13 @@ func (e *gitError) Error() string {
 
 // run runs git in dir and returns its standard output.
 func run(ctx context.Context, dir string, stdin io.Reader, args ...string) (string, error) {
-	full := append([]string{"-c", "core.quotepath=off", "--literal-pathspecs"}, args...)
+	full := append([]string{
+		"-c", "core.quotepath=off",
+		// The file system monitor is a program the repository's config
+		// names; reading status must not start it.
+		"-c", "core.fsmonitor=false",
+		"--literal-pathspecs",
+	}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),

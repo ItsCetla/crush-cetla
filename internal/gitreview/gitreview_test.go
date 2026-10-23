@@ -291,3 +291,19 @@ func TestTruncateDiff(t *testing.T) {
 	require.True(t, strings.HasPrefix(got, "line\nline\nline\nline\n\n[diff truncated"))
 	require.Contains(t, got, "of 500 bytes")
 }
+
+func TestStatusIgnoresFSMonitor(t *testing.T) {
+	t.Parallel()
+	dir := newRepo(t)
+	marker := filepath.Join(t.TempDir(), "ran")
+	script := filepath.Join(t.TempDir(), "monitor.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\ntouch '"+marker+"'\n"), 0o755))
+	git(t, dir, "config", "core.fsmonitor", script)
+	write(t, dir, "edit.txt", "edited\n")
+
+	_, err := Status(t.Context(), dir)
+	require.NoError(t, err)
+	_, err = Numstat(t.Context(), dir)
+	require.NoError(t, err)
+	require.NoFileExists(t, marker)
+}
