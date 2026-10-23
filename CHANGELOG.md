@@ -7,6 +7,19 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-23
+
+### Security
+
+- **Review and commit no longer runs the repository's file system
+  monitor.** Reading status in the review screen (`alt+v`) could start a
+  program named by `core.fsmonitor` in the repository's git config. It is
+  now turned off for those reads, as the swarm already did.
+- **The review screen strips control characters.** File names, the branch
+  name, file contents, git errors and drafted commit messages could carry
+  terminal escape sequences that the screen passed straight through. They
+  now show as `?`.
+
 ## [0.6.0] - 2026-10-23
 
 ### Added
@@ -780,7 +793,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/ItsCetla/tada/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ItsCetla/tada/compare/v0.5.14...v0.6.0
 [0.5.14]: https://github.com/ItsCetla/tada/compare/v0.5.13...v0.5.14
 [0.5.13]: https://github.com/ItsCetla/tada/compare/v0.5.12...v0.5.13
