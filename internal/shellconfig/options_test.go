@@ -370,3 +370,23 @@ func TestOption_MagicContextThresholdRange(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "20 to 90")
 }
+
+func TestOption_UITextWidth(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "tadarc")
+	jsonBytes, err := LoadShellConfig(t.Context(), path, []byte(`option ui text-width 120`))
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(jsonBytes, &result))
+
+	ui := result["options"].(map[string]any)["tui"].(map[string]any)
+	require.EqualValues(t, 120, ui["text_width"])
+
+	for _, bad := range []string{"-1", "wide"} {
+		_, err = LoadShellConfig(t.Context(), path, []byte(`option ui text-width `+bad))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "expects a non-negative integer")
+	}
+}

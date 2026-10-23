@@ -1265,10 +1265,8 @@ func enumeratorDims(lPadding, width int) (int, int) {
 func toolOutputMarkdownContent(sty *styles.Styles, content string, width int, expanded bool) string {
 	content = stringext.NormalizeSpace(content)
 
-	// Cap width for readability.
-	if width > maxTextWidth {
-		width = maxTextWidth
-	}
+	// Cap width when the user set a text width.
+	width = min(width, maxTextWidth())
 
 	renderer := common.QuietMarkdownRenderer(sty, width)
 	mu := common.LockMarkdownRenderer(renderer)

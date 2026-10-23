@@ -125,7 +125,7 @@ type WriteToolRenderContext struct{}
 func (w *WriteToolRenderContext) RenderTool(sty *styles.Styles, width int, opts *ToolRenderOpts) string {
 	// The item gets the full width so its diff can go side by side; the
 	// rest of the write stays as narrow as other tools.
-	cappedWidth := cappedMessageWidth(min(width, maxTextWidth))
+	cappedWidth := cappedMessageWidth(min(width, maxTextWidth()))
 	if opts.IsPending() {
 		return pendingTool(sty, "Write", opts.Anim, opts.Compact)
 	}

@@ -3,7 +3,9 @@ package chat
 import (
 	"fmt"
 	"image"
+	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,11 +18,25 @@ import (
 )
 
 // MessageLeftPaddingTotal is the total width that is taken up by the border +
-// padding. We also cap the width so text is readable to the maxTextWidth(120).
+// padding.
 const MessageLeftPaddingTotal = 2
 
-// maxTextWidth is the maximum width text messages can be
-const maxTextWidth = 120
+// textWidthCap is the widest chat text may grow, in columns. Zero, the
+// default, lets text fill the chat area. The UI sets it from
+// options.tui.text_width.
+var textWidthCap atomic.Int64
+
+// SetMaxTextWidth sets the widest chat text may grow. Zero or less fills
+// the chat area. Callers must clear item caches after changing it.
+func SetMaxTextWidth(n int) { textWidthCap.Store(int64(max(n, 0))) }
+
+// maxTextWidth returns the widest chat text may grow, in columns.
+func maxTextWidth() int {
+	if n := int(textWidthCap.Load()); n > 0 {
+		return n
+	}
+	return math.MaxInt32
+}
 
 // Identifiable is an interface for items that can provide a unique identifier.
 type Identifiable interface {
@@ -403,7 +419,7 @@ func (a *AssistantInfoItem) renderContent(width int) string {
 
 // cappedMessageWidth returns the maximum width for message content for readability.
 func cappedMessageWidth(availableWidth int) int {
-	return min(availableWidth-MessageLeftPaddingTotal, maxTextWidth)
+	return min(availableWidth-MessageLeftPaddingTotal, maxTextWidth())
 }
 
 // prismSavingsSuffix returns the styled Prism savings suffix for the

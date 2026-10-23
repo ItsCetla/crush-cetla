@@ -161,7 +161,7 @@ func (r *AgentToolRenderContext) RenderTool(sty *styles.Styles, width int, opts 
 	taskTagWidth := lipgloss.Width(taskTag)
 
 	// Calculate remaining width for prompt.
-	remainingWidth := min(cappedWidth-taskTagWidth-3, maxTextWidth-taskTagWidth-3) // -3 for spacing
+	remainingWidth := min(cappedWidth-taskTagWidth-3, maxTextWidth()-taskTagWidth-3) // -3 for spacing
 
 	promptText := sty.Tool.AgentPrompt.Width(remainingWidth).Render(prompt)
 
@@ -329,7 +329,7 @@ func (r *AgenticFetchToolRenderContext) RenderTool(sty *styles.Styles, width int
 	promptTagWidth := lipgloss.Width(promptTag)
 
 	// Calculate remaining width for prompt text.
-	remainingWidth := min(cappedWidth-promptTagWidth-3, maxTextWidth-promptTagWidth-3) // -3 for spacing
+	remainingWidth := min(cappedWidth-promptTagWidth-3, maxTextWidth()-promptTagWidth-3) // -3 for spacing
 
 	promptText := sty.Tool.AgentPrompt.Width(remainingWidth).Render(prompt)
 

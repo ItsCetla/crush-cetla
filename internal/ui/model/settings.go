@@ -129,6 +129,11 @@ func (m *UI) applyLiveSetting(key string) tea.Cmd {
 		if m.chat != nil {
 			m.chat.InvalidateRenderCaches()
 		}
+	case "options.tui.text_width":
+		chat.SetMaxTextWidth(opts.TUI.MaxTextWidth())
+		if m.chat != nil {
+			m.chat.InvalidateRenderCaches()
+		}
 	case "options.tui.ambient":
 		if m.ambient != nil {
 			m.ambient.enabled = opts.TUI.AmbientEnabled()

@@ -617,6 +617,7 @@ func New(com *common.Common, initialSessionID string, continueLast bool) *UI {
 
 	// Tables and charts in replies: options.tui.rich_blocks / TADA_NO_RICH.
 	chat.SetRichBlocks(com.Config().Options.TUI.RichBlocksEnabled())
+	chat.SetMaxTextWidth(com.Config().Options.TUI.MaxTextWidth())
 
 	// set onboarding state defaults
 	ui.onboarding.yesInitializeSelected = true

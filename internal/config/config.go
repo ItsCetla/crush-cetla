@@ -368,8 +368,11 @@ type TUIOptions struct {
 	Mouse       *bool       `json:"mouse,omitempty" jsonschema:"description=Enable terminal mouse capture for selection\\, clicks\\, and scrolling in the TUI. Disable to let the terminal emulator or tmux handle text selection and copy/paste,default=true"`
 	ExitBanner  ExitBanner  `json:"exit_banner,omitempty" jsonschema:"description=Exit banner style after quitting Ta-Da,enum=default,enum=compact,enum=none,default=default"`
 	Intro       *bool       `json:"intro,omitempty" jsonschema:"description=Play the short animated intro when the TUI starts. Any key skips it. TADA_NO_INTRO=1 also turns it off,default=true"`
-	RichBlocks  *bool       `json:"rich_blocks,omitempty" jsonschema:"description=Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off,default=true"`
-	FoldTools   *bool       `json:"fold_tools,omitempty" jsonschema:"description=Fold a finished turn's tool calls and intermediate notes into one 'Worked for …' line that expands on click. The final answer\\, errors and approval requests stay visible,default=true"`
+	// TextWidth caps how wide chat text grows, in columns. Zero lets it
+	// fill the chat area.
+	TextWidth  int   `json:"text_width,omitempty" jsonschema:"description=Widest chat text may grow\\, in columns. 0 fills the whole chat area,default=0,example=120"`
+	RichBlocks *bool `json:"rich_blocks,omitempty" jsonschema:"description=Draw markdown tables and chart code blocks in replies as styled tables and charts. TADA_NO_RICH=1 also turns it off,default=true"`
+	FoldTools  *bool `json:"fold_tools,omitempty" jsonschema:"description=Fold a finished turn's tool calls and intermediate notes into one 'Worked for …' line that expands on click. The final answer\\, errors and approval requests stay visible,default=true"`
 	// Ambient draws a calm line above the editor while the agent works.
 	Ambient    *bool  `json:"ambient,omitempty" jsonschema:"description=Draw a calm line above the editor while the agent works. It breathes slowly and shifts color as the agent thinks\\, reads\\, edits or runs commands. TADA_NO_AMBIENT=1 also turns it off,default=true"`
 	LimitRings string `json:"limit_rings,omitempty" jsonschema:"description=Path to a local JSON file with AI plan usage (5 hour and weekly percent per provider) to show in the sidebar. Some other tool writes the file; Ta-Da only reads it and never fetches the numbers. Empty turns it off,example=~/.cache/limit-rings.json"`
@@ -414,6 +417,15 @@ func (t *TUIOptions) LimitRingsPath() string {
 // into one summary line. It is on unless options.tui.fold_tools is false.
 func (t *TUIOptions) FoldToolsEnabled() bool {
 	return t == nil || t.FoldTools == nil || *t.FoldTools
+}
+
+// MaxTextWidth returns the widest chat text may grow, in columns, or 0
+// to fill the chat area.
+func (t *TUIOptions) MaxTextWidth() int {
+	if t == nil {
+		return 0
+	}
+	return max(t.TextWidth, 0)
 }
 
 // RichBlocksEnabled reports whether markdown tables and chart blocks in

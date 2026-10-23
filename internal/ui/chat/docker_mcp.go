@@ -176,7 +176,7 @@ func (d *DockerMCPToolRenderContext) renderMCPServers(sty *styles.Styles, opts *
 		return sty.Tool.ResultEmpty.Render("No MCP servers found.")
 	}
 
-	bodyWidth := min(120, width) - toolBodyLeftPaddingTotal
+	bodyWidth := min(maxTextWidth(), width) - toolBodyLeftPaddingTotal
 	rows := [][]string{}
 	moreServers := ""
 	for i, server := range result.Servers {

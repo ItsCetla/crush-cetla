@@ -3,7 +3,6 @@
 
 
 
-
        ╭──────────────────────────────────────────────────────────────────────────╮
        │ Settings ······························································· │
        │ Display ──────────────────────────────────────────────────────────────── │
@@ -11,6 +10,7 @@
        │ Diff style                                           split     project   │
        │ Chat scrollbar                                       default   default   │
        │ Transparent background                               Off       default   │
+       │ Chat width                                           full      default   │
        │ Rich tables and charts                               On        default   │
        │ Fold tool calls                                      On        default   │
        │ Ambient line                                         On        default   │

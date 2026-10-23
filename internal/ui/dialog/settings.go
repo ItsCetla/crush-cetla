@@ -91,6 +91,10 @@ type setting struct {
 	envValue func() (any, bool)
 	// applies says when a change takes effect; empty means at once.
 	applies string
+	// save turns an enum choice into the value written to the config,
+	// for enums stored as something other than a string. Nil saves the
+	// choice as is.
+	save func(choice string) any
 }
 
 func tuiOpts(o *config.Options) *config.TUIOptions {
@@ -155,6 +159,19 @@ var settingsList = []setting{
 		key: "options.tui.transparent", group: settingsGroupDisplay, label: "Transparent background",
 		desc:   "Let the terminal's own background show through.",
 		stored: func(o *config.Options) any { return tuiOpts(o).IsTransparent() },
+	},
+	{
+		key: "options.tui.text_width", group: settingsGroupDisplay, label: "Chat width",
+		desc: "How wide chat text may grow: the whole window or a fixed column count.",
+		kind: settingEnum,
+		choices: []settingChoice{
+			{"0", "full"}, {"100", "100"}, {"120", "120"}, {"160", "160"},
+		},
+		stored: func(o *config.Options) any { return strconv.Itoa(tuiOpts(o).TextWidth) },
+		save: func(choice string) any {
+			n, _ := strconv.Atoi(choice)
+			return n
+		},
 	},
 	{
 		key: "options.tui.rich_blocks", group: settingsGroupDisplay, label: "Rich tables and charts",
@@ -481,6 +498,9 @@ func (d *Settings) change(step int, anyKind bool) Action {
 	// Bool settings flip the stored value, so an inverted one needs no
 	// special case here.
 	v := d.next(s, step)
+	if str, ok := v.(string); ok && s.save != nil {
+		v = s.save(str)
+	}
 	d.saving = true
 	d.notice, d.err = "", ""
 	return ActionSetSetting{Key: s.key, Value: v}
