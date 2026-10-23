@@ -7,6 +7,8 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-23
+
 ### Security
 
 - **Artifact viewer sign-in links work once across all viewers.** A
@@ -800,7 +802,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/ItsCetla/tada/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/ItsCetla/tada/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/ItsCetla/tada/compare/v0.5.14...v0.6.0
 [0.5.14]: https://github.com/ItsCetla/tada/compare/v0.5.13...v0.5.14
