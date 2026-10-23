@@ -1,6 +1,10 @@
 package model
 
-import "charm.land/bubbles/v2/key"
+import (
+	"runtime"
+
+	"charm.land/bubbles/v2/key"
+)
 
 type KeyMap struct {
 	Editor struct {
@@ -191,8 +195,11 @@ func DefaultKeyMap() KeyMap {
 		key.WithHelp("ctrl+f", "add image"),
 	)
 	km.Editor.PasteImage = key.NewBinding(
-		key.WithKeys("ctrl+v"),
-		key.WithHelp("ctrl+v", "paste text or image"),
+		// Windows Terminal and some others keep ctrl+v for their own
+		// text-only paste, so an image on the clipboard never reaches
+		// us. alt+i reads the clipboard directly everywhere.
+		key.WithKeys("ctrl+v", "alt+i"),
+		key.WithHelp(pasteImageHelpKey(), "paste text or image"),
 	)
 	km.Editor.PasteText = key.NewBinding(
 		key.WithKeys("ctrl+shift+v"),
@@ -413,4 +420,13 @@ func DefaultKeyMap() KeyMap {
 	)
 
 	return km
+}
+
+// pasteImageHelpKey is the paste key shown in help. On Windows the
+// terminal usually keeps ctrl+v, so help shows alt+i there.
+func pasteImageHelpKey() string {
+	if runtime.GOOS == "windows" {
+		return "alt+i"
+	}
+	return "ctrl+v"
 }

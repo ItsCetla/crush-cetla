@@ -6687,6 +6687,15 @@ func (m *UI) handlePasteMsg(msg tea.PasteMsg) tea.Cmd {
 		return nil
 	}
 
+	// A terminal that pastes only text sends an empty paste when the
+	// clipboard holds an image, so read the image ourselves.
+	if strings.TrimSpace(msg.Content) == "" {
+		if !m.currentModelSupportsImages() {
+			return nil
+		}
+		return m.pasteImageFromClipboard
+	}
+
 	if hasPasteExceededThreshold(msg) {
 		return func() tea.Msg {
 			content := []byte(msg.Content)
@@ -6806,27 +6815,51 @@ func (m *UI) pasteTextFromClipboard() tea.Msg {
 // a copied image path into an attachment.
 func (m *UI) pasteFromClipboard() tea.Msg {
 	if m.currentModelSupportsImages() {
-		imageData, err := clipboard.Read(clipboard.FormatImage)
-		if err == nil && len(imageData) > 0 {
-			if int64(len(imageData)) > common.MaxAttachmentSize {
-				return util.InfoMsg{
-					Type: util.InfoTypeError,
-					Msg:  "File too large, max 5MB",
-				}
-			}
-			name := fmt.Sprintf("paste_%d.png", m.pasteIdx())
-			return message.Attachment{
-				FilePath: name,
-				FileName: name,
-				MimeType: mimeOf(imageData),
-				Content:  imageData,
-			}
+		if msg, ok := m.readClipboardImage(); ok {
+			return msg
 		}
 	}
 	return m.pasteTextFromClipboard()
 }
 
-var pasteRE = regexp.MustCompile(`paste_(\d+).txt`)
+// pasteImageFromClipboard attaches the clipboard image, or says there
+// is none.
+func (m *UI) pasteImageFromClipboard() tea.Msg {
+	if msg, ok := m.readClipboardImage(); ok {
+		return msg
+	}
+	return util.ReportInfo("Nothing to paste: the clipboard has no text or image")
+}
+
+// readClipboardImage returns the clipboard image as an attachment, or an
+// error message when it is too big. ok is false when there is no image.
+func (m *UI) readClipboardImage() (tea.Msg, bool) {
+	imageData, err := clipboard.Read(clipboard.FormatImage)
+	if err != nil || len(imageData) == 0 {
+		return nil, false
+	}
+	return imageAttachment(imageData, m.pasteIdx()), true
+}
+
+// imageAttachment makes the attachment for pasted image bytes, or an
+// error message when they are over the attachment limit.
+func imageAttachment(data []byte, idx int) tea.Msg {
+	if int64(len(data)) > common.MaxAttachmentSize {
+		return util.InfoMsg{
+			Type: util.InfoTypeError,
+			Msg:  "File too large, max 5MB",
+		}
+	}
+	name := fmt.Sprintf("paste_%d.png", idx)
+	return message.Attachment{
+		FilePath: name,
+		FileName: name,
+		MimeType: mimeOf(data),
+		Content:  data,
+	}
+}
+
+var pasteRE = regexp.MustCompile(`^paste_(\d+)\.(?:txt|png)$`)
 
 func (m *UI) pasteIdx() int {
 	result := 0
