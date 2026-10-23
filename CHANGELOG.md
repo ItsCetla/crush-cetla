@@ -7,7 +7,16 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-23
+
 ### Added
+
+- **Choose how each machine is used.** In `/model`, tab over to
+  **Machines** to see this computer and every machine, with how each is
+  used and whether it answers. Press enter on one to make it the main AI,
+  a helper picked automatically, a helper used only when you ask for it
+  by name ("have pc review this"), or off. The same choice is `--use auto`
+  or `--use named` on `tada machines add` and `machine add` in `tadarc`.
 
 - **Swarm on your own machines, with a merge board.** A mission's open
   criteria can be split across your ready machines, each working in its
@@ -153,6 +162,23 @@ listed; see the [upstream releases](https://github.com/charmbracelet/crush/relea
   and most apply at once; the few that need a restart say so. Rows set by
   an environment variable are locked, and a project config still wins over
   a value saved here.
+
+### Changed
+
+- **Chat text fills the window.** Replies and tool output used to stop at
+  120 columns, leaving much of a wide terminal empty. They now use the
+  whole chat area. To cap the width, pick **Chat width** in `/settings`,
+  or set `option ui text-width 120` in `tadarc` or
+  `options.tui.text_width` in `tada.json` (0 means full width).
+
+### Fixed
+
+- **Pasting images on Windows.** Windows Terminal keeps `ctrl+v` for its
+  own text-only paste, so a screenshot on the clipboard never reached
+  Ta-Da. Press `alt+i` to paste an image (it works on every platform),
+  and an empty paste now checks the clipboard for an image too. Pasted
+  images are also numbered properly instead of always being
+  `paste_1.png`.
 
 ## [0.5.14] - 2026-10-21
 
@@ -754,7 +780,8 @@ First tagged release of the fork, based on upstream Crush as of 2026-10-15.
 - The `download` tool caps writes at 100 MiB and removes oversized files.
 - The lint workflow no longer persists checkout credentials.
 
-[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.5.14...HEAD
+[Unreleased]: https://github.com/ItsCetla/tada/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/ItsCetla/tada/compare/v0.5.14...v0.6.0
 [0.5.14]: https://github.com/ItsCetla/tada/compare/v0.5.13...v0.5.14
 [0.5.13]: https://github.com/ItsCetla/tada/compare/v0.5.12...v0.5.13
 [0.5.12]: https://github.com/ItsCetla/tada/compare/v0.5.11...v0.5.12

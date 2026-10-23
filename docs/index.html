@@ -58,6 +58,7 @@
       <button class="nav-toggle" type="button" aria-controls="primary-nav" aria-expanded="false" aria-label="Menu"><span></span><span></span><span></span></button>
       <nav class="primary-nav" id="primary-nav" aria-label="Primary">
         <ul>
+          <li><a href="#new">What's new</a></li>
           <li><a href="#different">What's different</a></li>
           <li><a href="#opencode">OpenCode import</a></li>
           <li><a href="#safety">What it connects to</a></li>
@@ -96,6 +97,50 @@
       </div>
     </section>
 
+    <section class="section band" id="new" aria-labelledby="new-title">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">New in 0.6.0</span>
+          <h2 id="new-title">Your machines work together. You stay in control.</h2>
+          <p>The biggest release yet. Everything is in the <a href="https://github.com/ItsCetla/tada/blob/main/CHANGELOG.md">changelog</a>.</p>
+        </div>
+        <div class="cards">
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="19" r="2"/><path d="M5 8v2a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8M12 13v4"/></svg></span>A swarm on your machines</h3>
+            <p>Split a mission's open goals across every ready machine. Each one works in its own worktree and branch with its own model, and the <strong>Merge Board</strong> shows each card's status, checks, cost and diff so you merge (<kbd>m</kbd>) or discard (<kbd>d</kbd>) each branch. Ta-Da shows the plan and starts only when you confirm, every tool call still asks you, and a swarm won't start in auto mode.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>A live privacy receipt</h3>
+            <p>Every host Ta-Da talks to is counted per session, with requests and bytes each way. The status bar says <code>local only</code> or <code>↑ 3 hosts</code>, the cockpit's Network page says why each host was contacted, and <code>tada status --network</code> prints it. The receipt lives in memory only.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/></svg></span>Rewind and fork</h3>
+            <p>Press <kbd>r</kbd> on a message or type <code>/rewind</code> to put files, chat or both back to before any turn. It lists the exact files first and skips ones you've edited by hand. <kbd>f</kbd> copies the session into a new tab so you can try another direction without losing the first.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6"/></svg></span>Review, commit and a worktree per tab</h3>
+            <p><kbd>alt+v</kbd> lists every changed file, with the AI's edits marked, next to the diff. Pick files and press <kbd>c</kbd> for a drafted commit message; nothing is ever pushed. <code>/worktree feature-x</code> gives a tab its own branch so several tabs can work on one repo.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></span>Missions that check themselves</h3>
+            <p>Write a goal as <code>Tests pass :: go test ./...</code> and it ticks only when the command passes. Only checks you approved run on their own. After each turn a receipt reads like <code>Worked for 2m 14s · 5 files changed · tests passed · $0.42</code>.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></svg></span>Settings that show their source</h3>
+            <p><code>/settings</code> lists the everyday options with their values and where each comes from: default, <code>tadarc</code>, <code>tada.json</code>, a project or an environment variable. Most changes apply at once. <kbd>ctrl+p</kbd> now groups commands, with your recent ones on top.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg></span>Doctor and local models on first run</h3>
+            <p><code>tada doctor</code> checks config, keys (never printing them), models, language servers, MCP, hooks and git, and says what to fix. It only contacts localhost unless you pass <code>--online</code>. The model picker finds Ollama, LM Studio and llama.cpp running on this computer, no key needed.</p>
+          </article>
+          <article class="card">
+            <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M6 9l3 3-3 3M2 11h0M22 11h0"/><path d="M8 21h8"/></svg></span>Full-width chat and image paste</h3>
+            <p>Replies and diffs use your whole window, side by side once there's room; cap the width in <code>/settings</code> if you like. <kbd>alt+i</kbd> pastes a screenshot on every platform, including Windows Terminal, which keeps <kbd>ctrl+v</kbd> for text.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="different" aria-labelledby="different-title">
       <div class="container">
         <div class="section-head">
@@ -130,7 +175,7 @@
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="9" height="7" rx="1"/><rect x="13" y="4" width="9" height="7" rx="1"/><rect x="7.5" y="15" width="9" height="6" rx="1"/><path d="M6.5 11v2h11v-2M12 13v2"/></svg></span>Your other computers, put to work</h3>
-            <p>Got an M1 with room for 4 agents and a 3060 Ti with room for 2? Type <code>/machines</code> to add them by IP, see which are online and how many slots are free, and switch them on or off. Or use <code>machine add</code> in <code>tadarc</code>, <code>tada machines add</code>, or just tell the AI. Ta-Da checks them at startup and before each prompt, reads how many agents each llama.cpp server runs, and hands them side work in parallel without being asked, falling back to your main model when one drops. Give each machine a role in <code>/model</code> → <strong>Machines</strong>, or let your main AI suggest one from its hardware and model.</p>
+            <p>Got an M1 with room for 4 agents and a 3060 Ti with room for 2? Type <code>/machines</code> to add them by IP, see which are online and how many slots are free, and switch them on or off. Or use <code>machine add</code> in <code>tadarc</code>, <code>tada machines add</code>, or just tell the AI. Ta-Da checks them at startup and before each prompt, reads how many agents each llama.cpp server runs, and hands them side work in parallel without being asked, falling back to your main model when one drops. In <code>/model</code> → <strong>Machines</strong>, pick how each one is used: main AI, a helper picked automatically, a helper only when you ask for it by name, or off. Give each a role, or let your main AI suggest one from its hardware and model.</p>
           </article>
           <article class="card">
             <h3><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-5"/><path d="M4 18h16"/></svg></span>Cockpit, budgets and missions</h3>
@@ -371,6 +416,10 @@ go build -o tada .
           <details>
             <summary>Why are the binaries unsigned?</summary>
             <p>Signing and notarizing cost money and tie a release to a person's certificate. Instead, every build runs in a public GitHub Actions workflow with pinned actions, and the checksums file lets you verify what you got. If you'd rather not trust that, <code>go build</code> takes about a minute.</p>
+          </details>
+          <details>
+            <summary>How do I paste a screenshot?</summary>
+            <p>Copy the image and press <kbd>ctrl+v</kbd> in the editor, or <kbd>alt+i</kbd> on any platform. Windows Terminal and some others keep <kbd>ctrl+v</kbd> for their own text-only paste, so the image never reaches Ta-Da; <kbd>alt+i</kbd> reads the clipboard directly. The model you're using has to accept images.</p>
           </details>
           <details>
             <summary>Can I turn the web tools on?</summary>

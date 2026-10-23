@@ -89,6 +89,9 @@ so you merge or discard each branch. See
   conversation outgrows the model's context window.
 - **Usage limits and Magic Context (opt-in).** See
   [Usage limits](#usage-limits) and [Magic Context](#magic-context).
+- **Full-width chat and image paste everywhere.** Replies use the whole
+  window (cap it in [Chat width](#chat-width)), and `alt+i` pastes a
+  screenshot even where the terminal keeps `ctrl+v`, as on Windows.
 - **Settings, palette and doctor.** `/settings` shows where each value
   comes from, `ctrl+p` groups commands with your recent ones on top, and
   `tada doctor` [checks your setup](#checking-your-setup).
@@ -433,6 +436,23 @@ dialog.
 | --- | --- |
 | Charmtone Pantera | `charmtone-panther` (default) |
 | Gruvbox Dark | `gruvbox-dark` |
+
+### Chat width
+
+Chat text fills the whole chat area, however wide your terminal is. To
+cap it, pick **Chat width** in `/settings`, put
+`option ui text-width 120` in your `tadarc`, or set `text_width` (0, the
+default, means full width):
+
+```json
+{
+  "options": {
+    "tui": {
+      "text_width": 120
+    }
+  }
+}
+```
 
 ### Diffs
 
@@ -1878,6 +1898,13 @@ Installing an extra tool might be needed on Unix-like environments.
 | macOS               | Native support           |
 | Linux/BSD + Wayland | `wl-copy` and `wl-paste` |
 | Linux/BSD + X11     | `xclip` or `xsel`        |
+
+### How do I paste a screenshot?
+
+Copy the image, then press `ctrl+v` in the editor, or `alt+i` on any
+platform. Windows Terminal and some others keep `ctrl+v` for their own
+text-only paste, so the image never reaches Ta-Da; `alt+i` reads the
+clipboard directly. The current model has to accept images.
 
 ## Contributing
 
