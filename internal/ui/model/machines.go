@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/fleet"
 	"github.com/charmbracelet/crush/internal/ui/dialog"
+	"github.com/charmbracelet/crush/internal/ui/util"
 	"github.com/charmbracelet/crush/internal/workspace"
 )
 
@@ -65,8 +66,9 @@ func (s machineStore) RemoveConfigField(scope config.Scope, key string) error {
 	return s.ws.RemoveConfigField(scope, key)
 }
 
-// openMachinesDialog opens the machines screen and starts a check.
-func (m *UI) openMachinesDialog() tea.Cmd {
+// openMachinesDialog opens the machines screen and starts a check. The
+// cursor lands on machine when it names one.
+func (m *UI) openMachinesDialog(machine string) tea.Cmd {
 	if m.dialog.ContainsDialog(dialog.MachinesID) {
 		m.dialog.CloseDialog(dialog.MachinesID)
 	}
@@ -76,6 +78,7 @@ func (m *UI) openMachinesDialog() tea.Cmd {
 			d.SetMainModel(am.ModelCfg)
 		}
 	}
+	d.SelectMachine(machine)
 	m.dialog.OpenDialog(d)
 	return m.machinesCheckCmd()
 }
@@ -172,23 +175,54 @@ func (m *UI) machinesDialog() *dialog.Machines {
 	return d
 }
 
+// modelsDialog returns the open models dialog, if any. Its Machines tab
+// shows the same checks and changes as the machines screen.
+func (m *UI) modelsDialog() *dialog.Models {
+	if !m.dialog.ContainsDialog(dialog.ModelsID) {
+		return nil
+	}
+	d, _ := m.dialog.Dialog(dialog.ModelsID).(*dialog.Models)
+	return d
+}
+
 // handleMachinesStatus shows a finished check.
 func (m *UI) handleMachinesStatus(msg machinesStatusMsg) {
 	if d := m.machinesDialog(); d != nil {
 		d.SetStatuses(msg.statuses, msg.at)
 	}
+	if d := m.modelsDialog(); d != nil {
+		d.SetMachineStatuses(msg.statuses, msg.at)
+	}
 }
 
 // handleMachinesResult shows a finished change and refreshes the list.
 func (m *UI) handleMachinesResult(msg machinesResultMsg) tea.Cmd {
-	d := m.machinesDialog()
-	if d == nil {
-		return nil
+	var cmds []tea.Cmd
+	shown := false
+	if d := m.machinesDialog(); d != nil {
+		d.SetResult(msg.out, msg.err)
+		shown = true
 	}
-	d.SetResult(msg.out, msg.err)
-	if msg.err != nil {
-		return nil
+	if d := m.modelsDialog(); d != nil {
+		d.SetMachinesResult(msg.out, msg.err)
+		// The models dialog has no notice line, so the outcome is a
+		// toast.
+		if msg.err != nil {
+			cmds = append(cmds, util.ReportError(msg.err))
+		} else {
+			cmds = append(cmds, util.ReportInfo(msg.out))
+		}
+		shown = true
 	}
-	d.StartCheck()
-	return m.machinesCheckCmd()
+	if !shown || msg.err != nil {
+		return tea.Batch(cmds...)
+	}
+	if d := m.machinesDialog(); d != nil {
+		d.StartCheck()
+	}
+	if d := m.modelsDialog(); d != nil {
+		d.StartMachinesCheck()
+	}
+	cmds = append(cmds, m.machinesCheckCmd())
+	return tea.Batch(cmds...)
 }

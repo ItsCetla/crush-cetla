@@ -1542,12 +1542,29 @@ machine add pc --url "http://192.168.1.30:11434/v1" --type ollama \
   --slots 2 --hardware "RTX 3060 Ti"
 ```
 
-The easiest way is inside Ta-Da: type `/machines` (or pick **Machines**
-from the command palette, or tab over to **Machines** in `/model`). It
-shows your main AI at the top (`m` changes it), then every machine with
-whether it's online and how many slots are free, and lets you add (`a`),
-change (`e`), switch off (`space`) and remove (`x`) machines. Typing just
-an IP like `192.168.1.20` means Ollama on its usual port.
+The easiest way to decide how your systems are used is `/model`: tab over
+to **Machines** and you get a list of them, this computer first, with how
+each one is used and whether it answers right now. Press enter on a
+machine to choose:
+
+- **Main AI**: run Ta-Da itself on that machine's model (when it has one).
+- **Helper, picked automatically**: agents send it work whenever it has a
+  free slot. This is the default.
+- **Helper, only when asked for by name**: it's left out of automatic
+  picks and only gets work when you ask for that machine by name ("have
+  pc review this").
+- **Off**: keep it configured but don't use it.
+- **Role and details**: open the full machines screen on that machine.
+
+Press `ctrl+e` on a machine to jump to its details, and pick **Add or
+edit machines…** to add one. The same choice is `--use auto` or
+`--use named` on the command line and in `tadarc`.
+
+For everything else there's `/machines` (also **Machines** in the command
+palette). It shows your main AI at the top (`m` changes it), then every
+machine with whether it's online and how many slots are free, and lets you
+add (`a`), change (`e`), switch off (`space`) and remove (`x`) machines.
+Typing just an IP like `192.168.1.20` means Ollama on its usual port.
 
 Each machine can have a **role**: the job it's assigned, such as "code
 review and tests" or "long file reads and summaries". Press `s` and your
@@ -1581,8 +1598,9 @@ slot count (`--parallel`) and the context each slot gets, and Ta-Da uses
 those; for Ollama and LM Studio the `--slots` you set decide. A machine
 that was offline when Ta-Da started is picked up as soon as it answers,
 even without a model set (it uses the first one the server lists). The
-Machines tab in `/model` shows how many are ready, and the machine details
-say when the server runs fewer slots than your settings ask for.
+Machines tab in `/model` shows which ones answer and how many slots are
+free, and the machine details say when the server runs fewer slots than
+your settings ask for.
 
 Slots are shared by every Ta-Da process on your computer, so two sessions
 won't overload the same machine. Code sent to a machine goes to whatever

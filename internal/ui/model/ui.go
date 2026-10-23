@@ -2749,7 +2749,7 @@ func (m *UI) handleDialogMsg(msg tea.Msg) tea.Cmd {
 	case dialog.ActionOpenMachines:
 		m.dialog.CloseDialog(dialog.CommandsID)
 		m.dialog.CloseDialog(dialog.ModelsID)
-		cmds = append(cmds, m.openMachinesDialog())
+		cmds = append(cmds, m.openMachinesDialog(msg.Machine))
 	case dialog.ActionCheckMachines:
 		cmds = append(cmds, m.machinesCheckCmd())
 	case dialog.ReviewAction:
@@ -3572,7 +3572,7 @@ func (m *UI) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 				if dialog.MachinesQuery(value) && !m.bangMode {
 					m.randomizePlaceholders()
 					m.historyReset()
-					return m.openMachinesDialog()
+					return m.openMachinesDialog("")
 				}
 
 				if dialog.ReviewQuery(value) && !m.bangMode {

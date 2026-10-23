@@ -78,6 +78,33 @@ type ModelItem struct {
 	m            fuzzy.Match
 	focused      bool
 	showProvider bool
+
+	// row is set on the Machines tab, where an item is a machine or a
+	// choice about one rather than a model; see models_machines.go.
+	row *machineRow
+}
+
+// machineRow is a row on the Machines tab of the models dialog.
+type machineRow struct {
+	id    string
+	label string
+	info  string
+	// machine names the machine the row is about; empty for the rows
+	// about this computer and for the add row.
+	machine string
+	// pick is the choice the row offers while a machine is being
+	// configured; empty on the machine rows themselves.
+	pick string
+}
+
+// newMachineRow makes a Machines tab row.
+func newMachineRow(t *styles.Styles, row machineRow) *ModelItem {
+	return &ModelItem{
+		Versioned: list.NewVersioned(),
+		t:         t,
+		cache:     make(map[int]string),
+		row:       &row,
+	}
 }
 
 // Finished implements list.Item. Model items are render-stable
@@ -118,19 +145,28 @@ func NewModelItem(t *styles.Styles, prov catwalk.Provider, model catwalk.Model, 
 
 // Filter implements ListItem.
 func (m *ModelItem) Filter() string {
+	if m.row != nil {
+		return m.row.label
+	}
 	return m.model.Name
 }
 
 // ID implements ListItem.
 func (m *ModelItem) ID() string {
+	if m.row != nil {
+		return m.row.id
+	}
 	return modelKey(string(m.prov.ID), m.model.ID)
 }
 
 // Render implements ListItem.
 func (m *ModelItem) Render(width int) string {
-	var providerInfo string
-	if m.showProvider {
-		providerInfo = string(m.prov.Name)
+	label, info := m.model.Name, ""
+	switch {
+	case m.row != nil:
+		label, info = m.row.label, m.row.info
+	case m.showProvider:
+		info = string(m.prov.Name)
 	}
 	styles := ListItemStyles{
 		ItemBlurred:     m.t.Dialog.NormalItem,
@@ -138,7 +174,7 @@ func (m *ModelItem) Render(width int) string {
 		InfoTextBlurred: m.t.Dialog.ListItem.InfoBlurred,
 		InfoTextFocused: m.t.Dialog.ListItem.InfoFocused,
 	}
-	return renderItem(styles, m.model.Name, providerInfo, m.focused, width, m.cache, &m.m)
+	return renderItem(styles, label, info, m.focused, width, m.cache, &m.m)
 }
 
 // SetFocused implements ListItem.

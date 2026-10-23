@@ -32,12 +32,32 @@ type MachineConfig struct {
 	Tags          []string     `json:"tags,omitempty" jsonschema:"description=What the machine is good at\\, shown to the AI,example=fast,example=code"`
 	Role          string       `json:"role,omitempty" jsonschema:"description=The job the machine is assigned\\, shown to the AI,example=code review and tests"`
 	Notes         string       `json:"notes,omitempty" jsonschema:"description=Anything else the AI should know about the machine"`
+	Use           string       `json:"use,omitempty" jsonschema:"description=How agents use the machine: auto (picked whenever it has a free slot) or named (only when asked for by name),enum=auto,enum=named,default=auto"`
 	Disabled      bool         `json:"disabled,omitempty" jsonschema:"description=Keep the machine configured but don't use it,default=false"`
 }
+
+// How agents may use a machine; see [MachineConfig.UseMode].
+const (
+	// MachineUseAuto lets the auto picker send work to the machine
+	// whenever it has a free slot.
+	MachineUseAuto = "auto"
+	// MachineUseNamed keeps the machine out of the auto picker: it only
+	// takes work when asked for by name.
+	MachineUseNamed = "named"
+)
 
 // SlotCount returns how many agents the machine runs at once (at least 1).
 func (m MachineConfig) SlotCount() int {
 	return max(m.Slots, 1)
+}
+
+// UseMode returns how agents may use the machine: [MachineUseNamed] when
+// the config says so, else [MachineUseAuto].
+func (m MachineConfig) UseMode() string {
+	if strings.EqualFold(strings.TrimSpace(m.Use), MachineUseNamed) {
+		return MachineUseNamed
+	}
+	return MachineUseAuto
 }
 
 // Machines maps a machine name to its config.

@@ -11,7 +11,7 @@ func TestMachineAdd(t *testing.T) {
 
 	result := loadScript(t, `machine add m1 --url http://192.168.1.20:11434/v1 --type ollama \
   --model qwen2.5-coder:14b --slots 4 --hardware "M1 Max 64GB" --tag fast --tag code
-machine add gpu --url http://192.168.1.30:1234/v1 --slots 2 --disabled true`)
+machine add gpu --url http://192.168.1.30:1234/v1 --slots 2 --disabled true --use named`)
 
 	machines := result["machines"].(map[string]any)
 	m1 := machines["m1"].(map[string]any)
@@ -25,6 +25,7 @@ machine add gpu --url http://192.168.1.30:1234/v1 --slots 2 --disabled true`)
 	gpu := machines["gpu"].(map[string]any)
 	require.EqualValues(t, 2, gpu["slots"])
 	require.Equal(t, true, gpu["disabled"])
+	require.Equal(t, "named", gpu["use"])
 }
 
 func TestMachineRemove(t *testing.T) {

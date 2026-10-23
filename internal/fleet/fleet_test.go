@@ -116,6 +116,36 @@ func TestAcquireNamed(t *testing.T) {
 	require.ErrorContains(t, err, "no model")
 }
 
+func TestAcquireSkipsNamedOnlyMachine(t *testing.T) {
+	t.Parallel()
+
+	url := onlineServer(t)
+	cfg := testConfig(t, config.Machines{
+		"m1":   {URL: url + "/v1", Model: "a", Slots: 1},
+		"mine": {URL: url + "/v2", Model: "b", Slots: 4, Use: config.MachineUseNamed},
+	})
+	pool := NewPool(t.TempDir())
+	ctx := context.Background()
+
+	// Automatic picks leave the by-name machine alone, however free it is.
+	l, err := pool.Acquire(ctx, cfg, Auto)
+	require.NoError(t, err)
+	require.Equal(t, "m1", l.Machine.Name)
+	defer l.Release()
+	_, err = pool.Acquire(ctx, cfg, Auto)
+	require.ErrorIs(t, err, ErrNoneFree)
+
+	// Asking for it by name still works.
+	named, err := pool.Acquire(ctx, cfg, "mine")
+	require.NoError(t, err)
+	require.Equal(t, "mine", named.Machine.Name)
+	named.Release()
+
+	require.Contains(t, Describe(Machines(cfg)[1]), ", only when asked for by name")
+	got := PromptSection(cfg, "x")
+	require.Contains(t, got, `A machine marked "only when asked for by name" is left out`)
+}
+
 func TestPromptSection(t *testing.T) {
 	t.Parallel()
 

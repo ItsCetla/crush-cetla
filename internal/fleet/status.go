@@ -102,6 +102,9 @@ func Describe(m Machine) string {
 	if m.Role != "" {
 		fmt.Fprintf(&b, ", role: %s", m.Role)
 	}
+	if !m.Disabled && m.UseMode() == config.MachineUseNamed {
+		b.WriteString(", only when asked for by name")
+	}
 	if m.Notes != "" {
 		fmt.Fprintf(&b, ". %s", strings.TrimSuffix(m.Notes, "."))
 	}
@@ -132,7 +135,7 @@ func DescribeStatus(s Status) string {
 func PromptSection(cfg *config.Config, toolHint string) string {
 	machines := Machines(cfg)
 	var lines []string
-	usable, agents := 0, 0
+	usable, agents, named := 0, 0, 0
 	for _, m := range machines {
 		line := "- " + Describe(m)
 		switch {
@@ -141,6 +144,9 @@ func PromptSection(cfg *config.Config, toolHint string) string {
 		case m.Usable():
 			usable++
 			agents += m.SlotCount()
+			if m.UseMode() == config.MachineUseNamed {
+				named++
+			}
 		}
 		lines = append(lines, line)
 	}
@@ -157,6 +163,9 @@ func PromptSection(cfg *config.Config, toolHint string) string {
 	b.WriteString("Local models are weaker than you: give them small, specific tasks with the context they need, and check what they return. ")
 	b.WriteString("Keep planning, risky edits and final decisions yourself. ")
 	b.WriteString("A machine with a role is the first pick for that kind of work. ")
+	if named > 0 {
+		b.WriteString("A machine marked \"only when asked for by name\" is left out of automatic picks: send it work only when the user asks for that machine, by naming it. ")
+	}
 	b.WriteString("When the user tells you about a machine (added, removed, changed), save it with the machines tool.\n\n")
 	b.WriteString(strings.Join(lines, "\n"))
 	b.WriteString("\n</machines>")

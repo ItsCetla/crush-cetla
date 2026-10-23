@@ -26,8 +26,10 @@ import (
 // MachinesID is the identifier for the machines dialog.
 const MachinesID = "machines"
 
-// ActionOpenMachines opens the machines dialog.
-type ActionOpenMachines struct{}
+// ActionOpenMachines opens the machines dialog, on Machine when set.
+type ActionOpenMachines struct {
+	Machine string
+}
 
 // ActionCheckMachines asks the UI to probe every machine and hand the
 // result back through SetStatuses.
@@ -100,6 +102,9 @@ type Machines struct {
 
 	cursor     int
 	confirmDel string // machine armed for removal
+	// wanted names the machine to put the cursor on once the first check
+	// lands.
+	wanted string
 
 	// mainModel names the AI the user talks to, so the screen can show
 	// it next to the machines that help it.
@@ -239,7 +244,27 @@ func (d *Machines) SetStatuses(s []fleet.Status, at time.Time) {
 	d.loaded = true
 	d.checking = false
 	d.updated = at
+	if d.wanted != "" {
+		for i, st := range s {
+			if st.Name == d.wanted {
+				d.cursor = i
+			}
+		}
+		d.wanted = ""
+	}
 	d.cursor = max(0, min(d.cursor, len(s)-1))
+}
+
+// SelectMachine puts the cursor on the named machine, now if the list is
+// loaded and otherwise when it is.
+func (d *Machines) SelectMachine(name string) {
+	if name == "" {
+		return
+	}
+	d.wanted = name
+	if d.loaded {
+		d.SetStatuses(d.statuses, d.updated)
+	}
 }
 
 // SetResult shows the outcome of a change. On success the form closes; on

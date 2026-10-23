@@ -99,6 +99,12 @@ func TestToolAddUpdateRemove(t *testing.T) {
 	require.Equal(t, 2, saved.Slots)
 	require.Equal(t, "M1 Max", saved.Hardware, "update keeps fields it wasn't given")
 
+	out, err = RunTool(ctx, store, pool, Params{Action: "update", Name: "m1", Use: "named"})
+	require.NoError(t, err)
+	require.Contains(t, out, "Updated m1")
+	require.Equal(t, config.MachineUseNamed, store.scopes[config.ScopeGlobal]["m1"].Use)
+	require.Contains(t, out, "only when asked for by name")
+
 	out, err = RunTool(ctx, store, pool, Params{Action: "check"})
 	require.NoError(t, err)
 	require.Contains(t, out, "online, 2 of 2 free")
@@ -136,6 +142,7 @@ func TestToolRejectsBadInput(t *testing.T) {
 		{Params{Action: "add", Name: "m1"}, "needs the url"},
 		{Params{Action: "add", Name: "m1", URL: "192.168.1.2:11434"}, "must start with http"},
 		{Params{Action: "add", Name: "m1", URL: "http://x", Slots: -1}, "negative"},
+		{Params{Action: "add", Name: "m1", URL: "http://x", Use: "bogus"}, "must be auto or named"},
 		{Params{Action: "update", Name: "nope"}, "no machine named"},
 		{Params{Action: "explode"}, "unknown action"},
 	} {
@@ -157,4 +164,6 @@ func TestParamsChanges(t *testing.T) {
 	}
 	require.Equal(t, "(set)", Params{APIKey: "secret"}.Redacted().APIKey)
 	require.Contains(t, DescribeChange(Params{Action: "add", Name: "m1", URL: "http://x"}), "send code to this URL")
+	require.Contains(t, DescribeChange(Params{Action: "update", Name: "m1", Use: "named"}), "used only when asked for by name")
+	require.Contains(t, DescribeChange(Params{Action: "update", Name: "m1", Use: "auto"}), "picked automatically when free")
 }

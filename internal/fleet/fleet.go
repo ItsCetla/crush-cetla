@@ -234,7 +234,8 @@ func (p *Pool) Acquire(ctx context.Context, cfg *config.Config, name string) (*L
 	}
 	var candidates []candidate
 	for _, m := range Machines(cfg) {
-		if !m.Usable() {
+		// A machine kept for named requests never takes auto work.
+		if !m.Usable() || m.UseMode() == config.MachineUseNamed {
 			continue
 		}
 		if free := p.Free(m); free > 0 {

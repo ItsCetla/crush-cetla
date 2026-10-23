@@ -20,6 +20,7 @@ const ToolDescription = `Manage the user's machines: other computers on their ne
 - add: save a new machine. Needs a name and the URL of its OpenAI-compatible model server (for Ollama that is http://<host>:11434/v1). Set slots to how many agents it can run at once, hardware to what it is (e.g. "M1 Max", "RTX 3060 Ti"), and model if the user named one.
 - update: change fields of an existing machine by name. Only the fields you pass change.
 - remove: delete a machine by name.
+Each machine has a use: auto (the default) lets agents pick it whenever it has a free slot; named keeps it for when the user or you ask for it by name. Set use to named when the user says a machine should only help on request.
 When the user describes their setup ("an M1 over here with 4 agents, a 3060 Ti with 2"), save each machine with add. Ask for a URL or IP if they didn't give one; don't guess. Machine names are short: letters, digits, - and _.`
 
 // Params are the machines tool's arguments.
@@ -36,6 +37,7 @@ type Params struct {
 	Tags          []string `json:"tags,omitempty" description:"What the machine is good at, e.g. fast or code" jsonschema:"What the machine is good at, e.g. fast or code"`
 	Role          string   `json:"role,omitempty" description:"The job the machine is assigned, e.g. code review and tests (add, update)" jsonschema:"The job the machine is assigned, e.g. code review and tests (add, update)"`
 	Notes         string   `json:"notes,omitempty" description:"Anything else worth knowing about the machine" jsonschema:"Anything else worth knowing about the machine"`
+	Use           string   `json:"use,omitempty" description:"auto: agents may pick it whenever it has a free slot; named: only when asked for by name (add, update)" jsonschema:"auto: agents may pick it whenever it has a free slot; named: only when asked for by name (add, update)"`
 	Disabled      *bool    `json:"disabled,omitempty" description:"Keep the machine saved but don't use it (add, update)" jsonschema:"Keep the machine saved but don't use it (add, update)"`
 }
 
@@ -230,6 +232,14 @@ func apply(m *config.MachineConfig, p Params) error {
 	if v := strings.TrimSpace(p.Notes); v != "" {
 		m.Notes = v
 	}
+	if v := strings.ToLower(strings.TrimSpace(p.Use)); v != "" {
+		switch v {
+		case config.MachineUseAuto, config.MachineUseNamed:
+			m.Use = v
+		default:
+			return fmt.Errorf("use %q must be auto or named", p.Use)
+		}
+	}
 	if p.Disabled != nil {
 		m.Disabled = *p.Disabled
 	}
@@ -278,6 +288,19 @@ func DescribeChange(p Params) string {
 	}
 	if p.Role != "" {
 		parts = append(parts, "role "+p.Role)
+	}
+	switch strings.ToLower(strings.TrimSpace(p.Use)) {
+	case config.MachineUseNamed:
+		parts = append(parts, "used only when asked for by name")
+	case config.MachineUseAuto:
+		parts = append(parts, "picked automatically when free")
+	}
+	if p.Disabled != nil {
+		if *p.Disabled {
+			parts = append(parts, "switched off")
+		} else {
+			parts = append(parts, "switched on")
+		}
 	}
 	verb := "Add"
 	if action == "update" {

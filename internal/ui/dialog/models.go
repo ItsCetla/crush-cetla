@@ -25,9 +25,9 @@ type ModelType int
 const (
 	ModelTypeLarge ModelType = iota
 	ModelTypeSmall
-	// ModelTypeMachines is the third tab: it opens the machines screen,
-	// where the user picks the main AI and assigns the other machines
-	// roles.
+	// ModelTypeMachines is the third tab: the user's systems and how each
+	// is used (main AI, helper, by name only or off); see
+	// models_machines.go.
 	ModelTypeMachines
 )
 
@@ -64,6 +64,8 @@ func (mt ModelType) Placeholder() string {
 		return largeModelInputPlaceholder
 	case ModelTypeSmall:
 		return smallModelInputPlaceholder
+	case ModelTypeMachines:
+		return machinesInputPlaceholder
 	default:
 		return ""
 	}
@@ -94,6 +96,8 @@ type Models struct {
 		UpDown   key.Binding
 		Select   key.Binding
 		Edit     key.Binding
+		Details  key.Binding
+		Back     key.Binding
 		Next     key.Binding
 		Previous key.Binding
 		Close    key.Binding
@@ -106,7 +110,13 @@ type Models struct {
 	localServers []discover.LocalServer
 	localPicks   map[string]localPick
 	savingLocal  bool
+
+	// The Machines tab; see models_machines.go.
+	machines machinesState
 }
+
+// modelTypeCount is how many tabs the dialog has.
+const modelTypeCount = 3
 
 var _ Dialog = (*Models)(nil)
 
@@ -146,6 +156,16 @@ func NewModels(com *common.Common, isOnboarding bool) (*Models, error) {
 	m.keyMap.Edit = key.NewBinding(
 		key.WithKeys("ctrl+e"),
 		key.WithHelp("ctrl+e", "edit"),
+	)
+	// Details and Back share keys with Edit and Close; they only change
+	// what the help says on the Machines tab.
+	m.keyMap.Details = key.NewBinding(
+		key.WithKeys("ctrl+e"),
+		key.WithHelp("ctrl+e", "details"),
+	)
+	m.keyMap.Back = key.NewBinding(
+		key.WithKeys("esc"),
+		key.WithHelp("esc", "back"),
 	)
 	m.keyMap.UpDown = key.NewBinding(
 		key.WithKeys("up", "down"),
@@ -193,6 +213,9 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.Close):
+			if m.closeMachinePicker() {
+				return nil
+			}
 			return ActionClose{}
 		case key.Matches(msg, m.keyMap.Previous):
 			m.list.Focus()
@@ -221,11 +244,14 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 				break
 			}
 
+			isEdit := key.Matches(msg, m.keyMap.Edit)
+
+			if action, ok := m.selectMachineRow(modelItem, isEdit); ok {
+				return action
+			}
 			if action, ok := m.selectLocal(modelItem); ok {
 				return action
 			}
-
-			isEdit := key.Matches(msg, m.keyMap.Edit)
 
 			return ActionSelectModel{
 				Provider:       modelItem.prov,
@@ -237,16 +263,15 @@ func (m *Models) HandleMsg(msg tea.Msg) Action {
 			if m.isOnboarding {
 				break
 			}
-			next := m.modelType + 1
+			next := (m.modelType + 1) % modelTypeCount
 			if key.Matches(msg, m.keyMap.PrevTab) {
-				next = m.modelType - 1
+				next = (m.modelType + modelTypeCount - 1) % modelTypeCount
 			}
-			if next == ModelTypeMachines || next < ModelTypeLarge {
-				// The Machines tab is its own screen; the UI closes
-				// this dialog when it opens it.
-				return ActionOpenMachines{}
+			if next == ModelTypeMachines {
+				return m.enterMachinesTab()
 			}
 			m.modelType = next
+			m.machines.picking = ""
 			if err := m.setProviderItems(); err != nil {
 				return util.ReportError(err)
 			}
@@ -276,17 +301,17 @@ func (m *Models) Cursor() *tea.Cursor {
 func (m *Models) modelTypeRadioView() string {
 	t := m.com.Styles
 	textStyle := t.Radio.Label
-	largeRadioStyle := t.Radio.Off
-	smallRadioStyle := t.Radio.Off
-	if m.modelType == ModelTypeLarge {
-		largeRadioStyle = t.Radio.On
-	} else {
-		smallRadioStyle = t.Radio.On
+	radio := func(mt ModelType) string {
+		style := t.Radio.Off
+		if m.modelType == mt {
+			style = t.Radio.On
+		}
+		return style.Padding(0, 1).Render()
 	}
 
-	largeRadio := largeRadioStyle.Padding(0, 1).Render()
-	smallRadio := smallRadioStyle.Padding(0, 1).Render()
-	machinesRadio := t.Radio.Off.Padding(0, 1).Render()
+	largeRadio := radio(ModelTypeLarge)
+	smallRadio := radio(ModelTypeSmall)
+	machinesRadio := radio(ModelTypeMachines)
 
 	return fmt.Sprintf("%s%s  %s%s  %s%s",
 		largeRadio, textStyle.Render(ModelTypeLarge.String()),
@@ -369,7 +394,14 @@ func (m *Models) ShortHelp() []key.Binding {
 		m.keyMap.Tab,
 		m.keyMap.Select,
 	}
-	if m.isSelectedConfigured() {
+	switch {
+	case m.modelType == ModelTypeMachines && m.machines.picking != "":
+		return append(h, m.keyMap.Back)
+	case m.modelType == ModelTypeMachines:
+		if m.machineRowSelected() {
+			h = append(h, m.keyMap.Details)
+		}
+	case m.isSelectedConfigured():
 		h = append(h, m.keyMap.Edit)
 	}
 	h = append(h, m.keyMap.Close)
@@ -397,6 +429,11 @@ func (m *Models) isSelectedConfigured() bool {
 
 // setProviderItems sets the provider items in the list.
 func (m *Models) setProviderItems() error {
+	if m.modelType == ModelTypeMachines {
+		m.setMachineItems()
+		return nil
+	}
+
 	t := m.com.Styles
 	cfg := m.com.Config()
 
